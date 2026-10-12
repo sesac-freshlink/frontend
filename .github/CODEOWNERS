@@ -3,8 +3,7 @@
 # 나머지(레이아웃·라우팅·공통): 김진아
 * @catapillar0505
 
-# TODO: 팀원 GitHub 아이디가 Organization에 합류하면 주석을 풀고 아이디를 넣는다.
 # 점주 재고 화면: 이태우
-# /src/owner/inventory/ @<이태우-github-id>
+/src/owner/inventory/ @h473r560nn4h473
 # 고객 주문 화면: 김경우
-# /src/customer/order/ @<김경우-github-id>
+/src/customer/order/ @casebass3-max
