@@ -79,6 +79,6 @@ npm run dev
 ## 6. 브랜치와 기여
 
 - `main`(배포) ← `dev`(통합, 기본 브랜치) ← `feat/<기능ID>-<설명>` (예: `feat/S-10-inventory-page`)
-- 화면 폴더별 담당자가 CODEOWNERS로 자동 리뷰어가 된다.
+- 화면 폴더별 담당자가 CODEOWNERS로 표시된다. 다른 사람이 그 폴더를 고치면 담당자가 리뷰어로 지정되어 알림을 받는다. 승인 없이 PR을 합칠 수 있다.
 
 자세한 규칙은 [.github 레포](https://github.com/sesac-freshlink/.github)를 참고한다.
