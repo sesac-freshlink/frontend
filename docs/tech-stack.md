@@ -45,7 +45,7 @@ member-service가 JWT를 직접 발급하던 방식에서 **Amazon Cognito**로 
 - 화면은 `src/shared/auth`의 `useAuthStore`만 쓴다. Cognito 코드는 `cognitoClient.ts` 한 파일에만 있다.
 - `.env.local`에 `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`가 없으면 **개발용 가짜 로그인**을 쓴다(`owner`로 시작하는 이메일은 점주, 나머지는 고객).
 - 지금은 ID 토큰을 보낸다. 점포 ID(`custom:storeId`)는 ID 토큰에만 들어 있기 때문이다. Gateway가 액세스 토큰으로 검증하기로 정하면 `cognitoClient.ts`의 `getToken`만 바꾼다.
-- 가입 때 고른 역할은 클라이언트가 그룹에 직접 넣을 수 없어서 `clientMetadata.role`로 넘긴다. 그룹에 넣는 일은 백엔드(가입 후 Lambda 또는 member-service)가 한다.
+- 가입 때 고른 역할은 클라이언트가 그룹에 직접 넣을 수 없어서 `clientMetadata.role`로 넘긴다. 가입 후(Post confirmation) Lambda는 `confirmSignUp`의 clientMetadata만 받으므로 `signUp`과 `confirmSignUp` **둘 다** 같은 역할을 넘긴다. 그룹에 넣는 일은 그 Lambda가 한다.
 
 ## 3. 개발·테스트
 

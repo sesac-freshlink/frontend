@@ -22,6 +22,8 @@ export interface SignUpInput {
 export interface AuthClient {
   signIn(email: string, password: string): Promise<AuthUser>
   signUp(input: SignUpInput): Promise<void>
+  /** 이메일로 받은 인증 코드 확인. 역할을 다시 넘겨야 가입 후 Lambda 가 그룹에 넣는다 */
+  confirmSignUp(email: string, code: string, role: Role): Promise<void>
   signOut(): Promise<void>
   /** 새로고침 후 저장된 세션이 있으면 사용자 정보를 돌려준다 */
   restore(): Promise<AuthUser | null>

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { createCognitoClient } from './cognitoClient'
 import { createMockClient } from './mockClient'
-import type { AuthClient, AuthUser, SignUpInput } from './types'
+import type { AuthClient, AuthUser, Role, SignUpInput } from './types'
 
 const { VITE_COGNITO_USER_POOL_ID: poolId, VITE_COGNITO_CLIENT_ID: clientId } = import.meta.env
 
@@ -17,6 +17,7 @@ interface AuthState {
   restore(): Promise<void>
   signIn(email: string, password: string): Promise<AuthUser>
   signUp(input: SignUpInput): Promise<void>
+  confirmSignUp(email: string, code: string, role: Role): Promise<void>
   signOut(): Promise<void>
 }
 
@@ -33,6 +34,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
     return user
   },
   signUp: (input) => authClient.signUp(input),
+  confirmSignUp: (email, code, role) => authClient.confirmSignUp(email, code, role),
   async signOut() {
     await authClient.signOut()
     set({ user: null })

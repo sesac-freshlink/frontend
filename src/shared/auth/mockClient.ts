@@ -21,6 +21,7 @@ export function createMockClient(): AuthClient {
       return user
     },
     async signUp() {},
+    async confirmSignUp() {},
     async signOut() {
       localStorage.removeItem(KEY)
     },

@@ -1,5 +1,5 @@
 import { Amplify } from 'aws-amplify'
-import { fetchAuthSession, signIn, signOut, signUp } from 'aws-amplify/auth'
+import { confirmSignUp, fetchAuthSession, signIn, signOut, signUp } from 'aws-amplify/auth'
 import { userFromClaims } from './claims'
 import type { AuthClient, AuthUser } from './types'
 
@@ -25,12 +25,19 @@ export function createCognitoClient(userPoolId: string, userPoolClientId: string
       return user
     },
     async signUp({ email, password, name, role }) {
-      // 역할은 Cognito 그룹이라 클라이언트가 직접 넣을 수 없다.
-      // clientMetadata 로 넘기면 가입 후 Lambda(또는 member-service)가 그룹에 넣는다.
+      // 역할은 Cognito 그룹이라 클라이언트가 직접 넣을 수 없어 clientMetadata 로 넘긴다
       await signUp({
         username: email,
         password,
         options: { userAttributes: { email, name }, clientMetadata: { role } },
+      })
+    },
+    async confirmSignUp(email, code, role) {
+      // 가입 후(Post confirmation) Lambda 는 confirmSignUp 의 clientMetadata 만 받으므로 역할을 다시 넘긴다
+      await confirmSignUp({
+        username: email,
+        confirmationCode: code,
+        options: { clientMetadata: { role } },
       })
     },
     async signOut() {
