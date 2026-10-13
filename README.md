@@ -9,6 +9,33 @@
 | 배포 | `main` 합치기 → GitHub Actions `npm run build` → S3 업로드 → CloudFront 캐시 무효화 |
 | 접속 | CloudFront 주소 하나 (화면 `/*` → S3, API `/api/*` → EKS gateway) |
 
+## 기술 스택
+
+![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
+![React](https://img.shields.io/badge/React_19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![React Router](https://img.shields.io/badge/React_Router-CA4245?logo=reactrouter&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS_v4-06B6D4?logo=tailwindcss&logoColor=white)
+![TanStack Query](https://img.shields.io/badge/TanStack_Query-FF4154?logo=reactquery&logoColor=white)
+![axios](https://img.shields.io/badge/axios-5A29E4?logo=axios&logoColor=white)
+![Zustand](https://img.shields.io/badge/Zustand-433E38)
+![Amazon Cognito](https://img.shields.io/badge/Amazon_Cognito-DD344C?logo=amazoncognito&logoColor=white)
+![MSW](https://img.shields.io/badge/MSW-FF6A33?logo=mockserviceworker&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-6E9F18?logo=vitest&logoColor=white)
+
+| 영역 | 사용 | 한 줄 이유 |
+| --- | --- | --- |
+| 빌드·언어 | Vite, React 19, TypeScript | 빌드 결과를 그대로 S3에 올리고, API·토큰 모양을 타입으로 맞춘다 |
+| 라우팅 | React Router | `/owner`·`/customer`를 한 앱에서 나누고 역할(OWNER/CUSTOMER) 가드를 건다 |
+| 스타일 | Tailwind CSS v4, lucide-react, clsx + tailwind-merge | 포스기(가로)·핸드폰(세로) 화면을 클래스만으로 빠르게 맞춘다 |
+| 서버 데이터 | TanStack Query, axios | 점주 재고 3초·주문 상세 2초 폴링, `/api` 호출과 토큰 첨부를 한 곳에서 |
+| 로그인 | Amazon Cognito (aws-amplify), Zustand | 가입·로그인·토큰 갱신은 Cognito가, 화면은 로그인한 사용자 정보만 Zustand로 본다 |
+| 폼·알림 | react-hook-form + zod, sonner, dayjs | 입력 검증, 토스트 알림, 유통기한 계산 |
+| 결제 | 토스페이먼츠 SDK | 테스트 결제(U-21, U-22) |
+| 개발·테스트 | MSW, Vitest + Testing Library, oxlint, Prettier | 백엔드 없이 가짜 API로 개발하고, 가드·핵심 로직을 테스트한다 |
+
+라이브러리별 자세한 이유, 넣지 않은 것, 실시간 재고를 SSE 대신 폴링으로 한 이유, Cognito 로그인 흐름은 [docs/tech-stack.md](docs/tech-stack.md)에 있다.
+
 ---
 
 ## 1. FreshLink는 무엇인가
