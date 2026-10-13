@@ -5,7 +5,7 @@
 | 항목 | 내용 |
 | --- | --- |
 | 담당 | 공통 (레이아웃·라우팅: 김진아, 점주 재고 화면: 이태우, 로그인·고객 주문 화면: 김경우) |
-| 기술 | React, React Router |
+| 기술 | Vite, React, TypeScript, React Router, Tailwind CSS, TanStack Query, axios, Zustand ([전체 목록과 이유](docs/tech-stack.md)) |
 | 배포 | `main` 합치기 → GitHub Actions `npm run build` → S3 업로드 → CloudFront 캐시 무효화 |
 | 접속 | CloudFront 주소 하나 (화면 `/*` → S3, API `/api/*` → EKS gateway) |
 
@@ -29,7 +29,7 @@ flowchart LR
 주의할 점:
 
 1. **새로고침:** `/owner/inventory`에서 새로고침해도 깨지지 않도록 CloudFront Function이 확장자 없는 경로를 `/index.html`로 바꿔 준다([infra](https://github.com/sesac-freshlink/infra) `frontend` 모듈).
-2. **SSE:** 점주 재고 화면은 `/api/owner/inventory/stream`에 SSE로 연결한다. 서버가 15초마다 heartbeat를 보낸다.
+2. **점주 재고:** 점주 재고 화면은 3초마다 `GET /api/owner/inventory`로 조회(폴링)한다. 고객이 결제하면 3초 안에 재고가 바뀐다. SSE는 inventory-service 파드가 2개라 Redis pub/sub가 있어야 해서 2순위로 미뤘다([이유](docs/tech-stack.md#실시간-재고는-폴링으로-한다-s-15)).
 3. **주문 상태:** 고객 주문 상세는 2초마다 `GET /api/orders/{id}`로 조회(폴링)한다.
 
 ## 3. 화면 목록
@@ -40,7 +40,7 @@ flowchart LR
 | `/customer` | 고객 홈 (점포 검색) | U-01 | 김경우 |
 | `/customer/stores/:storeId` | 점포 상품 목록 | U-10 | 이태우 |
 | `/customer/orders/:id` | 주문·결제·주문 상세 | U-21, U-22, U-31 | 김경우 |
-| `/owner/inventory` | 재고 목록 (실시간) | S-10, S-15 | 이태우 |
+| `/owner/inventory` | 재고 목록 (3초 폴링) | S-10, S-15 | 이태우 |
 | `/owner/inventory/:productId` | lot 상세 | S-11 | 이태우 |
 | `/owner/ledger` | 변동 이력 | S-13 | 이태우 |
 | `/owner/expiring` | 임박·폐기 | S-30, S-32 | 이태우 |
@@ -67,7 +67,7 @@ frontend/
 
 ## 5. 로컬에서 실행하기
 
-> 아직 뼈대만 있는 상태다. 첫 작업으로 Vite로 React 프로젝트를 만들고(`npm create vite@latest . -- --template react`) 위 구조에 맞춰 넣는다.
+> 아직 뼈대만 있는 상태다. 첫 작업으로 Vite로 React 프로젝트를 만들고(`npm create vite@latest . -- --template react-ts`) 위 구조에 맞춰 넣는다.
 
 ```bash
 npm install
