@@ -9,7 +9,7 @@
 | 문서 | 내용 |
 |------|------|
 | `README.md` | 화면 목록(3장, 기능 ID·담당), 폴더 구조(4장), 로컬 실행(5장), 브랜치(6장) |
-| `docs/tech-stack.md` | 라이브러리별 이유, 넣지 않은 것, 폴링 vs SSE, Cognito 로그인 흐름 |
+| `docs/tech-stack.md` | 라이브러리별 이유, 넣지 않은 것, 실시간 재고 폴링, Cognito 로그인 흐름 |
 | `.github/CODEOWNERS` | 폴더별 담당자 |
 | `docs/ai-agents.md` | 메모리(기억시키는 법), 서브에이전트 사용법 (사람용) |
 

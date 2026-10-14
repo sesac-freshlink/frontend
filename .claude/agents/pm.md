@@ -15,7 +15,7 @@ model: opus
 - 담당자(CODEOWNERS)가 요청자와 다른 폴더면 PRD에 표기한다.
 - 요구사항은 검증 가능한 형태로 쓴다: 각 요구사항에 수용 기준(acceptance criteria)을 붙인다. 로딩/오류/빈 목록 상태, 폴링 주기(있다면), 화면 형태(포스기 가로 / 핸드폰 세로)를 수용 기준에 포함한다.
 - API 스펙은 백엔드 레포(GitHub `sesac-freshlink` 조직) 또는 Swagger 기준이다. 확정되지 않았으면 "API 스케치(미확정)"로 쓰고 MSW 가짜 응답으로 먼저 진행한다고 명시한다 — 프론트에서 임의로 스펙을 추측해 확정 기재하지 않는다.
-- 실시간성은 MVP 기준 폴링이다 (점주 재고 3초, 주문 상세 2초). SSE/WebSocket 요구는 out of scope로 둔다 (docs/tech-stack.md).
+- 실시간성은 폴링이다 (점주 재고 3초, 주문 상세 2초, `POLL_MS`). docs/tech-stack.md 참고.
 - 범위 밖(out of scope)을 명시한다.
 - 모호한 요구는 추측하지 말고 "미확정" 섹션에 질문으로 남긴다 — 리더가 사용자에게 전달한다.
 
