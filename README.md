@@ -34,7 +34,7 @@
 | 결제 | 토스페이먼츠 SDK | 테스트 결제(U-21, U-22) |
 | 개발·테스트 | MSW, Vitest + Testing Library, oxlint, Prettier | 백엔드 없이 가짜 API로 개발하고, 가드·핵심 로직을 테스트한다 |
 
-라이브러리별 자세한 이유, 넣지 않은 것, 실시간 재고를 SSE 대신 폴링으로 한 이유, Cognito 로그인 흐름은 [docs/tech-stack.md](docs/tech-stack.md)에 있다.
+라이브러리별 자세한 이유, 넣지 않은 것, 실시간 재고 폴링, Cognito 로그인 흐름은 [docs/tech-stack.md](docs/tech-stack.md)에 있다.
 
 ---
 
@@ -56,7 +56,7 @@ flowchart LR
 주의할 점:
 
 1. **새로고침:** `/owner/inventory`에서 새로고침해도 깨지지 않도록 CloudFront Function이 확장자 없는 경로를 `/index.html`로 바꿔 준다([infra](https://github.com/sesac-freshlink/infra) `frontend` 모듈).
-2. **점주 재고:** 점주 재고 화면은 3초마다 `GET /api/owner/inventory`로 조회(폴링)한다. 고객이 결제하면 3초 안에 재고가 바뀐다. SSE는 inventory-service 파드가 2개라 Redis pub/sub가 있어야 해서 2순위로 미뤘다([이유](docs/tech-stack.md#실시간-재고는-폴링으로-한다-s-15)).
+2. **점주 재고:** 점주 재고 화면은 3초마다 `GET /api/owner/inventory`로 조회(폴링)한다. 고객이 결제하면 3초 안에 재고가 바뀐다. ([자세히](docs/tech-stack.md#실시간-재고는-폴링으로-한다-s-15))
 3. **주문 상태:** 고객 주문 상세는 2초마다 `GET /api/orders/{id}`로 조회(폴링)한다.
 
 ## 3. 화면 목록

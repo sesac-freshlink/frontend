@@ -31,7 +31,6 @@ FreshLink 화면(점주 `/owner`, 고객 `/customer`)에 쓰는 라이브러리�
 
 MVP에서 점주 재고 화면은 **3초마다 `GET /api/owner/inventory`를 다시 조회**한다. 고객이 결제하면 3초 안에 점주 화면 재고가 바뀐다.
 
-SSE를 쓰지 않는 이유: inventory-service 파드가 2개라서, 점주 브라우저가 파드 A에 연결되어 있는데 결제 쪽지를 파드 B가 처리하면 A는 재고가 바뀐 걸 모른다. 이걸 풀려면 Redis pub/sub가 필요한데 2순위 기능이다. SSE는 2순위에서 Redis와 함께 붙인다.
 
 ### 로그인은 Cognito로 한다
 
@@ -63,7 +62,6 @@ member-service가 JWT를 직접 발급하던 방식에서 **Amazon Cognito**로 
 | --- | --- |
 | Redux | 전역 상태가 로그인 정보뿐이라 Zustand로 충분하다 |
 | jwt-decode | Amplify가 토큰 payload를 바로 준다 |
-| SSE 클라이언트 | MVP는 폴링. 2순위에서 SSE로 바꿀 때 추가한다 |
 | UI 컴포넌트 키트(shadcn 등) | 화면이 나온 뒤 필요하면 추가한다 |
 | 차트·날짜 선택기 | 기획에 쓰는 화면이 없다 |
 
