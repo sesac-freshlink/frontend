@@ -12,6 +12,7 @@
 | `docs/tech-stack.md` | 라이브러리별 이유, 넣지 않은 것, 실시간 재고 폴링, Cognito 로그인 흐름 |
 | `.github/CODEOWNERS` | 폴더별 담당자 |
 | `docs/ai-agents.md` | 메모리(기억시키는 법), 서브에이전트 사용법 (사람용) |
+| `.github` 레포 `docs/주문-결제-흐름과-재고-예약.md` | **고객 주문·결제 화면(U-21, U-22, U-31) 작업 전에 먼저 읽는다.** 주문 상태별 고객 화면 문구 |
 
 이 `CLAUDE.md`는 AI 작업 규칙만 담는다. 위 문서와 겹치는 사실은 위 문서가 진실.
 
@@ -51,6 +52,7 @@ Respond like a caveman. No articles, no filler words, no pleasantries, no yappin
 ✅ API 호출: 화면 폴더 api.ts의 Query 훅으로만. Page에서 api/axios/fetch 직접 호출 금지
 ✅ API 경로: 항상 상대 경로 '/api/...' (api 인스턴스가 baseURL 붙임). 절대 URL·localhost 하드코딩 금지
 ✅ 폴링 주기: POLL_MS(@/shared/api/queryClient)에서만. 숫자 하드코딩 금지
+⛔ 고객 화면(src/customer/**)에 "예약" 문구 금지. 주문 상태 RESERVING은 "주문 확인 중" 로딩으로만 보여 준다 (재고 예약은 백엔드 내부 단계. "예약 수량"은 점주 재고 화면에서만 쓴다)
 ✅ 변경(useMutation) 후 관련 queryKey invalidateQueries
 ✅ 로그인 정보: useAuthStore만. Cognito 코드는 src/shared/auth/cognitoClient.ts 한 파일에만
 ✅ 역할 차단: RequireRole(라우트 단위). 화면 안에서 role 분기로 막지 않는다 (진짜 권한 확인은 gateway)
