@@ -1,0 +1,97 @@
+# 프론트 빌드·배포 (I-11). PR에서는 검사·빌드만, dev 브랜치에 합치면 dev 버킷에 올린다.
+# 흐름: lint → test → build(VITE_COGNITO_* 주입) → S3 sync → CloudFront 무효화 → https://<id>.cloudfront.net
+# 값은 레포 Variables에 둔다(비밀이 아니다. User Pool ID·Client ID는 어차피 빌드 결과에 들어간다).
+#   DEV_COGNITO_USER_POOL_ID, DEV_COGNITO_CLIENT_ID, DEV_FRONTEND_BUCKET, DEV_FRONTEND_DISTRIBUTION_ID, DEV_FRONTEND_DEPLOY_ROLE_ARN
+#   (infra envs/dev/persistent output. 넣는 법은 infra README 4-8)
+# main → prod 버킷은 할 일 15에서 더한다.
+name: frontend-deploy
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  id-token: write # GitHub OIDC로 배포 Role을 맡는다 (장기 AWS 키 없음)
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEPLOY: ${{ github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm test
+
+      - name: build
+        run: npm run build
+        env:
+          VITE_COGNITO_USER_POOL_ID: ${{ vars.DEV_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ vars.DEV_COGNITO_CLIENT_ID }}
+
+      - name: 배포 값 확인
+        if: env.DEPLOY == 'true'
+        env:
+          POOL: ${{ vars.DEV_COGNITO_USER_POOL_ID }}
+          CLIENT: ${{ vars.DEV_COGNITO_CLIENT_ID }}
+          BUCKET: ${{ vars.DEV_FRONTEND_BUCKET }}
+          DIST: ${{ vars.DEV_FRONTEND_DISTRIBUTION_ID }}
+          ROLE: ${{ vars.DEV_FRONTEND_DEPLOY_ROLE_ARN }}
+        run: |
+          missing=""
+          [ -n "$POOL" ]   || missing="$missing DEV_COGNITO_USER_POOL_ID"
+          [ -n "$CLIENT" ] || missing="$missing DEV_COGNITO_CLIENT_ID"
+          [ -n "$BUCKET" ] || missing="$missing DEV_FRONTEND_BUCKET"
+          [ -n "$DIST" ]   || missing="$missing DEV_FRONTEND_DISTRIBUTION_ID"
+          [ -n "$ROLE" ]   || missing="$missing DEV_FRONTEND_DEPLOY_ROLE_ARN"
+          if [ -n "$missing" ]; then
+            # Cognito 값 없이 빌드하면 가짜 로그인 화면이 올라간다. 올리지 않는다
+            echo "::error::레포 Variables가 비어 있다:$missing (infra README 4-8)"
+            exit 1
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: env.DEPLOY == 'true'
+        with:
+          role-to-assume: ${{ vars.DEV_FRONTEND_DEPLOY_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: S3에 올리기
+        if: env.DEPLOY == 'true'
+        env:
+          BUCKET: ${{ vars.DEV_FRONTEND_BUCKET }}
+        run: |
+          # 이름에 해시가 붙은 파일(assets/)은 1년 캐시, 나머지(index.html 등)는 매번 새로 확인
+          aws s3 sync dist/assets "s3://$BUCKET/assets" --delete \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 sync dist "s3://$BUCKET" --delete --exclude "assets/*" \
+            --cache-control "no-cache"
+
+      - name: CloudFront 무효화
+        if: env.DEPLOY == 'true'
+        env:
+          DIST: ${{ vars.DEV_FRONTEND_DISTRIBUTION_ID }}
+        run: |
+          id=$(aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/index.html" "/" \
+            --query Invalidation.Id --output text)
+          echo "무효화 ${id}"
+          url=$(aws cloudfront get-distribution --id "$DIST" --query Distribution.DomainName --output text 2>/dev/null || true)
+          echo "### dev 배포: https://${url:-<CloudFront 주소>} (커밋 ${GITHUB_SHA::7})" >> "$GITHUB_STEP_SUMMARY"

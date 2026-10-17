@@ -6,7 +6,7 @@
 | --- | --- |
 | 담당 | 공통 (레이아웃·라우팅: 김진아, 점주 재고 화면: 이태우, 로그인·고객 주문 화면: 김경우) |
 | 기술 | Vite, React, TypeScript, React Router, Tailwind CSS, TanStack Query, axios, Zustand, Amazon Cognito(aws-amplify) ([전체 목록과 이유](docs/tech-stack.md)) |
-| 배포 | `main` 합치기 → GitHub Actions `npm run build` → S3 업로드 → CloudFront 캐시 무효화 |
+| 배포 | `dev` 합치기 → GitHub Actions `frontend-deploy` (lint·test·build) → dev S3 업로드 → CloudFront 캐시 무효화. `main` → prod는 할 일 15에서 더한다 |
 | 접속 | CloudFront 주소 하나 (화면 `/*` → S3, API `/api/*` → EKS gateway) |
 
 ## 기술 스택
@@ -46,12 +46,14 @@
 
 ```mermaid
 flowchart LR
-    U["점주 · 고객"] --> CF["CloudFront<br/>HTTPS (ACM)"]
+    U["점주 · 고객"] --> CF["CloudFront<br/>HTTPS (기본 주소 *.cloudfront.net)"]
     CF -- "/* 화면" --> S3[("S3 비공개 버킷<br/>OAC")]
     CF -- "/api/*" --> ALB["ALB"] --> GW["gateway (EKS)"]
 ```
 
 화면과 API를 **같은 CloudFront 주소**로 묶었기 때문에 **CORS 설정이 필요 없다.** 프론트에서는 API를 항상 상대 경로 `/api/...`로 부른다.
+
+dev 주소는 infra `envs/dev/persistent`의 `frontend_url` 출력값이다. PR에서는 `frontend-deploy`가 검사·빌드만 하고, `dev`에 합쳐질 때 올린다. 빌드에 넣는 Cognito 값과 버킷·배포 ID·Role은 레포 Variables(`DEV_*`)에 있다(넣는 법: infra README 4-8).
 
 주의할 점:
 
