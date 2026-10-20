@@ -21,6 +21,12 @@ permissions:
   contents: read
   id-token: write # GitHub OIDC로 배포 Role을 맡는다 (장기 AWS 키 없음)
 
+# 토스 결제위젯 클라이언트 키(test_gck_...). 공개돼도 되는 값이라 레포 Variables에 둔다(DEV_TOSS_CLIENT_KEY, PROD_TOSS_CLIENT_KEY).
+# infra scripts/set-toss-key.ps1이 Secrets Manager에 키를 넣으면서 같이 넣는다. 시크릿 키(gsk)는 여기 두지 않는다(order-service만 쓴다)
+# 없어도 빌드·배포는 된다(결제 화면만 동작하지 않는다). main 배포만 PROD_ 값을 쓴다
+env:
+  VITE_TOSS_CLIENT_KEY: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_TOSS_CLIENT_KEY || vars.DEV_TOSS_CLIENT_KEY }}
+
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
