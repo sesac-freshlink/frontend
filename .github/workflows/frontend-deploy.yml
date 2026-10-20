@@ -1,14 +1,14 @@
-# 프론트 빌드·배포 (I-11). PR에서는 검사·빌드만, dev 브랜치에 합치면 dev 버킷에 올린다.
+# 프론트 빌드·배포 (I-11, 할 일 15). PR에서는 검사·빌드만, dev 브랜치에 합치면 dev 버킷, main에 합치면 prod 버킷에 올린다.
 # 흐름: lint → test → build(VITE_COGNITO_* 주입) → S3 sync → CloudFront 무효화 → https://<id>.cloudfront.net
-# 값은 레포 Variables에 둔다(비밀이 아니다. User Pool ID·Client ID는 어차피 빌드 결과에 들어간다).
-#   DEV_COGNITO_USER_POOL_ID, DEV_COGNITO_CLIENT_ID, DEV_FRONTEND_BUCKET, DEV_FRONTEND_DISTRIBUTION_ID, DEV_FRONTEND_DEPLOY_ROLE_ARN
-#   (infra envs/dev/persistent output. 넣는 법은 infra README 4-8)
-# main → prod 버킷은 할 일 15에서 더한다.
+# 값은 레포 Variables에 둔다(비밀이 아니다. User Pool ID·Client ID는 어차피 빌드 결과에 들어간다). 환경마다 앞에 DEV_·PROD_가 붙는다.
+#   <ENV>_COGNITO_USER_POOL_ID, <ENV>_COGNITO_CLIENT_ID, <ENV>_FRONTEND_BUCKET, <ENV>_FRONTEND_DISTRIBUTION_ID, <ENV>_FRONTEND_DEPLOY_ROLE_ARN
+#   (infra envs/<env>/persistent output. infra scripts/set-github-values.ps1 -Env <env>이 넣는다. infra README 4-8·4-12)
+# prod는 Cognito가 dev와 달라 빌드 결과도 다르다(같은 코드를 prod 값으로 다시 빌드한다).
 name: frontend-deploy
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, main]
   pull_request:
     branches: [dev, main]
   workflow_dispatch:
@@ -32,7 +32,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      DEPLOY: ${{ github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' }}
+      DEPLOY: ${{ (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') && github.event_name != 'pull_request' }}
+      # main → prod, 그 밖(dev, PR) → dev 값. main으로 가는 PR도 dev 값으로 검사 빌드만 한다
+      TARGET: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'PROD' || 'DEV' }}
+      COGNITO_USER_POOL_ID: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_COGNITO_USER_POOL_ID || vars.DEV_COGNITO_USER_POOL_ID }}
+      COGNITO_CLIENT_ID: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_COGNITO_CLIENT_ID || vars.DEV_COGNITO_CLIENT_ID }}
+      FRONTEND_BUCKET: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_FRONTEND_BUCKET || vars.DEV_FRONTEND_BUCKET }}
+      FRONTEND_DISTRIBUTION_ID: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_FRONTEND_DISTRIBUTION_ID || vars.DEV_FRONTEND_DISTRIBUTION_ID }}
+      FRONTEND_DEPLOY_ROLE_ARN: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_FRONTEND_DEPLOY_ROLE_ARN || vars.DEV_FRONTEND_DEPLOY_ROLE_ARN }}
     steps:
       - uses: actions/checkout@v7
 
@@ -50,40 +57,36 @@ jobs:
       - name: build
         run: npm run build
         env:
-          VITE_COGNITO_USER_POOL_ID: ${{ vars.DEV_COGNITO_USER_POOL_ID }}
-          VITE_COGNITO_CLIENT_ID: ${{ vars.DEV_COGNITO_CLIENT_ID }}
+          VITE_COGNITO_USER_POOL_ID: ${{ env.COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ env.COGNITO_CLIENT_ID }}
 
+      # main 배포인데 PROD_ 값이 없으면 위 식이 DEV_ 값으로 넘어간다. dev 값으로 만든 화면이 prod 버킷에 올라가지 않게
+      # 그 환경 이름이 붙은 Variables를 직접 다시 확인한다.
       - name: 배포 값 확인
         if: env.DEPLOY == 'true'
         env:
-          POOL: ${{ vars.DEV_COGNITO_USER_POOL_ID }}
-          CLIENT: ${{ vars.DEV_COGNITO_CLIENT_ID }}
-          BUCKET: ${{ vars.DEV_FRONTEND_BUCKET }}
-          DIST: ${{ vars.DEV_FRONTEND_DISTRIBUTION_ID }}
-          ROLE: ${{ vars.DEV_FRONTEND_DEPLOY_ROLE_ARN }}
+          VARS: ${{ toJSON(vars) }}
         run: |
           missing=""
-          [ -n "$POOL" ]   || missing="$missing DEV_COGNITO_USER_POOL_ID"
-          [ -n "$CLIENT" ] || missing="$missing DEV_COGNITO_CLIENT_ID"
-          [ -n "$BUCKET" ] || missing="$missing DEV_FRONTEND_BUCKET"
-          [ -n "$DIST" ]   || missing="$missing DEV_FRONTEND_DISTRIBUTION_ID"
-          [ -n "$ROLE" ]   || missing="$missing DEV_FRONTEND_DEPLOY_ROLE_ARN"
+          for k in COGNITO_USER_POOL_ID COGNITO_CLIENT_ID FRONTEND_BUCKET FRONTEND_DISTRIBUTION_ID FRONTEND_DEPLOY_ROLE_ARN; do
+            [ -n "$(echo "$VARS" | jq -r --arg k "${TARGET}_${k}" '.[$k] // empty')" ] || missing="$missing ${TARGET}_${k}"
+          done
           if [ -n "$missing" ]; then
             # Cognito 값 없이 빌드하면 가짜 로그인 화면이 올라간다. 올리지 않는다
-            echo "::error::레포 Variables가 비어 있다:$missing (infra README 4-8)"
+            echo "::error::레포 Variables가 비어 있다:$missing (infra README 4-8·4-12)"
             exit 1
           fi
 
       - uses: aws-actions/configure-aws-credentials@v6
         if: env.DEPLOY == 'true'
         with:
-          role-to-assume: ${{ vars.DEV_FRONTEND_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ env.FRONTEND_DEPLOY_ROLE_ARN }}
           aws-region: ap-northeast-2
 
       - name: S3에 올리기
         if: env.DEPLOY == 'true'
         env:
-          BUCKET: ${{ vars.DEV_FRONTEND_BUCKET }}
+          BUCKET: ${{ env.FRONTEND_BUCKET }}
         run: |
           # 이름에 해시가 붙은 파일(assets/)은 1년 캐시, 나머지(index.html 등)는 매번 새로 확인
           aws s3 sync dist/assets "s3://$BUCKET/assets" --delete \
@@ -94,10 +97,10 @@ jobs:
       - name: CloudFront 무효화
         if: env.DEPLOY == 'true'
         env:
-          DIST: ${{ vars.DEV_FRONTEND_DISTRIBUTION_ID }}
+          DIST: ${{ env.FRONTEND_DISTRIBUTION_ID }}
         run: |
           id=$(aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/index.html" "/" \
             --query Invalidation.Id --output text)
           echo "무효화 ${id}"
           url=$(aws cloudfront get-distribution --id "$DIST" --query Distribution.DomainName --output text 2>/dev/null || true)
-          echo "### dev 배포: https://${url:-<CloudFront 주소>} (커밋 ${GITHUB_SHA::7})" >> "$GITHUB_STEP_SUMMARY"
+          echo "### ${TARGET,,} 배포: https://${url:-<CloudFront 주소>} (커밋 ${GITHUB_SHA::7})" >> "$GITHUB_STEP_SUMMARY"
