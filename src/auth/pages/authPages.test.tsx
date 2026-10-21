@@ -122,7 +122,6 @@ describe('회원가입 (C-01)', () => {
     expect(signUp).toHaveBeenCalledWith({
       email: 'kim@test.com',
       password: 'Abcd123!',
-      name: '김경우',
       role: 'CUSTOMER',
     })
     await userEvent.type(await screen.findByLabelText('인증 코드'), '123456')

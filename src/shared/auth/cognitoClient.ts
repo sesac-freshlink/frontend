@@ -24,12 +24,13 @@ export function createCognitoClient(userPoolId: string, userPoolClientId: string
       if (!user) throw new Error('계정에 역할(OWNER/CUSTOMER)이 지정되지 않았습니다')
       return user
     },
-    async signUp({ email, password, name, role }) {
+    async signUp({ email, password, role }) {
+      // Cognito 에는 계정(이메일)만 둔다. 이름은 가입 뒤 member-service(POST /members/me)에 저장한다
       // 역할은 Cognito 그룹이라 클라이언트가 직접 넣을 수 없어 clientMetadata 로 넘긴다
       await signUp({
         username: email,
         password,
-        options: { userAttributes: { email, name }, clientMetadata: { role } },
+        options: { userAttributes: { email }, clientMetadata: { role } },
       })
     },
     async confirmSignUp(email, code, role) {
