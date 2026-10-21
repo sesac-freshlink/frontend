@@ -94,7 +94,6 @@ export function useSignupFlow(): UseSignupFlowReturn {
         await signUp({
           email: values.email,
           password: values.password,
-          name: values.name,
           role: 'CUSTOMER',
         })
       } catch (e) {
