@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import type { InventoryItem } from '@/owner/inventory/api'
 import { memberHandlers } from './memberHandlers'
+import { orderHandlers } from './orderHandlers'
 
 /**
  * 백엔드가 나오기 전까지 쓰는 가짜 API. 실제 API 명세(Swagger)가 나오면 응답 모양을 맞춘다.
@@ -33,4 +34,5 @@ const inventory: InventoryItem[] = [
 export const handlers = [
   http.get('/api/owner/inventory', () => HttpResponse.json(inventory)),
   ...memberHandlers,
+  ...orderHandlers,
 ]
