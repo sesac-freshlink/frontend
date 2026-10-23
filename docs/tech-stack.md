@@ -1,6 +1,6 @@
 # 프론트엔드 기술 스택
 
-FreshLink 화면(점주 `/owner`, 고객 `/customer`)에 쓰는 라이브러리와 고른 이유를 정리한다. 새 라이브러리를 넣을 때는 이 표에 한 줄 추가한다.
+FreshLink 화면(점주 `/owner`, 고객 `/customer`, 관리자 `/admin`)에 쓰는 라이브러리와 고른 이유를 정리한다. 새 라이브러리를 넣을 때는 이 표에 한 줄 추가한다.
 
 ## 1. 기본
 
@@ -9,7 +9,7 @@ FreshLink 화면(점주 `/owner`, 고객 `/customer`)에 쓰는 라이브러리�
 | 빌드 | Vite | 개발 서버가 빠르고, `npm run build` 결과(HTML·JS·CSS)를 그대로 S3에 올리면 된다 |
 | 언어 | TypeScript | JWT의 `role`·`storeId`, API 응답 모양을 타입으로 맞춰 세 명이 화면을 나눠 붙일 때 실수를 줄인다 |
 | UI | React 19 | 기획안 3-4 기술 스택 |
-| 라우팅 | react-router v8 | `/owner`·`/customer`를 한 앱에서 나누고, 역할(OWNER/CUSTOMER) 가드를 레이아웃 단위로 건다 |
+| 라우팅 | react-router v8 | `/owner`·`/customer`·`/admin`을 한 앱에서 나누고, 역할(OWNER/CUSTOMER/ADMIN) 가드를 레이아웃 단위로 건다 |
 | 스타일 | Tailwind CSS v4 | 클래스만으로 포스기(가로)·핸드폰(세로) 반응형을 빠르게 맞추고, CSS 파일끼리 충돌하지 않는다 |
 | 클래스 정리 | clsx + tailwind-merge | 조건부 클래스를 합칠 때 충돌 없이 합친다. `cn()` 헬퍼 하나로 쓴다 |
 | 아이콘 | lucide-react | 점주 사이드 메뉴, 고객 하단 탭 아이콘 |
@@ -37,12 +37,12 @@ MVP에서 점주 재고 화면은 **3초마다 `GET /api/owner/inventory`를 다
 member-service가 JWT를 직접 발급하던 방식에서 **Amazon Cognito**로 바꿨다(2026-10-13 결정). 프론트 쪽 동작은 아래와 같다.
 
 1. 로그인 화면에서 `signIn(이메일, 비밀번호)`를 부르면 Amplify가 Cognito와 통신해 토큰을 받고 localStorage에 둔다.
-2. ID 토큰의 `cognito:groups`(OWNER/CUSTOMER)로 역할을, `custom:storeId`로 점포를 꺼낸다(`src/shared/auth/claims.ts`).
+2. ID 토큰의 `cognito:groups`(OWNER/CUSTOMER/ADMIN)로 역할을, `custom:storeId`로 점포를 꺼낸다(`src/shared/auth/claims.ts`).
 3. axios가 API를 부를 때마다 `fetchAuthSession()`으로 토큰을 받아 `Authorization: Bearer`에 넣는다. 만료가 가까우면 Amplify가 알아서 갱신한다.
 4. Gateway는 Cognito 공개키(JWKS)로 토큰을 검증한다. 프론트는 서명을 검증하지 않는다.
 
 - 화면은 `src/shared/auth`의 `useAuthStore`만 쓴다. Cognito 코드는 `cognitoClient.ts` 한 파일에만 있다.
-- `.env.local`에 `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`가 없으면 **개발용 가짜 로그인**을 쓴다(`owner`로 시작하는 이메일은 점주, 나머지는 고객).
+- `.env.local`에 `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`가 없으면 **개발용 가짜 로그인**을 쓴다(`admin`으로 시작하는 이메일은 관리자, `owner`로 시작하는 이메일은 점주, 나머지는 고객).
 - 지금은 ID 토큰을 보낸다. 점포 ID(`custom:storeId`)는 ID 토큰에만 들어 있기 때문이다. Gateway가 액세스 토큰으로 검증하기로 정하면 `cognitoClient.ts`의 `getToken`만 바꾼다.
 - 가입 때 고른 역할은 클라이언트가 그룹에 직접 넣을 수 없어서 `clientMetadata.role`로 넘긴다. 가입 후(Post confirmation) Lambda는 `confirmSignUp`의 clientMetadata만 받으므로 `signUp`과 `confirmSignUp` **둘 다** 같은 역할을 넘긴다. 그룹에 넣는 일은 그 Lambda가 한다.
 
