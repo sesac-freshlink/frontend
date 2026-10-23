@@ -35,3 +35,24 @@ export function useStores({ region, keyword }: StoreSearchParams) {
     placeholderData: keepPreviousData,
   })
 }
+
+/** U-10 응답 한 줄. 고객용이라 "예약" 관련 필드는 없고 구매 가능 수량만 온다 */
+export interface StoreProduct {
+  productId: number
+  name: string
+  category: string
+  price: number
+  availableQuantity: number
+  soldOut: boolean
+}
+
+/**
+ * U-10 점포 상품 목록 (inventory-service, 로그인 없이도 된다). 상품 30개 전부, 상품명순.
+ * 폴링하지 않고 화면에 들어올 때와 새로고침 때만 읽는다. 살 수 있는지는 주문 때 서버가 최종 판정한다
+ */
+export function useStoreProducts(storeId: number) {
+  return useQuery({
+    queryKey: ['customer', 'stores', storeId, 'products'],
+    queryFn: async () => (await api.get<StoreProduct[]>(`/stores/${storeId}/products`)).data,
+  })
+}
