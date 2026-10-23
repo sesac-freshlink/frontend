@@ -74,6 +74,8 @@ dev 주소는 infra `envs/dev/persistent`의 `frontend_url` 출력값이다. PR�
 | `/owner/ledger` | 변동 이력 | S-13 | 이태우 |
 | `/owner/expiring` | 임박·폐기 | S-30, S-32 | 이태우 |
 | `/owner/orders` | 신규 주문 목록 | S-50 | 김경우 |
+| `/admin/stores` | 관리자 점포 목록·수정 | A-02 | 김경우 |
+| `/admin/stores/new` | 점포·점주 등록 | A-01 | 김경우 |
 
 ## 4. 폴더 구조
 
@@ -88,6 +90,8 @@ frontend/
     │   └── ui/         # 공통 컴포넌트
     ├── mocks/          # MSW 가짜 API (화면 담당자가 각자 핸들러 추가)
     ├── auth/           # 로그인·가입 (김경우)
+    ├── admin/
+    │   └── stores/     # 관리자 점포 목록·등록 (김경우)
     ├── owner/
     │   ├── inventory/  # 재고·lot·이력·임박·폐기 (이태우)
     │   └── orders/     # 신규 주문 목록 (김경우)
@@ -98,7 +102,7 @@ frontend/
 
 화면 폴더 안은 `pages/`(화면)와 `api.ts`(그 화면의 Query 훅)로 나눈다. import는 `@/` 별칭을 쓴다.
 
-**로그인**은 Amazon Cognito로 한다. Amplify가 토큰을 localStorage에 두고 만료 전에 갱신하며, 역할은 토큰의 `cognito:groups`(OWNER/CUSTOMER), 점포는 `custom:storeId`에서 꺼낸다. `/owner`·`/customer`는 역할 가드가 막고, 진짜 권한 확인은 gateway가 한다. 자세한 흐름은 [기술 스택](docs/tech-stack.md#로그인은-cognito로-한다).
+**로그인**은 Amazon Cognito로 한다. Amplify가 토큰을 localStorage에 두고 만료 전에 갱신하며, 역할은 토큰의 `cognito:groups`(OWNER/CUSTOMER/ADMIN), 점포는 `custom:storeId`에서 꺼낸다. `/owner`·`/customer`·`/admin`은 역할 가드가 막고, 진짜 권한 확인은 gateway가 한다. 자세한 흐름은 [기술 스택](docs/tech-stack.md#로그인은-cognito로-한다).
 
 ## 5. 로컬에서 실행하기
 
@@ -109,7 +113,7 @@ npm run dev
 
 - **가짜 API(MSW):** 개발 서버에서는 기본으로 MSW가 `/api` 요청을 가로채 가짜 응답을 준다. 백엔드 없이 화면을 만들 수 있다. 가짜 응답은 `src/mocks/handlers.ts`에 추가한다.
 - **실제 gateway:** `.env.local`에 `VITE_API_MOCK=false`를 두면 MSW를 끄고, Vite proxy가 `/api`를 로컬 gateway(`http://localhost:8080`)로 넘긴다. 운영과 똑같이 상대 경로로 부른다.
-- **로그인:** `.env.local`에 Cognito 값(`VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`)이 없으면 개발용 가짜 로그인을 쓴다. `owner`로 시작하는 이메일은 점주, 나머지는 고객으로 들어가고 비밀번호는 아무거나 된다. 설정 예시는 [.env.example](.env.example).
+- **로그인:** `.env.local`에 Cognito 값(`VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`)이 없으면 개발용 가짜 로그인을 쓴다. `admin`으로 시작하는 이메일은 관리자, `owner`로 시작하는 이메일은 점주, 나머지는 고객으로 들어가고 비밀번호는 아무거나 된다. 설정 예시는 [.env.example](.env.example).
 
 | 명령 | 하는 일 |
 | --- | --- |

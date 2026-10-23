@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import type { StoreProduct } from '@/customer/stores/api'
 import type { InventoryItem, InventoryLotItem } from '@/owner/inventory/api'
+import { adminHandlers } from './adminHandlers'
 import { memberHandlers } from './memberHandlers'
 import { orderHandlers } from './orderHandlers'
 
@@ -148,6 +149,7 @@ export const handlers = [
     }
     return HttpResponse.json(found)
   }),
+  ...adminHandlers,
   ...memberHandlers,
   ...orderHandlers,
 ]

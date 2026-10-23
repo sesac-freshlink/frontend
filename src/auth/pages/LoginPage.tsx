@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import { homePathFor, isMockAuth, useAuthStore } from '@/shared/auth'
+import { homePathFor, isMockAuth, useAuthStore, type Role } from '@/shared/auth'
 import { useLoadMyProfile } from '../api'
 import { isUnconfirmedSignIn, signInErrorMessage } from '../authErrors'
 import type { SignupLocationState } from '../useSignupFlow'
@@ -13,6 +13,9 @@ const schema = z.object({
   password: z.string().min(1, '비밀번호를 입력하세요'),
 })
 type Form = z.infer<typeof schema>
+
+/** 로그인 전에 보던 화면이 이 영역 안이면 그리로 돌려보낸다 */
+const AREA: Record<Role, string> = { OWNER: '/owner', CUSTOMER: '/customer', ADMIN: '/admin' }
 
 /** C-02 로그인 (기능명세 M2). 프로필이 없는 고객은 프로필 등록 마무리 화면으로 보낸다 */
 export function LoginPage() {
@@ -49,8 +52,8 @@ export function LoginPage() {
         return
       }
     }
-    // 로그인 전에 보던 화면이 자기 영역(/owner, /customer)이면 그리로 돌려보낸다
-    const area = signedIn.role === 'OWNER' ? '/owner' : '/customer'
+    // 로그인 전에 보던 화면이 자기 영역(/owner, /customer, /admin)이면 그리로 돌려보낸다
+    const area = AREA[signedIn.role]
     navigate(from?.startsWith(area) ? from : homePathFor(signedIn.role), { replace: true })
   })
 
@@ -86,7 +89,8 @@ export function LoginPage() {
       </form>
       {isMockAuth && (
         <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-          개발용 가짜 로그인: owner 로 시작하는 이메일은 점주, 나머지는 고객으로 들어갑니다.
+          개발용 가짜 로그인: admin 으로 시작하는 이메일은 관리자, owner 로 시작하는 이메일은 점주,
+          나머지는 고객으로 들어갑니다.
         </p>
       )}
       <Link to="/signup" className="text-center text-sm text-slate-500 underline">

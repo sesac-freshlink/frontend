@@ -1,6 +1,7 @@
 import type { AuthUser, Role } from './types'
 
-const ROLES: Role[] = ['OWNER', 'CUSTOMER']
+/** 그룹이 여러 개면 앞쪽 역할을 쓴다: ADMIN > OWNER > CUSTOMER */
+const ROLES: Role[] = ['ADMIN', 'OWNER', 'CUSTOMER']
 
 /**
  * Cognito ID 토큰 payload 에서 사용자 정보를 꺼낸다.
@@ -23,6 +24,13 @@ export function userFromClaims(claims: Record<string, unknown>): AuthUser | null
   }
 }
 
+/** 역할별 로그인 후 첫 화면 */
+const HOME_PATH: Record<Role, string> = {
+  OWNER: '/owner/inventory',
+  CUSTOMER: '/customer',
+  ADMIN: '/admin/stores',
+}
+
 export function homePathFor(role: Role): string {
-  return role === 'OWNER' ? '/owner/inventory' : '/customer'
+  return HOME_PATH[role]
 }

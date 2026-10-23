@@ -1,4 +1,6 @@
 import type { RouteObject } from 'react-router'
+import { AdminStoresPage } from '@/admin/stores/pages/AdminStoresPage'
+import { StoreRegisterPage } from '@/admin/stores/pages/StoreRegisterPage'
 import { LoginPage } from '@/auth/pages/LoginPage'
 import { SignupPage } from '@/auth/pages/SignupPage'
 import { OrderDetailPage } from '@/customer/order/pages/OrderDetailPage'
@@ -9,6 +11,7 @@ import { InventoryPage } from '@/owner/inventory/pages/InventoryPage'
 import { LedgerPage } from '@/owner/inventory/pages/LedgerPage'
 import { LotDetailPage } from '@/owner/inventory/pages/LotDetailPage'
 import { OwnerOrdersPage } from '@/owner/orders/pages/OwnerOrdersPage'
+import { AdminLayout } from './layouts/AdminLayout'
 import { CustomerLayout } from './layouts/CustomerLayout'
 import { OwnerLayout } from './layouts/OwnerLayout'
 import { RequireRole, RootRedirect } from './RequireRole'
@@ -45,6 +48,20 @@ export const routes: RouteObject[] = [
           { index: true, element: <CustomerHomePage /> },
           { path: 'stores/:storeId', element: <StoreProductsPage /> },
           { path: 'orders/:id', element: <OrderDetailPage /> },
+        ],
+      },
+    ],
+  },
+  {
+    path: '/admin',
+    element: <RequireRole role="ADMIN" />,
+    children: [
+      {
+        element: <AdminLayout />,
+        children: [
+          { index: true, element: <RootRedirect /> },
+          { path: 'stores', element: <AdminStoresPage /> },
+          { path: 'stores/new', element: <StoreRegisterPage /> },
         ],
       },
     ],

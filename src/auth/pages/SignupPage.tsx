@@ -25,7 +25,8 @@ export function SignupPage() {
   const user = useAuthStore((s) => s.user)
   const flow = useSignupFlow()
 
-  if (user?.role === 'OWNER') return <Navigate to={homePathFor(user.role)} replace />
+  // 고객 가입 화면이라 점주·관리자는 자기 홈으로 보낸다
+  if (user && user.role !== 'CUSTOMER') return <Navigate to={homePathFor(user.role)} replace />
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-6">
