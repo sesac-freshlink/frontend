@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw'
+import type { StoreProduct } from '@/customer/stores/api'
 import type { InventoryItem, InventoryLotItem } from '@/owner/inventory/api'
 import { memberHandlers } from './memberHandlers'
 import { orderHandlers } from './orderHandlers'
@@ -90,7 +91,52 @@ const lots: Record<number, InventoryLotItem[]> = {
   3: [],
 }
 
+/** U-10 점포 상품. 점포마다 같은 목록을 준다. 상품 1~3 은 orderHandlers 의 상품과 같아 가짜 주문까지 이어진다 */
+const storeProducts: StoreProduct[] = [
+  {
+    productId: 2,
+    name: '바나나우유',
+    category: '유제품',
+    price: 1700,
+    availableQuantity: 10,
+    soldOut: false,
+  },
+  {
+    productId: 1,
+    name: '삼각김밥 참치마요',
+    category: '김밥',
+    price: 1500,
+    availableQuantity: 19,
+    soldOut: false,
+  },
+  {
+    productId: 3,
+    name: '샌드위치 햄치즈',
+    category: '샌드위치',
+    price: 3200,
+    availableQuantity: 3,
+    soldOut: false,
+  },
+  {
+    productId: 4,
+    name: '아메리카노 캔 240ml',
+    category: '음료',
+    price: 1200,
+    availableQuantity: 0,
+    soldOut: true,
+  },
+  {
+    productId: 5,
+    name: '초코빵',
+    category: '빵',
+    price: 1800,
+    availableQuantity: 0,
+    soldOut: true,
+  },
+]
+
 export const handlers = [
+  http.get('/api/stores/:storeId/products', () => HttpResponse.json(storeProducts)),
   http.get('/api/owner/inventory', () => HttpResponse.json(inventory)),
   http.get('/api/owner/inventory/:productId/lots', ({ params }) => {
     const found = lots[Number(params.productId)]
