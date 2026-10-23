@@ -7,3 +7,5 @@
 /src/owner/inventory/ @h473r560nn4h473
 # 고객 주문 화면: 김경우
 /src/customer/order/ @casebass3-max
+# 관리자 점포 화면: 김경우
+/src/admin/ @casebass3-max

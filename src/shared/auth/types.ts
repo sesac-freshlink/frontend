@@ -1,4 +1,4 @@
-export type Role = 'OWNER' | 'CUSTOMER'
+export type Role = 'OWNER' | 'CUSTOMER' | 'ADMIN'
 
 export interface AuthUser {
   /** Cognito 사용자 ID (sub) */

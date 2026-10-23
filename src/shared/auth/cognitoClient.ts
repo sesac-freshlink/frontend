@@ -21,7 +21,7 @@ export function createCognitoClient(userPoolId: string, userPoolClientId: string
         throw new Error(`추가 단계가 필요합니다: ${result.nextStep.signInStep}`)
       }
       const user = await currentUser()
-      if (!user) throw new Error('계정에 역할(OWNER/CUSTOMER)이 지정되지 않았습니다')
+      if (!user) throw new Error('계정에 역할(OWNER/CUSTOMER/ADMIN)이 지정되지 않았습니다')
       return user
     },
     async signUp({ email, password, role }) {
