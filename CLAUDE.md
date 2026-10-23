@@ -1,6 +1,6 @@
 # Frontend - AI 작업 가이드
 
-> FreshLink Frontend — 점주(`/owner`, 매장 포스기)·고객(`/customer`, 핸드폰) 화면을 한 React 앱에 담는다. (React 19 + TypeScript + Vite)
+> FreshLink Frontend — 점주(`/owner`, 매장 포스기)·고객(`/customer`, 핸드폰)·관리자(`/admin`) 화면을 한 React 앱에 담는다. (React 19 + TypeScript + Vite)
 
 ---
 
@@ -84,9 +84,10 @@ Respond like a caveman. No articles, no filler words, no pleasantries, no yappin
 | `/login`, `/signup` | 공개 | 없음 | 로그인·가입 (C-01, C-02) |
 | `/owner/*` | OWNER | `OwnerLayout` | 점주. 포스기. `user.storeId` 있음 |
 | `/customer/*` | CUSTOMER | `CustomerLayout` | 고객. 핸드폰 |
+| `/admin/*` | ADMIN | `AdminLayout` | 관리자. 점포 목록·수정, 점포·점주 등록 (A-01, A-02) |
 
 - 라우트 정의: `src/app/routes.tsx` 한 곳. **화면 추가 시 `routes.tsx`와 README 3장 화면 목록을 함께 고친다.**
-- 점주 메뉴 추가 시 `OwnerLayout.tsx`의 `MENU`도 고친다.
+- 점주 메뉴 추가 시 `OwnerLayout.tsx`의 `MENU`, 관리자 메뉴 추가 시 `AdminLayout.tsx`의 `MENU`도 고친다.
 - 역할은 Cognito ID 토큰 `cognito:groups`, 점포는 `custom:storeId` (`src/shared/auth/claims.ts`).
 
 ---
@@ -106,9 +107,11 @@ src/
 ├── owner/
 │   ├── inventory/  # 재고·lot·이력·임박·폐기 (이태우)
 │   └── orders/     # 신규 주문 (김경우)
-└── customer/
-    ├── stores/     # 점포 검색·상품 목록
-    └── order/      # 주문·결제·주문 상세 (김경우)
+├── customer/
+│   ├── stores/     # 점포 검색·상품 목록
+│   └── order/      # 주문·결제·주문 상세 (김경우)
+└── admin/
+    └── stores/     # 관리자 점포 목록·수정·점포 등록 (김경우)
 ```
 
 화면 폴더(`{area}/{feature}/`) 안은 `api.ts`(타입 + Query 훅) + `pages/`(화면)로 나눈다.
@@ -182,7 +185,7 @@ npm run format:check   # prettier
 npm run build          # tsc -b && vite build
 ```
 
-- 가짜 로그인: `owner`로 시작하는 이메일 = 점주, 나머지 = 고객, 비밀번호 아무거나.
+- 가짜 로그인: `admin`으로 시작하는 이메일 = 관리자, `owner`로 시작하는 이메일 = 점주, 나머지 = 고객, 비밀번호 아무거나.
 - 실제 gateway: `.env.local`에 `VITE_API_MOCK=false` → Vite proxy가 `/api`를 `localhost:8080`으로.
 
 ---
