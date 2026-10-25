@@ -1,6 +1,14 @@
 import { http, HttpResponse } from 'msw'
 import type { StoreProduct } from '@/customer/stores/api'
-import type { InventoryItem, InventoryLotItem, LedgerItem, LedgerType } from '@/owner/inventory/api'
+import type {
+  DisposeRequest,
+  DisposeResponse,
+  ExpiringLot,
+  InventoryItem,
+  InventoryLotItem,
+  LedgerItem,
+  LedgerType,
+} from '@/owner/inventory/api'
 import { adminHandlers } from './adminHandlers'
 import { memberHandlers } from './memberHandlers'
 import { orderHandlers } from './orderHandlers'
@@ -184,6 +192,55 @@ const ledger: LedgerItem[] = [
   },
 ]
 
+/**
+ * S-30 임박·경과 lot. 유통기한 빠른 순, 수량 0 은 서버가 빼고 내려 준다.
+ * S-32 로 폐기하면 1초 뒤(쪽지 처리 흉내) 수량을 줄여 폴링으로 줄어드는 모습을 볼 수 있다
+ */
+let expiring: ExpiringLot[] = [
+  {
+    lotId: 201,
+    productId: 2,
+    productName: '바나나우유',
+    expiryDate: '2026-10-23T23:59:59+09:00',
+    expired: true,
+    quantity: 2,
+    reservedQuantity: 0,
+    disposableQuantity: 2,
+  },
+  {
+    lotId: 401,
+    productId: 4,
+    productName: '흰 우유 200ml',
+    expiryDate: '2026-10-24T23:59:59+09:00',
+    expired: true,
+    quantity: 5,
+    reservedQuantity: 1,
+    disposableQuantity: 4,
+  },
+  {
+    lotId: 202,
+    productId: 2,
+    productName: '바나나우유',
+    expiryDate: '2026-10-25T23:59:59+09:00',
+    expired: false,
+    quantity: 4,
+    reservedQuantity: 0,
+    disposableQuantity: 4,
+  },
+  {
+    lotId: 301,
+    productId: 3,
+    productName: '샌드위치 햄치즈',
+    expiryDate: '2026-10-26T09:00:00+09:00',
+    expired: false,
+    quantity: 2,
+    reservedQuantity: 2,
+    disposableQuantity: 0,
+  },
+]
+
+let nextDisposalId = 501
+
 /** U-10 점포 상품. 점포마다 같은 목록을 준다. 상품 1~3 은 orderHandlers 의 상품과 같아 가짜 주문까지 이어진다 */
 const storeProducts: StoreProduct[] = [
   {
@@ -234,6 +291,42 @@ export const handlers = [
   http.get('/api/owner/inventory/ledger', ({ request }) => {
     const type = new URL(request.url).searchParams.get('type') as LedgerType | null
     return HttpResponse.json(type ? ledger.filter((item) => item.type === type) : ledger)
+  }),
+  http.get('/api/owner/inventory/expiring', () => HttpResponse.json(expiring)),
+  http.post('/api/owner/disposals', async ({ request }) => {
+    const body = (await request.json()) as DisposeRequest
+    const lot = expiring.find((item) => item.lotId === body.lotId)
+    if (!lot) {
+      return HttpResponse.json(
+        { code: 'LOT_NOT_FOUND', message: 'lot이 없습니다', traceId: '' },
+        { status: 404 },
+      )
+    }
+    if (body.quantity > lot.disposableQuantity) {
+      return HttpResponse.json(
+        { code: 'INVALID_QUANTITY', message: '수량이 올바르지 않습니다', traceId: '' },
+        { status: 400 },
+      )
+    }
+    const response: DisposeResponse = {
+      disposalId: nextDisposalId++,
+      lotId: lot.lotId,
+      quantity: body.quantity,
+    }
+    setTimeout(() => {
+      expiring = expiring
+        .map((item) =>
+          item.lotId === body.lotId
+            ? {
+                ...item,
+                quantity: item.quantity - body.quantity,
+                disposableQuantity: item.disposableQuantity - body.quantity,
+              }
+            : item,
+        )
+        .filter((item) => item.quantity > 0)
+    }, 1000)
+    return HttpResponse.json(response, { status: 202 })
   }),
   http.get('/api/owner/inventory/:productId/lots', ({ params }) => {
     const found = lots[Number(params.productId)]

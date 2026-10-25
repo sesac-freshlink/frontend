@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { api } from '@/shared/api/client'
 import { POLL_MS } from '@/shared/api/queryClient'
@@ -50,6 +50,33 @@ export interface LedgerItem {
   createdAt: string
 }
 
+/** S-30 응답 한 줄. 수량이 남은 임박(24시간 이내)·경과 lot 만 온다. inventory-service ExpiringInventoryResponse 와 같은 모양 */
+export interface ExpiringLot {
+  lotId: number
+  productId: number
+  productName: string
+  expiryDate: string
+  /** true 면 경과, false 면 임박 */
+  expired: boolean
+  quantity: number
+  reservedQuantity: number
+  /** 실물 − 예약. 0 이면 예약이 전부 잡고 있어 폐기할 수 없다 */
+  disposableQuantity: number
+}
+
+/** S-32 요청. lot 하나씩 보낸다 */
+export interface DisposeRequest {
+  lotId: number
+  quantity: number
+}
+
+/** S-32 202 응답. 재고는 DISPOSE 쪽지를 처리한 뒤에 줄어든다 */
+export interface DisposeResponse {
+  disposalId: number
+  lotId: number
+  quantity: number
+}
+
 /** 서버 오류 본문 (common ErrorResponse) */
 interface ErrorBody {
   code?: string
@@ -88,6 +115,32 @@ export function useLedger({ type }: { type?: LedgerType } = {}) {
     queryFn: async () =>
       (await api.get<LedgerItem[]>('/owner/inventory/ledger', { params: { type } })).data,
     refetchInterval: POLL_MS.ownerInventory,
+  })
+}
+
+/** S-30 임박·경과 lot (유통기한 빠른 순). 폐기 뒤 수량이 줄어드는 것이 보이도록 같은 주기로 다시 읽는다 */
+export function useExpiring() {
+  return useQuery({
+    queryKey: ['owner', 'expiring'],
+    queryFn: async () => (await api.get<ExpiringLot[]>('/owner/inventory/expiring')).data,
+    refetchInterval: POLL_MS.ownerInventory,
+  })
+}
+
+/**
+ * S-32 lot 하나 폐기 요청. 202 는 접수만 뜻하고 수량은 쪽지 처리 뒤에 바뀌므로 낙관적 갱신은 하지 않는다.
+ * 성공·실패 모두 임박 목록과 재고 목록을 다시 받는다
+ */
+export function useDisposeLot() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: DisposeRequest) =>
+      (await api.post<DisposeResponse>('/owner/disposals', body)).data,
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['owner', 'expiring'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
+      ]),
   })
 }
 
