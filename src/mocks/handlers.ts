@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import type { StoreProduct } from '@/customer/stores/api'
-import type { InventoryItem, InventoryLotItem } from '@/owner/inventory/api'
+import type { InventoryItem, InventoryLotItem, LedgerItem, LedgerType } from '@/owner/inventory/api'
 import { adminHandlers } from './adminHandlers'
 import { memberHandlers } from './memberHandlers'
 import { orderHandlers } from './orderHandlers'
@@ -92,6 +92,98 @@ const lots: Record<number, InventoryLotItem[]> = {
   3: [],
 }
 
+/** S-13 변동 이력. 최신순, 수량은 부호 포함(입고 +, 판매·폐기 −) */
+const ledger: LedgerItem[] = [
+  {
+    ledgerId: 9008,
+    type: 'DISPOSE',
+    productId: 2,
+    productName: '바나나우유',
+    lotId: 201,
+    expiryDate: '2026-10-19T23:59:59+09:00',
+    quantity: -2,
+    refId: '501',
+    createdAt: '2026-10-21T09:12:40+09:00',
+  },
+  {
+    ledgerId: 9007,
+    type: 'SALE',
+    productId: 1,
+    productName: '삼각김밥 참치마요',
+    lotId: 101,
+    expiryDate: '2026-10-24T23:59:59+09:00',
+    quantity: -1,
+    refId: '1025',
+    createdAt: '2026-10-21T08:47:05+09:00',
+  },
+  {
+    ledgerId: 9006,
+    type: 'SALE',
+    productId: 3,
+    productName: '샌드위치 햄치즈',
+    lotId: 301,
+    expiryDate: '2026-10-22T23:59:59+09:00',
+    quantity: -2,
+    refId: '1024',
+    createdAt: '2026-10-21T08:30:11+09:00',
+  },
+  {
+    ledgerId: 9005,
+    type: 'INBOUND',
+    productId: 2,
+    productName: '바나나우유',
+    lotId: 203,
+    expiryDate: '2026-10-28T23:59:59+09:00',
+    quantity: 6,
+    refId: 'SHP-20261021-070000123-S1',
+    createdAt: '2026-10-21T07:00:01+09:00',
+  },
+  {
+    ledgerId: 9004,
+    type: 'INBOUND',
+    productId: 1,
+    productName: '삼각김밥 참치마요',
+    lotId: 101,
+    expiryDate: '2026-10-24T23:59:59+09:00',
+    quantity: 20,
+    refId: 'SHP-20261021-070000123-S1',
+    createdAt: '2026-10-21T07:00:01+09:00',
+  },
+  {
+    ledgerId: 9003,
+    type: 'SALE',
+    productId: 2,
+    productName: '바나나우유',
+    lotId: 202,
+    expiryDate: '2026-10-20T23:59:59+09:00',
+    quantity: -1,
+    refId: '1019',
+    createdAt: '2026-10-20T18:22:47+09:00',
+  },
+  {
+    ledgerId: 9002,
+    type: 'INBOUND',
+    productId: 3,
+    productName: '샌드위치 햄치즈',
+    lotId: 301,
+    expiryDate: '2026-10-22T23:59:59+09:00',
+    quantity: 7,
+    refId: 'SHP-20261020-050000004-S1',
+    createdAt: '2026-10-20T05:00:03+09:00',
+  },
+  {
+    ledgerId: 9001,
+    type: 'INBOUND',
+    productId: 2,
+    productName: '바나나우유',
+    lotId: 202,
+    expiryDate: '2026-10-20T23:59:59+09:00',
+    quantity: 5,
+    refId: 'SHP-20261020-050000004-S1',
+    createdAt: '2026-10-20T05:00:03+09:00',
+  },
+]
+
 /** U-10 점포 상품. 점포마다 같은 목록을 준다. 상품 1~3 은 orderHandlers 의 상품과 같아 가짜 주문까지 이어진다 */
 const storeProducts: StoreProduct[] = [
   {
@@ -139,6 +231,10 @@ const storeProducts: StoreProduct[] = [
 export const handlers = [
   http.get('/api/stores/:storeId/products', () => HttpResponse.json(storeProducts)),
   http.get('/api/owner/inventory', () => HttpResponse.json(inventory)),
+  http.get('/api/owner/inventory/ledger', ({ request }) => {
+    const type = new URL(request.url).searchParams.get('type') as LedgerType | null
+    return HttpResponse.json(type ? ledger.filter((item) => item.type === type) : ledger)
+  }),
   http.get('/api/owner/inventory/:productId/lots', ({ params }) => {
     const found = lots[Number(params.productId)]
     if (!found) {
