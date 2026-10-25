@@ -18,3 +18,15 @@ export function formatExpiry(iso: string | null): string {
   if (iso === null) return '-'
   return dayjs(iso).tz(KST).format('MM/DD')
 }
+
+/** 시각을 한국 시간 "10/20 05:00" 으로 */
+export function formatDateTime(iso: string): string {
+  return dayjs(iso).tz(KST).format('MM/DD HH:mm')
+}
+
+/** 변동 수량은 부호를 항상 붙인다: 10 → "+10", -3 → "−3" */
+export function formatSignedQuantity(quantity: number): string {
+  if (quantity > 0) return `+${quantity}`
+  if (quantity < 0) return `−${Math.abs(quantity)}`
+  return '0'
+}

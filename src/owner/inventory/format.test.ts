@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatExpiry, formatWon } from './format'
+import { formatDateTime, formatExpiry, formatSignedQuantity, formatWon } from './format'
 
 describe('점주 재고 표시 함수', () => {
   it('금액은 천 단위 쉼표와 원으로', () => {
@@ -17,5 +17,17 @@ describe('점주 재고 표시 함수', () => {
 
   it('유통기한이 없으면 "-"', () => {
     expect(formatExpiry(null)).toBe('-')
+  })
+
+  it('시각은 브라우저 시간대와 상관없이 한국 시간 "MM/DD HH:mm" 으로', () => {
+    expect(formatDateTime('2026-10-20T05:00:03+09:00')).toBe('10/20 05:00')
+    // UTC 표기로 와도 한국 시간으로 바꾼다. UTC 20:30 은 한국 다음 날 05:30
+    expect(formatDateTime('2026-10-19T20:30:00Z')).toBe('10/20 05:30')
+  })
+
+  it('변동 수량은 부호를 항상 붙인다', () => {
+    expect(formatSignedQuantity(10)).toBe('+10')
+    expect(formatSignedQuantity(-3)).toBe('−3')
+    expect(formatSignedQuantity(0)).toBe('0')
   })
 })

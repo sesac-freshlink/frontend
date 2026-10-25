@@ -32,6 +32,24 @@ export interface InventoryLotItem {
   status: InventoryLotStatus
 }
 
+/** 재고 변동 종류. 예약·해제는 실물이 바뀌지 않아 이력에 남지 않는다 */
+export type LedgerType = 'INBOUND' | 'SALE' | 'DISPOSE'
+
+/** S-13 응답 한 줄. inventory-service LedgerResponse 와 같은 모양 */
+export interface LedgerItem {
+  ledgerId: number
+  type: LedgerType
+  productId: number
+  productName: string
+  lotId: number
+  expiryDate: string
+  /** 부호 포함. 입고 +, 판매·폐기 − */
+  quantity: number
+  /** 입고 shipmentId / 판매 orderId / 폐기 disposalId */
+  refId: string | null
+  createdAt: string
+}
+
 /** 서버 오류 본문 (common ErrorResponse) */
 interface ErrorBody {
   code?: string
@@ -56,6 +74,19 @@ export function useInventoryLots(productId: number) {
     queryKey: ['owner', 'inventory', productId, 'lots'],
     queryFn: async () =>
       (await api.get<InventoryLotItem[]>(`/owner/inventory/${productId}/lots`)).data,
+    refetchInterval: POLL_MS.ownerInventory,
+  })
+}
+
+/**
+ * S-13 재고 변동 이력 (최신순, 최근 100건). type 을 주면 그 종류만.
+ * 시연 때 입고·판매가 바로 보이도록 재고 목록과 같은 주기로 다시 읽는다
+ */
+export function useLedger({ type }: { type?: LedgerType } = {}) {
+  return useQuery({
+    queryKey: ['owner', 'ledger', type ?? 'ALL'],
+    queryFn: async () =>
+      (await api.get<LedgerItem[]>('/owner/inventory/ledger', { params: { type } })).data,
     refetchInterval: POLL_MS.ownerInventory,
   })
 }

@@ -1,0 +1,146 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { AxiosError, AxiosHeaders } from 'axios'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { api } from '@/shared/api/client'
+import type { LedgerItem } from '../api'
+import { LedgerPage } from './LedgerPage'
+
+vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn() } }))
+const get = vi.mocked(api.get)
+
+const items: LedgerItem[] = [
+  {
+    ledgerId: 9003,
+    type: 'DISPOSE',
+    productId: 12,
+    productName: '흰 우유 500ml',
+    lotId: 302,
+    expiryDate: '2026-10-09T23:59:59+09:00',
+    quantity: -3,
+    refId: '501',
+    createdAt: '2026-10-21T09:12:40+09:00',
+  },
+  {
+    ledgerId: 9002,
+    type: 'SALE',
+    productId: 15,
+    productName: '매운 컵라면 115g',
+    lotId: 301,
+    expiryDate: '2026-10-20T23:59:59+09:00',
+    quantity: -1,
+    refId: '1024',
+    createdAt: '2026-10-20T08:30:00+09:00',
+  },
+  {
+    ledgerId: 9001,
+    type: 'INBOUND',
+    productId: 15,
+    productName: '매운 컵라면 115g',
+    lotId: 301,
+    expiryDate: '2026-10-20T23:59:59+09:00',
+    quantity: 10,
+    refId: 'SHP-20261020-001',
+    createdAt: '2026-10-20T05:00:03+09:00',
+  },
+]
+
+/** 서버 오류 모양(common ErrorResponse)으로 axios 오류를 만든다 */
+function serverError(status: number, code: string, message: string) {
+  const headers = new AxiosHeaders()
+  return new AxiosError(message, String(status), { headers }, null, {
+    status,
+    statusText: '',
+    headers,
+    config: { headers },
+    data: { code, message, traceId: '' },
+  })
+}
+
+function renderPage() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <LedgerPage />
+    </QueryClientProvider>,
+  )
+}
+
+/** 표에서 refId 로 행을 찾는다 */
+async function rowOf(refId: string) {
+  return (await screen.findByText(refId)).closest('tr')!
+}
+
+describe('재고 변동 이력 (S-13)', () => {
+  beforeEach(() => {
+    get.mockReset()
+  })
+
+  it('불러오는 동안 스피너를 보여 준다', () => {
+    get.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    expect(screen.getByLabelText('불러오는 중')).toBeInTheDocument()
+  })
+
+  it('처음에는 종류 없이 전체를 부르고 전체 버튼이 선택돼 있다', async () => {
+    get.mockResolvedValue({ data: items })
+    renderPage()
+    await rowOf('SHP-20261020-001')
+    expect(get).toHaveBeenCalledWith('/owner/inventory/ledger', { params: { type: undefined } })
+    expect(screen.getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('종류 배지와 부호 붙은 수량을 색으로 나눠 보여 준다', async () => {
+    get.mockResolvedValue({ data: items })
+    renderPage()
+
+    const inbound = await rowOf('SHP-20261020-001')
+    expect(within(inbound).getByText('입고')).toHaveClass('bg-emerald-100', 'text-emerald-800')
+    expect(within(inbound).getByText('+10')).toHaveClass('text-emerald-700')
+    expect(within(inbound).getByText('10/20 05:00')).toBeInTheDocument()
+    expect(within(inbound).getByText('유통기한 10/20')).toBeInTheDocument()
+
+    const sale = await rowOf('1024')
+    expect(within(sale).getByText('판매')).toHaveClass('bg-sky-100', 'text-sky-800')
+    expect(within(sale).getByText('−1')).toHaveClass('text-red-600')
+
+    const dispose = await rowOf('501')
+    expect(within(dispose).getByText('폐기')).toHaveClass('bg-red-100', 'text-red-700')
+    expect(within(dispose).getByText('−3')).toHaveClass('text-red-600')
+  })
+
+  it('종류 버튼을 누르면 그 종류로 다시 부른다', async () => {
+    get.mockResolvedValue({ data: items })
+    renderPage()
+    await rowOf('SHP-20261020-001')
+
+    await userEvent.click(screen.getByRole('button', { name: '판매' }))
+
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/owner/inventory/ledger', { params: { type: 'SALE' } }),
+    )
+    expect(screen.getByRole('button', { name: '판매' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('빈 목록이면 안내 문구를 보여 준다', async () => {
+    get.mockResolvedValue({ data: [] })
+    renderPage()
+    expect(await screen.findByText('아직 변동 이력이 없어요.')).toBeInTheDocument()
+  })
+
+  it('서버 오류 본문의 message 를 보여 준다', async () => {
+    get.mockRejectedValue(
+      serverError(400, 'INVALID_DATE_RANGE', '조회 시작일은 종료일보다 늦을 수 없습니다'),
+    )
+    renderPage()
+    expect(await screen.findByText('조회 시작일은 종료일보다 늦을 수 없습니다')).toBeInTheDocument()
+  })
+
+  it('message 가 없는 오류는 기본 문구로 보여 준다', async () => {
+    get.mockRejectedValue(new Error('network'))
+    renderPage()
+    expect(await screen.findByText('이력을 불러오지 못했어요.')).toBeInTheDocument()
+  })
+})
