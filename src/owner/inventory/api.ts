@@ -77,6 +77,23 @@ export interface DisposeResponse {
   quantity: number
 }
 
+/** 폐기 요청 상태. REQUESTED 는 DISPOSE 쪽지 처리 전, DONE 은 lot 수량이 줄었음, SKIPPED 는 처리 때 폐기 가능 수량이 모자라 재고 그대로 */
+export type DisposalStatus = 'REQUESTED' | 'DONE' | 'SKIPPED'
+
+/** S-33 응답 한 줄. inventory-service DisposalHistoryResponse 와 같은 모양 */
+export interface DisposalHistoryItem {
+  disposalId: number
+  lotId: number
+  productId: number
+  productName: string
+  expiryDate: string
+  quantity: number
+  status: DisposalStatus
+  createdAt: string
+  /** 처리 전(REQUESTED)이면 null */
+  processedAt: string | null
+}
+
 /** 서버 오류 본문 (common ErrorResponse) */
 interface ErrorBody {
   code?: string
@@ -140,7 +157,20 @@ export function useDisposeLot() {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ['owner', 'expiring'] }),
         queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'disposals'] }),
       ]),
+  })
+}
+
+/**
+ * S-33 폐기 요청 이력 (최신순, 최근 100건). 202 로 접수된 요청이 DONE·SKIPPED 로 끝나는 것을 보여 주기 위해
+ * 임박 목록과 같은 주기로 다시 읽는다
+ */
+export function useDisposals() {
+  return useQuery({
+    queryKey: ['owner', 'disposals'],
+    queryFn: async () => (await api.get<DisposalHistoryItem[]>('/owner/disposals')).data,
+    refetchInterval: POLL_MS.ownerInventory,
   })
 }
 
