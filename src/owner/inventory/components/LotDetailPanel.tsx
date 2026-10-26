@@ -1,7 +1,9 @@
-import { LoaderCircle } from 'lucide-react'
+import { LoaderCircle, PencilLine } from 'lucide-react'
+import { useState } from 'react'
 import { cn } from '@/shared/ui/cn'
 import { apiErrorMessage, useInventoryLots, type InventoryLotStatus } from '../api'
 import { formatExpiry } from '../format'
+import { AdjustLotDialog } from './AdjustLotDialog'
 
 const STATUS_LABEL: Record<InventoryLotStatus, string> = {
   NORMAL: '정상',
@@ -36,9 +38,16 @@ interface Props {
   onClose?: () => void
 }
 
-/** S-11 lot 상세 패널: 유통기한 빠른 순으로 lot 별 실물·예약·구매 가능 수량과 상태를 보여 준다 */
+/**
+ * S-11 lot 상세 패널: 유통기한 빠른 순으로 lot 별 실물·예약·구매 가능 수량과 상태를 보여 준다.
+ * lot 마다 S-14 수동 조정(실사) 버튼이 있다
+ */
 export function LotDetailPanel({ productId, productName, onClose }: Props) {
   const lots = useInventoryLots(productId)
+  const [adjustingLotId, setAdjustingLotId] = useState<number | null>(null)
+  const title = productName ?? `상품 ${productId}`
+  // 폴링으로 새로 읽은 lot 을 모달에 넘겨 "지금 실물"이 최신이게 한다. 수량 0 이 되어 목록에서 빠지면 모달도 닫힌다
+  const adjustingLot = lots.data?.find((lot) => lot.lotId === adjustingLotId)
 
   return (
     <aside
@@ -47,7 +56,7 @@ export function LotDetailPanel({ productId, productName, onClose }: Props) {
     >
       <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div>
-          <h2 className="font-bold text-slate-900">{productName ?? `상품 ${productId}`}</h2>
+          <h2 className="font-bold text-slate-900">{title}</h2>
           <p className="text-xs text-slate-500">유통기한별 lot · 빠른 순</p>
         </div>
         {onClose && (
@@ -60,12 +69,26 @@ export function LotDetailPanel({ productId, productName, onClose }: Props) {
           </button>
         )}
       </header>
-      <LotTable lots={lots} />
+      <LotTable lots={lots} onAdjust={setAdjustingLotId} />
+      {adjustingLot && (
+        <AdjustLotDialog
+          key={adjustingLot.lotId}
+          productName={title}
+          lot={adjustingLot}
+          onClose={() => setAdjustingLotId(null)}
+        />
+      )}
     </aside>
   )
 }
 
-function LotTable({ lots }: { lots: ReturnType<typeof useInventoryLots> }) {
+function LotTable({
+  lots,
+  onAdjust,
+}: {
+  lots: ReturnType<typeof useInventoryLots>
+  onAdjust: (lotId: number) => void
+}) {
   if (lots.isPending) {
     return (
       <div className="flex justify-center py-12 text-slate-400">
@@ -92,7 +115,10 @@ function LotTable({ lots }: { lots: ReturnType<typeof useInventoryLots> }) {
           <th className="px-2 py-2 text-right font-medium">실물</th>
           <th className="px-2 py-2 text-right font-medium">예약</th>
           <th className="px-2 py-2 text-right font-medium">구매 가능</th>
-          <th className="px-4 py-2 text-right font-medium">상태</th>
+          <th className="px-2 py-2 text-right font-medium">상태</th>
+          <th className="px-2 py-2">
+            <span className="sr-only">조정</span>
+          </th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-200 text-slate-900">
@@ -102,8 +128,19 @@ function LotTable({ lots }: { lots: ReturnType<typeof useInventoryLots> }) {
             <td className="px-2 py-2 text-right">{lot.quantity}</td>
             <td className="px-2 py-2 text-right">{lot.reservedQuantity}</td>
             <td className="px-2 py-2 text-right">{lot.availableQuantity}</td>
-            <td className="px-4 py-2 text-right">
+            <td className="px-2 py-2 text-right">
               <LotStatusBadge status={lot.status} />
+            </td>
+            <td className="px-2 py-2 text-right">
+              <button
+                type="button"
+                onClick={() => onAdjust(lot.lotId)}
+                aria-label={`${formatExpiry(lot.expiryDate)} lot 조정`}
+                title="재고 조정"
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <PencilLine className="size-4" aria-hidden />
+              </button>
             </td>
           </tr>
         ))}

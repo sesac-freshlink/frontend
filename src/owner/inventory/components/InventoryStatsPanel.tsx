@@ -2,14 +2,14 @@ import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/shared/ui/cn'
 import { apiErrorMessage, useInventoryStats, type InventoryStats, type ProductStats } from '../api'
-import { formatRate, statsPeriod } from '../format'
+import { formatRate, formatSignedQuantity, statsPeriod } from '../format'
 
 const PERIODS = [7, 30, 90] as const
 type Days = (typeof PERIODS)[number]
 
 /**
  * S-42 판매·폐기 통계. 오늘까지 7·30·90일 동안 상품별 입고·판매·폐기 수량과 폐기율을 보여 준다.
- * 폐기율 = 폐기 ÷ (판매 + 폐기): 나간 물건 중 버려진 비율. 금액은 다루지 않는다
+ * 폐기율 = 폐기 ÷ (판매 + 폐기): 나간 물건 중 버려진 비율. 조정(S-14)은 늘고 준 것을 합친 값으로 따로 보인다. 금액은 다루지 않는다
  */
 export function InventoryStatsPanel() {
   const [days, setDays] = useState<Days>(7)
@@ -88,10 +88,11 @@ function Totals({ stats }: { stats: InventoryStats }) {
     { label: '입고', value: `${stats.inboundQuantity}개` },
     { label: '판매', value: `${stats.soldQuantity}개` },
     { label: '폐기', value: `${stats.disposedQuantity}개` },
+    { label: '조정', value: `${formatSignedQuantity(stats.adjustedQuantity)}개` },
     { label: '폐기율', value: formatRate(stats.disposalRate) },
   ]
   return (
-    <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
       {tiles.map((tile) => (
         <div key={tile.label} className="rounded-lg border border-slate-200 bg-white px-4 py-3">
           <dt className="text-xs text-slate-500">{tile.label}</dt>
@@ -113,6 +114,7 @@ function ProductTable({ products }: { products: ProductStats[] }) {
             <th className="px-3 py-3 text-right font-medium">입고</th>
             <th className="px-3 py-3 text-right font-medium">판매</th>
             <th className="px-3 py-3 text-right font-medium">폐기</th>
+            <th className="px-3 py-3 text-right font-medium">조정</th>
             <th className="px-4 py-3 text-right font-medium">폐기율</th>
           </tr>
         </thead>
@@ -133,6 +135,9 @@ function ProductTable({ products }: { products: ProductStats[] }) {
                 )}
               >
                 {item.disposedQuantity}
+              </td>
+              <td className="px-3 py-3 text-right text-slate-600 tabular-nums">
+                {formatSignedQuantity(item.adjustedQuantity)}
               </td>
               <td className="px-4 py-3 text-right tabular-nums">{formatRate(item.disposalRate)}</td>
             </tr>

@@ -305,6 +305,21 @@ describe('lot 상세 패널 (S-11)', () => {
     expect(screen.queryByRole('complementary', { name: 'lot 상세' })).not.toBeInTheDocument()
   })
 
+  it('lot 옆 조정 버튼을 누르면 그 lot 의 조정 모달이 열린다 (S-14)', async () => {
+    mockInventoryAndLots(() => Promise.resolve({ data: lots }))
+    renderPage()
+
+    await userEvent.click(await screen.findByText('흰 우유 500ml'))
+    await userEvent.click(await screen.findByRole('button', { name: '10/30 lot 조정' }))
+
+    const dialog = screen.getByRole('dialog', { name: '재고 조정' })
+    expect(within(dialog).getByText('흰 우유 500ml · 유통기한 10/30')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('실제 수량')).toHaveValue(6)
+
+    await userEvent.click(within(dialog).getByRole('button', { name: '취소' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('lot 조회 오류는 서버 message 로 보여 준다', async () => {
     mockInventoryAndLots(() =>
       Promise.reject(serverError(404, 'PRODUCT_NOT_FOUND', '상품이 없습니다')),

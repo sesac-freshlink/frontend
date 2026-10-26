@@ -68,7 +68,8 @@ describe('lot 상세 바로 열기 (S-11 /owner/inventory/:productId)', () => {
     })
     renderAt('/owner/inventory/7')
 
-    expect(await screen.findByRole('heading', { name: '제육볶음 도시락' })).toBeInTheDocument()
+    // 역할(role) 찾기는 매번 접근성 트리를 계산해 느리다. 글자로 기다린다
+    expect(await screen.findByText('제육볶음 도시락', { selector: 'h2' })).toBeInTheDocument()
     expect(await screen.findByText('10/23')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /재고 목록/ })).toHaveAttribute(
       'href',
