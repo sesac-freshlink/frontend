@@ -68,6 +68,13 @@ function serverError(status: number, code: string, message: string) {
   })
 }
 
+/** 임박 목록은 lots 로, 같이 읽는 폐기 이력(/owner/disposals)은 비어 있게 답한다 */
+function mockLots(data: ExpiringLot[]) {
+  get.mockImplementation((url: string) =>
+    Promise.resolve({ data: url === '/owner/disposals' ? [] : data }),
+  )
+}
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
@@ -94,7 +101,7 @@ describe('유통기한 관리 (S-30·S-32)', () => {
   })
 
   it('임박·경과 탭에 건수를 붙이고, 경과가 있으면 경과 탭을 먼저 보여 준다', async () => {
-    get.mockResolvedValue({ data: lots })
+    mockLots(lots)
     renderPage()
 
     expect(await screen.findByRole('tab', { name: '경과 2' })).toHaveAttribute(
@@ -115,7 +122,7 @@ describe('유통기한 관리 (S-30·S-32)', () => {
   })
 
   it('경과 lot 이 없으면 임박 탭을 먼저 보여 준다', async () => {
-    get.mockResolvedValue({ data: lots.filter((lot) => !lot.expired) })
+    mockLots(lots.filter((lot) => !lot.expired))
     renderPage()
     expect(await screen.findByRole('tab', { name: '임박 2' })).toHaveAttribute(
       'aria-selected',
@@ -125,7 +132,7 @@ describe('유통기한 관리 (S-30·S-32)', () => {
   })
 
   it('폐기 가능 수량이 0 인 lot 은 고를 수 없고 "예약 중" 으로 보인다', async () => {
-    get.mockResolvedValue({ data: lots })
+    mockLots(lots)
     renderPage()
     await userEvent.click(await screen.findByRole('tab', { name: '임박 2' }))
 
@@ -136,7 +143,7 @@ describe('유통기한 관리 (S-30·S-32)', () => {
   })
 
   it('고른 lot 이 없으면 선택 폐기 버튼이 꺼져 있고, 고르면 개수와 함께 켜진다', async () => {
-    get.mockResolvedValue({ data: lots })
+    mockLots(lots)
     renderPage()
     await screen.findByText('흰우유 200ml')
     expect(disposeButton()).toBeDisabled()
@@ -147,7 +154,7 @@ describe('유통기한 관리 (S-30·S-32)', () => {
   })
 
   it('확인 모달에서 폐기 요청하면 lot 마다 전량을 보내고 성공 토스트를 띄운다', async () => {
-    get.mockResolvedValue({ data: lots })
+    mockLots(lots)
     post.mockImplementation((_url: string, body: unknown) =>
       Promise.resolve({ data: { disposalId: 900, ...(body as object) } }),
     )
@@ -175,7 +182,7 @@ describe('유통기한 관리 (S-30·S-32)', () => {
   })
 
   it('409 응답이면 실패한 lot 만 오류 토스트로 알리고 선택을 남긴다', async () => {
-    get.mockResolvedValue({ data: lots })
+    mockLots(lots)
     post.mockImplementation((_url: string, body: unknown) =>
       (body as { lotId: number }).lotId === 413
         ? Promise.reject(serverError(409, 'NOT_DISPOSABLE', '폐기할 수 없는 상태입니다'))
@@ -202,7 +209,7 @@ describe('유통기한 관리 (S-30·S-32)', () => {
   })
 
   it('취소하면 요청하지 않고 선택을 그대로 둔다', async () => {
-    get.mockResolvedValue({ data: lots })
+    mockLots(lots)
     renderPage()
     await userEvent.click(await screen.findByRole('checkbox', { name: '흰우유 200ml 선택' }))
     await userEvent.click(disposeButton())
@@ -214,13 +221,17 @@ describe('유통기한 관리 (S-30·S-32)', () => {
   })
 
   it('빈 목록이면 안내 문구를 보여 준다', async () => {
-    get.mockResolvedValue({ data: [] })
+    mockLots([])
     renderPage()
     expect(await screen.findByText('임박하거나 지난 lot이 없어요.')).toBeInTheDocument()
   })
 
   it('서버 오류 본문의 message 를 보여 준다', async () => {
-    get.mockRejectedValue(serverError(403, 'STORE_NOT_LINKED', '연결된 점포가 없습니다'))
+    get.mockImplementation((url: string) =>
+      url === '/owner/disposals'
+        ? Promise.resolve({ data: [] })
+        : Promise.reject(serverError(403, 'STORE_NOT_LINKED', '연결된 점포가 없습니다')),
+    )
     renderPage()
     expect(await screen.findByText('연결된 점포가 없습니다')).toBeInTheDocument()
   })

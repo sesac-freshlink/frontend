@@ -1,6 +1,8 @@
 import { http, HttpResponse } from 'msw'
 import type { StoreProduct } from '@/customer/stores/api'
 import type {
+  DisposalHistoryItem,
+  DisposalStatus,
   DisposeRequest,
   DisposeResponse,
   ExpiringLot,
@@ -239,7 +241,33 @@ let expiring: ExpiringLot[] = [
   },
 ]
 
-let nextDisposalId = 501
+let nextDisposalId = 503
+
+/** S-33 폐기 요청 이력. 최신순. SKIPPED 한 건은 "요청 뒤 처리 전에 예약이 잡힌" 경우를 화면에서 보려고 둔다 */
+let disposals: DisposalHistoryItem[] = [
+  {
+    disposalId: 502,
+    lotId: 301,
+    productId: 3,
+    productName: '샌드위치 햄치즈',
+    expiryDate: '2026-10-26T09:00:00+09:00',
+    quantity: 2,
+    status: 'SKIPPED',
+    createdAt: '2026-10-25T09:40:00+09:00',
+    processedAt: '2026-10-25T09:40:02+09:00',
+  },
+  {
+    disposalId: 501,
+    lotId: 200,
+    productId: 2,
+    productName: '바나나우유',
+    expiryDate: '2026-10-18T23:59:59+09:00',
+    quantity: 5,
+    status: 'DONE',
+    createdAt: '2026-10-25T09:00:00+09:00',
+    processedAt: '2026-10-25T09:00:01+09:00',
+  },
+]
 
 /** U-10 점포 상품. 점포마다 같은 목록을 준다. 상품 1~3 은 orderHandlers 의 상품과 같아 가짜 주문까지 이어진다 */
 const storeProducts: StoreProduct[] = [
@@ -313,7 +341,27 @@ export const handlers = [
       lotId: lot.lotId,
       quantity: body.quantity,
     }
+    const createdAt = new Date().toISOString()
+    disposals = [
+      {
+        disposalId: response.disposalId,
+        lotId: lot.lotId,
+        productId: lot.productId,
+        productName: lot.productName,
+        expiryDate: lot.expiryDate,
+        quantity: body.quantity,
+        status: 'REQUESTED',
+        createdAt,
+        processedAt: null,
+      },
+      ...disposals,
+    ]
     setTimeout(() => {
+      disposals = disposals.map((item) =>
+        item.disposalId === response.disposalId
+          ? { ...item, status: 'DONE', processedAt: new Date().toISOString() }
+          : item,
+      )
       expiring = expiring
         .map((item) =>
           item.lotId === body.lotId
@@ -327,6 +375,12 @@ export const handlers = [
         .filter((item) => item.quantity > 0)
     }, 1000)
     return HttpResponse.json(response, { status: 202 })
+  }),
+  http.get('/api/owner/disposals', ({ request }) => {
+    const status = new URL(request.url).searchParams.get('status') as DisposalStatus | null
+    return HttpResponse.json(
+      status ? disposals.filter((item) => item.status === status) : disposals,
+    )
   }),
   http.get('/api/owner/inventory/:productId/lots', ({ params }) => {
     const found = lots[Number(params.productId)]

@@ -2,6 +2,7 @@ import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/shared/ui/cn'
 import { apiErrorMessage, useExpiring, type ExpiringLot } from '../api'
+import { DisposalHistory } from '../components/DisposalHistory'
 import { DisposeConfirmDialog } from '../components/DisposeConfirmDialog'
 import { LotStatusBadge } from '../components/LotDetailPanel'
 import { formatDateTime } from '../format'
@@ -85,6 +86,8 @@ export function ExpiringPage() {
       </div>
 
       <ExpiringTable expiring={expiring} rows={rows} selected={selected} onToggle={toggle} />
+
+      <DisposalHistory />
 
       {confirming && <DisposeConfirmDialog lots={selectedLots} onClose={closeDialog} />}
     </section>
