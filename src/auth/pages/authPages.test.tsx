@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
+import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
 import { useAuthStore, type AuthUser } from '@/shared/auth'
@@ -180,6 +181,38 @@ describe('회원가입 (C-01)', () => {
       nickname: 'Fresh02',
       region: 'BUSAN',
     })
+  })
+
+  it('인증 뒤 프로필 저장이 실패해도 로그인은 그대로 두고 프로필만 다시 저장하게 한다', async () => {
+    get.mockImplementation(async (url) => {
+      if (url === '/members/nickname-availability')
+        return { data: { nickname: 'Fresh02', available: true } }
+      throw notFound
+    })
+    post
+      .mockRejectedValueOnce(
+        Object.assign(new Error('500'), { isAxiosError: true, response: { status: 500 } }),
+      )
+      .mockResolvedValueOnce({ data: { ...profile, nickname: 'Fresh02', region: 'BUSAN' } })
+    const toastError = vi.spyOn(toast, 'error')
+    renderAt('/signup')
+
+    await fillSignup()
+    await userEvent.type(await screen.findByLabelText('인증 코드'), '123456')
+    await userEvent.click(screen.getByRole('button', { name: '인증하기' }))
+
+    // 자동 저장이 실패하면 가입 때 넣은 값이 채워진 프로필 창에 머문다
+    const retry = await screen.findByRole('button', { name: '프로필 등록' })
+    expect(screen.getByLabelText('닉네임')).toHaveValue('Fresh02')
+    expect(screen.queryByText('고객 홈')).not.toBeInTheDocument()
+    expect(toastError).toHaveBeenCalledWith('프로필 저장에 실패했어요. 다시 시도해 주세요.')
+
+    await userEvent.click(retry)
+    expect(await screen.findByText('고객 홈')).toBeInTheDocument()
+    expect(post).toHaveBeenCalledTimes(2)
+    expect(signIn).toHaveBeenCalledTimes(1)
+    expect(confirmSignUp).toHaveBeenCalledTimes(1)
+    toastError.mockRestore()
   })
 
   it('이미 쓰는 닉네임이면 가입 요청을 보내지 않는다', async () => {
