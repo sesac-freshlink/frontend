@@ -7,7 +7,7 @@ import { api } from '@/shared/api/client'
 import type { InventoryItem, InventoryLotItem } from '../api'
 import { InventoryPage } from './InventoryPage'
 
-vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn() } }))
+vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn(), put: vi.fn() } }))
 const get = vi.mocked(api.get)
 
 const items: InventoryItem[] = [
@@ -23,6 +23,8 @@ const items: InventoryItem[] = [
     nearestExpiry: '2026-10-24T23:59:59+09:00',
     imminentLotCount: 0,
     expiredLotCount: 0,
+    safetyStock: 5,
+    lowStock: false,
   },
   {
     productId: 12,
@@ -36,6 +38,8 @@ const items: InventoryItem[] = [
     nearestExpiry: '2026-10-09T23:59:59+09:00',
     imminentLotCount: 1,
     expiredLotCount: 1,
+    safetyStock: 12,
+    lowStock: true,
   },
   {
     productId: 3,
@@ -49,6 +53,8 @@ const items: InventoryItem[] = [
     nearestExpiry: null,
     imminentLotCount: 0,
     expiredLotCount: 0,
+    safetyStock: 5,
+    lowStock: true,
   },
 ]
 
@@ -166,6 +172,80 @@ describe('점주 재고 목록 (S-10)', () => {
     const noodle = screen.getByText('매운 컵라면 115g').closest('tr')!
     expect(within(noodle).queryByText(/임박/)).not.toBeInTheDocument()
     expect(within(noodle).queryByText(/경과/)).not.toBeInTheDocument()
+  })
+})
+
+describe('안전재고 부족 표시 (S-40)', () => {
+  beforeEach(() => {
+    get.mockReset()
+  })
+
+  it('구매 가능 수량이 안전재고보다 적은 상품에 부족 배지를 붙이고 위에 건수를 보여 준다', async () => {
+    get.mockResolvedValue({ data: items })
+    renderPage()
+
+    const milk = (await screen.findByText('흰 우유 500ml')).closest('tr')!
+    expect(within(milk).getByText('부족')).toHaveAttribute('title', '안전재고 12개보다 적어요')
+    const noodle = screen.getByText('매운 컵라면 115g').closest('tr')!
+    expect(within(noodle).queryByText('부족')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('안전재고보다 적은 상품 2개')
+  })
+
+  it('부족한 상품이 없으면 건수를 보여 주지 않는다', async () => {
+    get.mockResolvedValue({ data: items.map((item) => ({ ...item, lowStock: false })) })
+    renderPage()
+    await screen.findByText('흰 우유 500ml')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('부족한 상품만 보기를 켜면 부족 상품만 남는다', async () => {
+    get.mockResolvedValue({ data: items })
+    renderPage()
+    await userEvent.click(await screen.findByRole('checkbox', { name: '부족한 상품만 보기' }))
+
+    const names = screen
+      .getAllByRole('row')
+      .slice(1)
+      .map((r) => r.querySelector('p')?.textContent)
+    expect(names).toEqual(['흰 우유 500ml', '샌드위치 햄치즈'])
+  })
+
+  it('부족 상품이 없는데 부족만 보기를 켜면 안내 문구를 보여 준다', async () => {
+    get.mockResolvedValue({ data: items.map((item) => ({ ...item, lowStock: false })) })
+    renderPage()
+    await userEvent.click(await screen.findByRole('checkbox', { name: '부족한 상품만 보기' }))
+    expect(screen.getByText('안전재고보다 적은 상품이 없어요.')).toBeInTheDocument()
+  })
+
+  it('안전재고 설정 탭으로 바꾸면 상품별 안전재고를 읽어 온다', async () => {
+    get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data:
+          url === '/owner/inventory/safety-stocks'
+            ? [
+                {
+                  productId: 15,
+                  productCode: 'P015',
+                  name: '매운 컵라면 115g',
+                  category: '라면',
+                  safetyStock: 5,
+                  customized: false,
+                },
+              ]
+            : items,
+      }),
+    )
+    renderPage()
+    await userEvent.click(await screen.findByRole('tab', { name: '안전재고 설정' }))
+
+    expect(screen.getByRole('tab', { name: '안전재고 설정' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(
+      await screen.findByRole('spinbutton', { name: '매운 컵라면 115g 안전재고' }),
+    ).toHaveValue(5)
+    expect(get).toHaveBeenCalledWith('/owner/inventory/safety-stocks')
   })
 })
 

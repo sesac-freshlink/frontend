@@ -10,6 +10,7 @@ import type {
   InventoryLotItem,
   LedgerItem,
   LedgerType,
+  SafetyStockItem,
 } from '@/owner/inventory/api'
 import { adminHandlers } from './adminHandlers'
 import { memberHandlers } from './memberHandlers'
@@ -19,7 +20,8 @@ import { orderHandlers } from './orderHandlers'
  * 백엔드가 나오기 전까지 쓰는 가짜 API. 실제 API 명세(Swagger)가 나오면 응답 모양을 맞춘다.
  * 화면 담당자가 자기 API 핸들러를 여기에 추가한다.
  */
-const inventory: InventoryItem[] = [
+/** 안전재고 두 값(safetyStock·lowStock)은 응답할 때 safetyStocks 로 채운다 */
+const inventory: Omit<InventoryItem, 'safetyStock' | 'lowStock'>[] = [
   {
     productId: 1,
     productCode: 'P001',
@@ -60,6 +62,14 @@ const inventory: InventoryItem[] = [
     expiredLotCount: 0,
   },
 ]
+
+/** S-40 점포 안전재고. 정하지 않은 상품은 5. 바나나우유는 12로 정해 두어 처음부터 부족 배지가 보인다 */
+const DEFAULT_SAFETY_STOCK = 5
+const safetyStocks = new Map<number, number>([[2, 12]])
+
+function safetyStockOf(productId: number): number {
+  return safetyStocks.get(productId) ?? DEFAULT_SAFETY_STOCK
+}
 
 /** S-11 상품별 lot. 유통기한 빠른 순, 수량 0 은 서버가 빼고 내려 준다 */
 const lots: Record<number, InventoryLotItem[]> = {
@@ -313,9 +323,54 @@ const storeProducts: StoreProduct[] = [
   },
 ]
 
+function toSafetyStockItem(productId: number): SafetyStockItem | undefined {
+  const product = storeProducts.find((item) => item.productId === productId)
+  if (!product) return undefined
+  return {
+    productId,
+    productCode: `P${String(productId).padStart(3, '0')}`,
+    name: product.name,
+    category: product.category,
+    safetyStock: safetyStockOf(productId),
+    customized: safetyStocks.has(productId),
+  }
+}
+
 export const handlers = [
   http.get('/api/stores/:storeId/products', () => HttpResponse.json(storeProducts)),
-  http.get('/api/owner/inventory', () => HttpResponse.json(inventory)),
+  http.get('/api/owner/inventory', () =>
+    HttpResponse.json<InventoryItem[]>(
+      inventory.map((item) => {
+        const safetyStock = safetyStockOf(item.productId)
+        return { ...item, safetyStock, lowStock: item.availableQuantity < safetyStock }
+      }),
+    ),
+  ),
+  http.get('/api/owner/inventory/safety-stocks', () =>
+    HttpResponse.json<SafetyStockItem[]>(
+      [...storeProducts]
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+        .map((product) => toSafetyStockItem(product.productId)!),
+    ),
+  ),
+  http.put('/api/owner/inventory/safety-stocks/:productId', async ({ params, request }) => {
+    const productId = Number(params.productId)
+    const { safetyStock } = (await request.json()) as { safetyStock: number }
+    if (!storeProducts.some((product) => product.productId === productId)) {
+      return HttpResponse.json(
+        { code: 'PRODUCT_NOT_FOUND', message: '상품이 없습니다', traceId: '' },
+        { status: 404 },
+      )
+    }
+    if (!Number.isInteger(safetyStock) || safetyStock < 0 || safetyStock > 999) {
+      return HttpResponse.json(
+        { code: 'VALIDATION_ERROR', message: 'safetyStock: 0~999', traceId: '' },
+        { status: 400 },
+      )
+    }
+    safetyStocks.set(productId, safetyStock)
+    return HttpResponse.json(toSafetyStockItem(productId))
+  }),
   http.get('/api/owner/inventory/ledger', ({ request }) => {
     const type = new URL(request.url).searchParams.get('type') as LedgerType | null
     return HttpResponse.json(type ? ledger.filter((item) => item.type === type) : ledger)
