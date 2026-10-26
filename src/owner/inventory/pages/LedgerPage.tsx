@@ -2,6 +2,8 @@ import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/shared/ui/cn'
 import { apiErrorMessage, useLedger, type LedgerItem, type LedgerType } from '../api'
+import { InventoryStatsPanel } from '../components/InventoryStatsPanel'
+import { TabButton } from '../components/TabButton'
 import { formatDateTime, formatExpiry, formatSignedQuantity } from '../format'
 
 const TYPE_LABEL: Record<LedgerType, string> = {
@@ -23,20 +25,42 @@ const FILTERS: { label: string; type?: LedgerType }[] = [
   { label: '폐기', type: 'DISPOSE' },
 ]
 
-/** S-13 재고 변동 이력. 입고 +, 판매·폐기 − 로 lot 별 수량이 어떻게 바뀌었는지 최신순으로 보여 준다 */
+type Tab = 'history' | 'stats'
+
+/**
+ * S-13 재고 변동 이력. 입고 +, 판매·폐기 − 로 lot 별 수량이 어떻게 바뀌었는지 최신순으로 보여 준다.
+ * 통계 탭(S-42)은 같은 원장을 기간·상품별로 더한 수량과 폐기율이다
+ */
 export function LedgerPage() {
+  const [tab, setTab] = useState<Tab>('history')
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h1 className="text-xl font-bold text-slate-900">변동 이력</h1>
+        <p className="text-sm text-slate-500">
+          {tab === 'history'
+            ? '입고·판매·폐기로 바뀐 수량을 3초마다 새로 읽어요.'
+            : '고른 기간의 입고·판매·폐기 수량을 상품별로 더했어요.'}
+        </p>
+      </div>
+      <div role="tablist" aria-label="이력·통계" className="flex gap-1 border-b border-slate-200">
+        <TabButton label="이력" selected={tab === 'history'} onSelect={() => setTab('history')} />
+        <TabButton label="통계" selected={tab === 'stats'} onSelect={() => setTab('stats')} />
+      </div>
+      {tab === 'history' ? <LedgerHistory /> : <InventoryStatsPanel />}
+    </section>
+  )
+}
+
+/** 이력 탭. 탭을 떠나면 폴링도 멈춘다 */
+function LedgerHistory() {
   const [type, setType] = useState<LedgerType | undefined>(undefined)
   const ledger = useLedger({ type })
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">변동 이력</h1>
-          <p className="text-sm text-slate-500">
-            입고·판매·폐기로 바뀐 수량을 3초마다 새로 읽어요.
-          </p>
-        </div>
+    <div className="space-y-4">
+      <div className="flex justify-end">
         <div
           role="group"
           aria-label="종류"
@@ -63,7 +87,7 @@ export function LedgerPage() {
       </div>
       <LedgerTable ledger={ledger} />
       <p className="text-xs text-slate-400">최근 100건까지 보여요.</p>
-    </section>
+    </div>
   )
 }
 

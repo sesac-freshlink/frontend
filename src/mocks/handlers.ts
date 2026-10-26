@@ -8,8 +8,10 @@ import type {
   ExpiringLot,
   InventoryItem,
   InventoryLotItem,
+  InventoryStats,
   LedgerItem,
   LedgerType,
+  ProductStats,
   SafetyStockItem,
 } from '@/owner/inventory/api'
 import { adminHandlers } from './adminHandlers'
@@ -323,6 +325,47 @@ const storeProducts: StoreProduct[] = [
   },
 ]
 
+/** S-42 서버처럼 가짜 원장(ledger)을 기간 안에서 상품별로 더한다. 날짜는 createdAt(+09:00)의 앞 10자리 */
+function statsOf(from: string, to: string): InventoryStats {
+  const byProduct = new Map<number, ProductStats>()
+  for (const item of ledger) {
+    const day = item.createdAt.slice(0, 10)
+    if (day < from || day > to) continue
+    const product = storeProducts.find((p) => p.productId === item.productId)
+    const row = byProduct.get(item.productId) ?? {
+      productId: item.productId,
+      productCode: `P${String(item.productId).padStart(3, '0')}`,
+      name: item.productName,
+      category: product?.category ?? '-',
+      inboundQuantity: 0,
+      soldQuantity: 0,
+      disposedQuantity: 0,
+      disposalRate: null,
+    }
+    const quantity = Math.abs(item.quantity)
+    if (item.type === 'INBOUND') row.inboundQuantity += quantity
+    if (item.type === 'SALE') row.soldQuantity += quantity
+    if (item.type === 'DISPOSE') row.disposedQuantity += quantity
+    byProduct.set(item.productId, row)
+  }
+  const rate = (sold: number, disposed: number) =>
+    sold + disposed === 0 ? null : Math.round((disposed * 10000) / (sold + disposed)) / 10000
+  const products = [...byProduct.values()]
+    .map((row) => ({ ...row, disposalRate: rate(row.soldQuantity, row.disposedQuantity) }))
+    .sort((a, b) => b.disposedQuantity - a.disposedQuantity || b.soldQuantity - a.soldQuantity)
+  const sum = (key: 'inboundQuantity' | 'soldQuantity' | 'disposedQuantity') =>
+    products.reduce((total, row) => total + row[key], 0)
+  return {
+    from,
+    to,
+    inboundQuantity: sum('inboundQuantity'),
+    soldQuantity: sum('soldQuantity'),
+    disposedQuantity: sum('disposedQuantity'),
+    disposalRate: rate(sum('soldQuantity'), sum('disposedQuantity')),
+    products,
+  }
+}
+
 function toSafetyStockItem(productId: number): SafetyStockItem | undefined {
   const product = storeProducts.find((item) => item.productId === productId)
   if (!product) return undefined
@@ -346,6 +389,22 @@ export const handlers = [
       }),
     ),
   ),
+  http.get('/api/owner/inventory/stats', ({ request }) => {
+    const params = new URL(request.url).searchParams
+    const to = params.get('to') ?? new Date().toISOString().slice(0, 10)
+    const from = params.get('from') ?? to
+    if (from > to) {
+      return HttpResponse.json(
+        {
+          code: 'INVALID_DATE_RANGE',
+          message: '조회 시작일은 종료일보다 늦을 수 없습니다',
+          traceId: '',
+        },
+        { status: 400 },
+      )
+    }
+    return HttpResponse.json(statsOf(from, to))
+  }),
   http.get('/api/owner/inventory/safety-stocks', () =>
     HttpResponse.json<SafetyStockItem[]>(
       [...storeProducts]
