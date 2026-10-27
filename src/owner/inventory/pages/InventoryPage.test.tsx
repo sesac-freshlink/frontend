@@ -17,6 +17,7 @@ const items: InventoryItem[] = [
     name: '매운 컵라면 115g',
     category: '라면',
     price: 1700,
+    imageUrl: 'https://img.example/P015.jpg',
     totalQuantity: 20,
     reservedQuantity: 1,
     availableQuantity: 19,
@@ -32,6 +33,7 @@ const items: InventoryItem[] = [
     name: '흰 우유 500ml',
     category: '유제품',
     price: 2100,
+    imageUrl: null,
     totalQuantity: 12,
     reservedQuantity: 0,
     availableQuantity: 10,
@@ -47,6 +49,7 @@ const items: InventoryItem[] = [
     name: '샌드위치 햄치즈',
     category: '샌드위치',
     price: 3200,
+    imageUrl: null,
     totalQuantity: 0,
     reservedQuantity: 0,
     availableQuantity: 0,
@@ -153,6 +156,18 @@ describe('점주 재고 목록 (S-10)', () => {
       .slice(1)
       .map((r) => r.querySelector('p')?.textContent)
     expect(names).toEqual(['매운 컵라면 115g', '흰 우유 500ml', '샌드위치 햄치즈'])
+  })
+
+  it('이미지가 있는 상품은 썸네일을, 없는 상품은 자리표시를 보여 준다', async () => {
+    get.mockResolvedValue({ data: items })
+    renderPage()
+    const noodle = (await screen.findByText('매운 컵라면 115g')).closest('tr')!
+    expect(within(noodle).getByRole('img', { name: '매운 컵라면 115g' })).toHaveAttribute(
+      'src',
+      'https://img.example/P015.jpg',
+    )
+    const milk = screen.getByText('흰 우유 500ml').closest('tr')!
+    expect(within(milk).getByRole('img', { name: '흰 우유 500ml 이미지 없음' })).toBeInTheDocument()
   })
 
   it('nearestExpiry 가 null 이면 "-" 로 보여 준다', async () => {
