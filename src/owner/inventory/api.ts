@@ -115,6 +115,36 @@ export interface UpdateSafetyStockRequest {
   safetyStock: number
 }
 
+/** S-42 통계 한 줄. inventory-service ProductStatsResponse 와 같은 모양. 수량은 모두 양수 */
+export interface ProductStats {
+  productId: number
+  productCode: string
+  name: string
+  category: string
+  inboundQuantity: number
+  soldQuantity: number
+  disposedQuantity: number
+  /** 폐기 ÷ (판매 + 폐기). 판매·폐기가 없으면 null */
+  disposalRate: number | null
+}
+
+/** S-42 통계. inventory-service InventoryStatsResponse 와 같은 모양. products 는 폐기 많은 순 */
+export interface InventoryStats {
+  from: string
+  to: string
+  inboundQuantity: number
+  soldQuantity: number
+  disposedQuantity: number
+  disposalRate: number | null
+  products: ProductStats[]
+}
+
+/** S-42 조회 기간. 한국 날짜 "YYYY-MM-DD", 둘 다 포함 */
+export interface StatsPeriod {
+  from: string
+  to: string
+}
+
 /** 서버 오류 본문 (common ErrorResponse) */
 interface ErrorBody {
   code?: string
@@ -218,6 +248,15 @@ export function useUpdateSafetyStock() {
         queryClient.invalidateQueries({ queryKey: ['owner', 'safetyStocks'] }),
         queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
       ]),
+  })
+}
+
+/** S-42 기간별 판매·폐기 통계. 원장을 서버가 더해서 내려 준다. 탭을 열 때·기간을 바꿀 때 읽는다 */
+export function useInventoryStats(period: StatsPeriod) {
+  return useQuery({
+    queryKey: ['owner', 'stats', period.from, period.to],
+    queryFn: async () =>
+      (await api.get<InventoryStats>('/owner/inventory/stats', { params: period })).data,
   })
 }
 

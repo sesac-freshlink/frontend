@@ -71,7 +71,7 @@ dev 주소는 infra `envs/dev/persistent`의 `frontend_url` 출력값이다. PR�
 | `/customer/orders/:id` | 주문·결제·주문 상세 | U-21, U-22, U-31 | 김경우 |
 | `/owner/inventory` | 재고 목록 (3초 폴링, 안전재고 부족 배지), 안전재고 설정 탭 | S-10, S-15, S-40 | 이태우 |
 | `/owner/inventory/:productId` | lot 상세 | S-11 | 이태우 |
-| `/owner/ledger` | 변동 이력 | S-13 | 이태우 |
+| `/owner/ledger` | 변동 이력, 판매·폐기 통계 탭 | S-13, S-42 | 이태우 |
 | `/owner/expiring` | 임박·폐기 | S-30, S-32 | 이태우 |
 | `/owner/orders` | 신규 주문 목록 | S-50 | 김경우 |
 | `/admin/stores` | 관리자 점포 목록·수정 | A-02 | 김경우 |

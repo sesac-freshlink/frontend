@@ -24,6 +24,21 @@ export function formatDateTime(iso: string): string {
   return dayjs(iso).tz(KST).format('MM/DD HH:mm')
 }
 
+/** 비율(0~1)을 백분율로: 0.4 → "40%", 0.3333 → "33.3%". 없으면 "-" */
+export function formatRate(rate: number | null): string {
+  if (rate === null) return '-'
+  return `${Number((rate * 100).toFixed(1))}%`
+}
+
+/** 오늘(한국 날짜)까지 days 일. S-42 통계 조회 기간 { from, to } "YYYY-MM-DD" */
+export function statsPeriod(days: number, now: Date = new Date()): { from: string; to: string } {
+  const today = dayjs(now).tz(KST)
+  return {
+    from: today.subtract(days - 1, 'day').format('YYYY-MM-DD'),
+    to: today.format('YYYY-MM-DD'),
+  }
+}
+
 /** 변동 수량은 부호를 항상 붙인다: 10 → "+10", -3 → "−3" */
 export function formatSignedQuantity(quantity: number): string {
   if (quantity > 0) return `+${quantity}`

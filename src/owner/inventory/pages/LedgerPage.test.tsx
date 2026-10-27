@@ -143,4 +143,32 @@ describe('재고 변동 이력 (S-13)', () => {
     renderPage()
     expect(await screen.findByText('이력을 불러오지 못했어요.')).toBeInTheDocument()
   })
+
+  it('통계 탭으로 바꾸면 이력 대신 기간 통계를 부른다 (S-42)', async () => {
+    get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data:
+          url === '/owner/inventory/stats'
+            ? {
+                from: '2026-10-20',
+                to: '2026-10-26',
+                inboundQuantity: 0,
+                soldQuantity: 0,
+                disposedQuantity: 0,
+                disposalRate: null,
+                products: [],
+              }
+            : items,
+      }),
+    )
+    renderPage()
+    await rowOf('SHP-20261020-001')
+
+    await userEvent.click(screen.getByRole('tab', { name: '통계' }))
+
+    expect(await screen.findByText('이 기간에 입고·판매·폐기가 없어요.')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '통계' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByText('SHP-20261020-001')).not.toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/owner/inventory/stats', expect.anything())
+  })
 })

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { formatDateTime, formatExpiry, formatSignedQuantity, formatWon } from './format'
+import {
+  formatDateTime,
+  formatExpiry,
+  formatRate,
+  formatSignedQuantity,
+  formatWon,
+  statsPeriod,
+} from './format'
 
 describe('점주 재고 표시 함수', () => {
   it('금액은 천 단위 쉼표와 원으로', () => {
@@ -17,6 +24,26 @@ describe('점주 재고 표시 함수', () => {
 
   it('유통기한이 없으면 "-"', () => {
     expect(formatExpiry(null)).toBe('-')
+  })
+
+  it('폐기율은 소수 첫째 자리까지 백분율로, 없으면 "-"', () => {
+    expect(formatRate(0.4)).toBe('40%')
+    expect(formatRate(0.3333)).toBe('33.3%')
+    expect(formatRate(0)).toBe('0%')
+    expect(formatRate(1)).toBe('100%')
+    expect(formatRate(null)).toBe('-')
+  })
+
+  it('통계 기간은 한국 날짜로 오늘까지 n일이다', () => {
+    // 한국 10/26 00:30 은 UTC 로는 10/25 15:30
+    expect(statsPeriod(7, new Date('2026-10-25T15:30:00Z'))).toEqual({
+      from: '2026-10-20',
+      to: '2026-10-26',
+    })
+    expect(statsPeriod(1, new Date('2026-10-25T03:00:00Z'))).toEqual({
+      from: '2026-10-25',
+      to: '2026-10-25',
+    })
   })
 
   it('시각은 브라우저 시간대와 상관없이 한국 시간 "MM/DD HH:mm" 으로', () => {
