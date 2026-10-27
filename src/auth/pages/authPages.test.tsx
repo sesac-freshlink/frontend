@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
 import { useAuthStore, type AuthUser } from '@/shared/auth'
@@ -31,7 +30,6 @@ function renderAt(path: string, state?: { from: string }) {
       { path: '/login', element: <LoginPage /> },
       { path: '/signup', element: <SignupPage /> },
       { path: '/customer', element: <p>고객 홈</p> },
-      { path: '/customer/orders/new', element: <p>주문 화면</p> },
       { path: '/owner/inventory', element: <p>점주 재고</p> },
       { path: '/admin/stores', element: <p>관리자 점포</p> },
       { path: '/admin/stores/new', element: <p>점포 등록</p> },
@@ -84,14 +82,6 @@ describe('로그인 (C-02)', () => {
     await fillLogin()
     await waitFor(() => expect(router.state.location.pathname).toBe('/signup'))
     expect(await screen.findByRole('button', { name: '프로필 등록' })).toBeInTheDocument()
-  })
-
-  it('로그인 전에 보던 주문 화면으로 주소 쿼리까지 그대로 돌려보낸다', async () => {
-    get.mockResolvedValue({ data: profile })
-    const router = renderAt('/login', { from: '/customer/orders/new?storeId=1&productId=15' })
-    await fillLogin()
-    expect(await screen.findByText('주문 화면')).toBeInTheDocument()
-    expect(router.state.location.search).toBe('?storeId=1&productId=15')
   })
 
   it('비밀번호가 틀리면 공통 문구를 띄우고 머문다', async () => {
@@ -190,60 +180,6 @@ describe('회원가입 (C-01)', () => {
       nickname: 'Fresh02',
       region: 'BUSAN',
     })
-  })
-
-  it('인증 뒤 프로필을 자동 저장하는 동안에는 입력 창 대신 저장 중 안내만 보여 준다', async () => {
-    get.mockImplementation(async (url) => {
-      if (url === '/members/nickname-availability')
-        return { data: { nickname: 'Fresh02', available: true } }
-      throw notFound
-    })
-    let finishSave: (v: unknown) => void = () => {}
-    post.mockReturnValueOnce(new Promise((resolve) => (finishSave = resolve)))
-    renderAt('/signup')
-
-    await fillSignup()
-    await userEvent.type(await screen.findByLabelText('인증 코드'), '123456')
-    await userEvent.click(screen.getByRole('button', { name: '인증하기' }))
-
-    expect(await screen.findByText('프로필을 저장하고 있어요…')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '프로필 등록' })).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('닉네임')).not.toBeInTheDocument()
-
-    finishSave({ data: { ...profile, nickname: 'Fresh02', region: 'BUSAN' } })
-    expect(await screen.findByText('고객 홈')).toBeInTheDocument()
-  })
-
-  it('인증 뒤 프로필 저장이 실패해도 로그인은 그대로 두고 프로필만 다시 저장하게 한다', async () => {
-    get.mockImplementation(async (url) => {
-      if (url === '/members/nickname-availability')
-        return { data: { nickname: 'Fresh02', available: true } }
-      throw notFound
-    })
-    post
-      .mockRejectedValueOnce(
-        Object.assign(new Error('500'), { isAxiosError: true, response: { status: 500 } }),
-      )
-      .mockResolvedValueOnce({ data: { ...profile, nickname: 'Fresh02', region: 'BUSAN' } })
-    const toastError = vi.spyOn(toast, 'error')
-    renderAt('/signup')
-
-    await fillSignup()
-    await userEvent.type(await screen.findByLabelText('인증 코드'), '123456')
-    await userEvent.click(screen.getByRole('button', { name: '인증하기' }))
-
-    // 자동 저장이 실패하면 가입 때 넣은 값이 채워진 프로필 창에 머문다
-    const retry = await screen.findByRole('button', { name: '프로필 등록' })
-    expect(screen.getByLabelText('닉네임')).toHaveValue('Fresh02')
-    expect(screen.queryByText('고객 홈')).not.toBeInTheDocument()
-    expect(toastError).toHaveBeenCalledWith('프로필 저장에 실패했어요. 다시 시도해 주세요.')
-
-    await userEvent.click(retry)
-    expect(await screen.findByText('고객 홈')).toBeInTheDocument()
-    expect(post).toHaveBeenCalledTimes(2)
-    expect(signIn).toHaveBeenCalledTimes(1)
-    expect(confirmSignUp).toHaveBeenCalledTimes(1)
-    toastError.mockRestore()
   })
 
   it('이미 쓰는 닉네임이면 가입 요청을 보내지 않는다', async () => {

@@ -1,6 +1,9 @@
 import { http, HttpResponse } from 'msw'
 import type { StoreProduct } from '@/customer/stores/api'
 import type {
+  AdjustmentHistoryItem,
+  AdjustRequest,
+  AdjustResponse,
   DisposalHistoryItem,
   DisposalStatus,
   DisposeRequest,
@@ -114,8 +117,8 @@ const lots: Record<number, InventoryLotItem[]> = {
   3: [],
 }
 
-/** S-13 변동 이력. 최신순, 수량은 부호 포함(입고 +, 판매·폐기 −) */
-const ledger: LedgerItem[] = [
+/** S-13 변동 이력. 최신순, 수량은 부호 포함(입고 +, 판매·폐기 −, 조정 ±). S-14 조정이 앞에 붙는다 */
+let ledger: LedgerItem[] = [
   {
     ledgerId: 9008,
     type: 'DISPOSE',
@@ -340,12 +343,14 @@ function statsOf(from: string, to: string): InventoryStats {
       inboundQuantity: 0,
       soldQuantity: 0,
       disposedQuantity: 0,
+      adjustedQuantity: 0,
       disposalRate: null,
     }
     const quantity = Math.abs(item.quantity)
     if (item.type === 'INBOUND') row.inboundQuantity += quantity
     if (item.type === 'SALE') row.soldQuantity += quantity
     if (item.type === 'DISPOSE') row.disposedQuantity += quantity
+    if (item.type === 'ADJUST') row.adjustedQuantity += item.quantity
     byProduct.set(item.productId, row)
   }
   const rate = (sold: number, disposed: number) =>
@@ -353,7 +358,7 @@ function statsOf(from: string, to: string): InventoryStats {
   const products = [...byProduct.values()]
     .map((row) => ({ ...row, disposalRate: rate(row.soldQuantity, row.disposedQuantity) }))
     .sort((a, b) => b.disposedQuantity - a.disposedQuantity || b.soldQuantity - a.soldQuantity)
-  const sum = (key: 'inboundQuantity' | 'soldQuantity' | 'disposedQuantity') =>
+  const sum = (key: 'inboundQuantity' | 'soldQuantity' | 'disposedQuantity' | 'adjustedQuantity') =>
     products.reduce((total, row) => total + row[key], 0)
   return {
     from,
@@ -361,8 +366,74 @@ function statsOf(from: string, to: string): InventoryStats {
     inboundQuantity: sum('inboundQuantity'),
     soldQuantity: sum('soldQuantity'),
     disposedQuantity: sum('disposedQuantity'),
+    adjustedQuantity: sum('adjustedQuantity'),
     disposalRate: rate(sum('soldQuantity'), sum('disposedQuantity')),
     products,
+  }
+}
+
+let nextAdjustmentId = 7001
+let nextLedgerId = 9100
+
+/** S-14 조정 이력. 최신순 */
+let adjustments: AdjustmentHistoryItem[] = []
+
+/** S-14 서버처럼 lot·재고 목록·원장·조정 이력을 한 번에 바꾼다. 예약보다 적게 줄이면 409 */
+function adjustLot(body: AdjustRequest): AdjustResponse | 'BELOW_RESERVED' | 'LOT_NOT_FOUND' {
+  const productId = Number(
+    Object.keys(lots).find((key) => lots[Number(key)].some((lot) => lot.lotId === body.lotId)),
+  )
+  const lot = lots[productId]?.find((item) => item.lotId === body.lotId)
+  if (!lot) return 'LOT_NOT_FOUND'
+  const before = lot.quantity
+  const after = before + body.delta
+  if (after < lot.reservedQuantity) return 'BELOW_RESERVED'
+  lot.quantity = after
+  lot.availableQuantity = lot.status === 'EXPIRED' ? 0 : after - lot.reservedQuantity
+  const summary = inventory.find((item) => item.productId === productId)
+  if (summary) {
+    summary.totalQuantity += body.delta
+    if (lot.status !== 'EXPIRED') summary.availableQuantity += body.delta
+  }
+  const adjustmentId = nextAdjustmentId++
+  const now = new Date().toISOString()
+  const productName = summary?.name ?? `상품 ${productId}`
+  ledger = [
+    {
+      ledgerId: nextLedgerId++,
+      type: 'ADJUST',
+      productId,
+      productName,
+      lotId: lot.lotId,
+      expiryDate: lot.expiryDate,
+      quantity: body.delta,
+      refId: String(adjustmentId),
+      createdAt: now,
+    },
+    ...ledger,
+  ]
+  adjustments = [
+    {
+      adjustmentId,
+      lotId: lot.lotId,
+      productId,
+      productName,
+      expiryDate: lot.expiryDate,
+      delta: body.delta,
+      quantityBefore: before,
+      quantityAfter: after,
+      reason: body.reason,
+      memo: body.memo ?? null,
+      createdAt: now,
+    },
+    ...adjustments,
+  ]
+  return {
+    adjustmentId,
+    lotId: lot.lotId,
+    delta: body.delta,
+    quantityBefore: before,
+    quantityAfter: after,
   }
 }
 
@@ -389,6 +460,30 @@ export const handlers = [
       }),
     ),
   ),
+  http.post('/api/owner/inventory/adjustments', async ({ request }) => {
+    const body = (await request.json()) as AdjustRequest
+    if (!Number.isInteger(body.delta) || body.delta === 0 || Math.abs(body.delta) > 999) {
+      return HttpResponse.json(
+        { code: 'INVALID_QUANTITY', message: '수량이 올바르지 않습니다', traceId: '' },
+        { status: 400 },
+      )
+    }
+    const result = adjustLot(body)
+    if (result === 'LOT_NOT_FOUND') {
+      return HttpResponse.json(
+        { code: 'LOT_NOT_FOUND', message: 'lot이 없습니다', traceId: '' },
+        { status: 404 },
+      )
+    }
+    if (result === 'BELOW_RESERVED') {
+      return HttpResponse.json(
+        { code: 'BELOW_RESERVED', message: '예약된 수량보다 적게 줄일 수 없습니다', traceId: '' },
+        { status: 409 },
+      )
+    }
+    return HttpResponse.json(result, { status: 201 })
+  }),
+  http.get('/api/owner/inventory/adjustments', () => HttpResponse.json(adjustments)),
   http.get('/api/owner/inventory/stats', ({ request }) => {
     const params = new URL(request.url).searchParams
     const to = params.get('to') ?? new Date().toISOString().slice(0, 10)

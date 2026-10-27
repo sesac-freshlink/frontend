@@ -2,6 +2,7 @@ import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/shared/ui/cn'
 import { apiErrorMessage, useLedger, type LedgerItem, type LedgerType } from '../api'
+import { AdjustmentHistory } from '../components/AdjustmentHistory'
 import { InventoryStatsPanel } from '../components/InventoryStatsPanel'
 import { TabButton } from '../components/TabButton'
 import { formatDateTime, formatExpiry, formatSignedQuantity } from '../format'
@@ -10,12 +11,14 @@ const TYPE_LABEL: Record<LedgerType, string> = {
   INBOUND: '입고',
   SALE: '판매',
   DISPOSE: '폐기',
+  ADJUST: '조정',
 }
 
 const TYPE_CLASS: Record<LedgerType, string> = {
   INBOUND: 'bg-emerald-100 text-emerald-800',
   SALE: 'bg-sky-100 text-sky-800',
   DISPOSE: 'bg-red-100 text-red-700',
+  ADJUST: 'bg-violet-100 text-violet-800',
 }
 
 const FILTERS: { label: string; type?: LedgerType }[] = [
@@ -23,13 +26,20 @@ const FILTERS: { label: string; type?: LedgerType }[] = [
   { label: '입고', type: 'INBOUND' },
   { label: '판매', type: 'SALE' },
   { label: '폐기', type: 'DISPOSE' },
+  { label: '조정', type: 'ADJUST' },
 ]
 
-type Tab = 'history' | 'stats'
+type Tab = 'history' | 'stats' | 'adjustments'
+
+const DESCRIPTION: Record<Tab, string> = {
+  history: '입고·판매·폐기·조정으로 바뀐 수량을 3초마다 새로 읽어요.',
+  stats: '고른 기간의 입고·판매·폐기 수량을 상품별로 더했어요.',
+  adjustments: '점주가 직접 고친 수량이에요. 얼마에서 얼마로, 왜 바꿨는지 남아요.',
+}
 
 /**
  * S-13 재고 변동 이력. 입고 +, 판매·폐기 − 로 lot 별 수량이 어떻게 바뀌었는지 최신순으로 보여 준다.
- * 통계 탭(S-42)은 같은 원장을 기간·상품별로 더한 수량과 폐기율이다
+ * 통계 탭(S-42)은 같은 원장을 기간·상품별로 더한 수량과 폐기율, 조정 내역 탭(S-14)은 수동 조정 기록이다
  */
 export function LedgerPage() {
   const [tab, setTab] = useState<Tab>('history')
@@ -38,17 +48,20 @@ export function LedgerPage() {
     <section className="space-y-4">
       <div>
         <h1 className="text-xl font-bold text-slate-900">변동 이력</h1>
-        <p className="text-sm text-slate-500">
-          {tab === 'history'
-            ? '입고·판매·폐기로 바뀐 수량을 3초마다 새로 읽어요.'
-            : '고른 기간의 입고·판매·폐기 수량을 상품별로 더했어요.'}
-        </p>
+        <p className="text-sm text-slate-500">{DESCRIPTION[tab]}</p>
       </div>
       <div role="tablist" aria-label="이력·통계" className="flex gap-1 border-b border-slate-200">
         <TabButton label="이력" selected={tab === 'history'} onSelect={() => setTab('history')} />
         <TabButton label="통계" selected={tab === 'stats'} onSelect={() => setTab('stats')} />
+        <TabButton
+          label="조정 내역"
+          selected={tab === 'adjustments'}
+          onSelect={() => setTab('adjustments')}
+        />
       </div>
-      {tab === 'history' ? <LedgerHistory /> : <InventoryStatsPanel />}
+      {tab === 'history' && <LedgerHistory />}
+      {tab === 'stats' && <InventoryStatsPanel />}
+      {tab === 'adjustments' && <AdjustmentHistory />}
     </section>
   )
 }

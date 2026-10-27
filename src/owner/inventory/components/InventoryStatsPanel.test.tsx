@@ -17,6 +17,7 @@ const stats: InventoryStats = {
   inboundQuantity: 16,
   soldQuantity: 4,
   disposedQuantity: 2,
+  adjustedQuantity: -1,
   disposalRate: 0.3333,
   products: [
     {
@@ -27,6 +28,7 @@ const stats: InventoryStats = {
       inboundQuantity: 6,
       soldQuantity: 1,
       disposedQuantity: 2,
+      adjustedQuantity: 0,
       disposalRate: 0.6667,
     },
     {
@@ -37,6 +39,7 @@ const stats: InventoryStats = {
       inboundQuantity: 10,
       soldQuantity: 3,
       disposedQuantity: 0,
+      adjustedQuantity: -1,
       disposalRate: 0,
     },
   ],
@@ -90,12 +93,14 @@ describe('판매·폐기 통계 (S-42)', () => {
     expect(total('입고')).toHaveTextContent('16개')
     expect(total('판매')).toHaveTextContent('4개')
     expect(total('폐기')).toHaveTextContent('2개')
+    expect(total('조정')).toHaveTextContent('−1개')
     expect(total('폐기율')).toHaveTextContent('33.3%')
 
     expect(within(milk).getByText('66.7%')).toBeInTheDocument()
     expect(within(milk).getByText('2')).toHaveClass('text-red-600')
     const noodle = screen.getByText('매운 컵라면 115g').closest('tr')!
     expect(within(noodle).getByText('0%')).toBeInTheDocument()
+    expect(within(noodle).getByText('−1')).toBeInTheDocument()
 
     // 서버가 준 순서(폐기 많은 순)를 그대로 쓴다
     const names = screen
@@ -130,6 +135,7 @@ describe('판매·폐기 통계 (S-42)', () => {
         inboundQuantity: 0,
         soldQuantity: 0,
         disposedQuantity: 0,
+        adjustedQuantity: 0,
         disposalRate: null,
         products: [],
       },

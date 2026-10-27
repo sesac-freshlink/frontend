@@ -11,14 +11,7 @@ export function RequireRole({ role }: { role: Role }) {
   const location = useLocation()
 
   if (restoring) return <FullScreenSpinner />
-  if (!user)
-    return (
-      <Navigate
-        to="/login"
-        replace
-        state={{ from: location.pathname + location.search + location.hash }}
-      />
-    )
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
   if (user.role !== role) return <Navigate to={homePathFor(user.role)} replace />
   return <Outlet />
 }

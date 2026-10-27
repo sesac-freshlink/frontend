@@ -42,8 +42,6 @@ export interface UseSignupFlowReturn {
   email: string | undefined
   /** 프로필 등록 단계에 미리 채울 값 (가입 화면에서 입력한 값) */
   profileDefaults: ProfileValues | undefined
-  /** 인증 직후 가입 때 넣은 값으로 프로필을 자동 저장하는 중. 이때는 입력 창 대신 저장 중 안내만 보여 준다 */
-  autoSaving: boolean
   submitForm(values: SignupValues): Promise<void>
   submitCode(code: string): Promise<void>
   submitProfile(values: ProfileValues): Promise<void>
@@ -70,7 +68,6 @@ export function useSignupFlow(): UseSignupFlowReturn {
   )
   const [password, setPassword] = useState<string>()
   const [profileDefaults, setProfileDefaults] = useState<ProfileValues>()
-  const [autoSaving, setAutoSaving] = useState(false)
 
   async function saveProfile(values: ProfileValues) {
     try {
@@ -87,7 +84,6 @@ export function useSignupFlow(): UseSignupFlowReturn {
     step,
     email,
     profileDefaults,
-    autoSaving,
 
     async submitForm(values) {
       const availability = await checkNickname.mutateAsync(values.nickname).catch((e: unknown) => {
@@ -133,15 +129,12 @@ export function useSignupFlow(): UseSignupFlowReturn {
       }
       setStep('profile')
       if (!profileDefaults) return
-      setAutoSaving(true)
       try {
         await saveProfile(profileDefaults)
       } catch (e) {
         // 인증·로그인은 끝났으니 프로필 저장만 다시 하게 한다 (M1 실패·재시도)
         if (e instanceof FieldError) toast.error(e.message)
         else toast.error('프로필 저장에 실패했어요. 다시 시도해 주세요.')
-      } finally {
-        setAutoSaving(false)
       }
     },
 

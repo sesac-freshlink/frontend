@@ -36,8 +36,8 @@ export interface InventoryLotItem {
   status: InventoryLotStatus
 }
 
-/** 재고 변동 종류. 예약·해제는 실물이 바뀌지 않아 이력에 남지 않는다 */
-export type LedgerType = 'INBOUND' | 'SALE' | 'DISPOSE'
+/** 재고 변동 종류. 예약·해제는 실물이 바뀌지 않아 이력에 남지 않는다. ADJUST 는 점주 수동 조정(S-14) */
+export type LedgerType = 'INBOUND' | 'SALE' | 'DISPOSE' | 'ADJUST'
 
 /** S-13 응답 한 줄. inventory-service LedgerResponse 와 같은 모양 */
 export interface LedgerItem {
@@ -47,9 +47,9 @@ export interface LedgerItem {
   productName: string
   lotId: number
   expiryDate: string
-  /** 부호 포함. 입고 +, 판매·폐기 − */
+  /** 부호 포함. 입고 +, 판매·폐기 −, 조정 ± */
   quantity: number
-  /** 입고 shipmentId / 판매 orderId / 폐기 disposalId */
+  /** 입고 shipmentId / 판매 orderId / 폐기 disposalId / 조정 adjustmentId */
   refId: string | null
   createdAt: string
 }
@@ -124,6 +124,8 @@ export interface ProductStats {
   inboundQuantity: number
   soldQuantity: number
   disposedQuantity: number
+  /** 수동 조정(S-14) 합계. 늘리면 +, 줄이면 − */
+  adjustedQuantity: number
   /** 폐기 ÷ (판매 + 폐기). 판매·폐기가 없으면 null */
   disposalRate: number | null
 }
@@ -135,6 +137,7 @@ export interface InventoryStats {
   inboundQuantity: number
   soldQuantity: number
   disposedQuantity: number
+  adjustedQuantity: number
   disposalRate: number | null
   products: ProductStats[]
 }
@@ -143,6 +146,41 @@ export interface InventoryStats {
 export interface StatsPeriod {
   from: string
   to: string
+}
+
+/** S-14 조정 사유 */
+export type AdjustmentReason = 'COUNT' | 'DAMAGE' | 'LOSS' | 'OTHER'
+
+/** S-14 조정 요청. delta 는 증감(−999~999, 0 제외) */
+export interface AdjustRequest {
+  lotId: number
+  delta: number
+  reason: AdjustmentReason
+  memo?: string
+}
+
+/** S-14 201 응답. 쪽지를 거치지 않아 응답 때 이미 lot 수량이 바뀌어 있다 */
+export interface AdjustResponse {
+  adjustmentId: number
+  lotId: number
+  delta: number
+  quantityBefore: number
+  quantityAfter: number
+}
+
+/** S-14 조정 이력 한 줄. inventory-service AdjustmentHistoryResponse 와 같은 모양 */
+export interface AdjustmentHistoryItem {
+  adjustmentId: number
+  lotId: number
+  productId: number
+  productName: string
+  expiryDate: string
+  delta: number
+  quantityBefore: number
+  quantityAfter: number
+  reason: AdjustmentReason
+  memo: string | null
+  createdAt: string
 }
 
 /** 서버 오류 본문 (common ErrorResponse) */
@@ -257,6 +295,37 @@ export function useInventoryStats(period: StatsPeriod) {
     queryKey: ['owner', 'stats', period.from, period.to],
     queryFn: async () =>
       (await api.get<InventoryStats>('/owner/inventory/stats', { params: period })).data,
+  })
+}
+
+/**
+ * S-14 lot 하나 수동 조정. 폐기와 달리 바로 반영되므로 재고·lot·이력·통계·조정 이력을 다시 읽는다.
+ * 409 LOT_CHANGED 는 같은 lot 을 쪽지가 먼저 고친 경우라, 다시 읽은 수량을 보고 다시 하면 된다
+ */
+export function useAdjustLot() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: AdjustRequest) =>
+      (await api.post<AdjustResponse>('/owner/inventory/adjustments', body)).data,
+    onSettled: () =>
+      Promise.all(
+        [
+          ['owner', 'inventory'],
+          ['owner', 'expiring'],
+          ['owner', 'ledger'],
+          ['owner', 'stats'],
+          ['owner', 'adjustments'],
+        ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+      ),
+  })
+}
+
+/** S-14 조정 이력 (최신순, 최근 100건). 조정하면 다시 읽으므로 폴링하지 않는다 */
+export function useAdjustments() {
+  return useQuery({
+    queryKey: ['owner', 'adjustments'],
+    queryFn: async () =>
+      (await api.get<AdjustmentHistoryItem[]>('/owner/inventory/adjustments')).data,
   })
 }
 

@@ -144,6 +144,47 @@ describe('재고 변동 이력 (S-13)', () => {
     expect(await screen.findByText('이력을 불러오지 못했어요.')).toBeInTheDocument()
   })
 
+  it('조정 원장은 조정 배지와 부호 붙은 수량으로 보여 주고 조정 버튼으로 거른다 (S-14)', async () => {
+    get.mockResolvedValue({
+      data: [
+        {
+          ledgerId: 9004,
+          type: 'ADJUST',
+          productId: 12,
+          productName: '흰 우유 500ml',
+          lotId: 302,
+          expiryDate: '2026-10-09T23:59:59+09:00',
+          quantity: -2,
+          refId: '7001',
+          createdAt: '2026-10-21T10:00:00+09:00',
+        },
+      ],
+    })
+    renderPage()
+
+    const row = await rowOf('7001')
+    expect(within(row).getByText('조정')).toHaveClass('bg-violet-100', 'text-violet-800')
+    expect(within(row).getByText('−2')).toHaveClass('text-red-600')
+
+    await userEvent.click(screen.getByRole('button', { name: '조정' }))
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/owner/inventory/ledger', { params: { type: 'ADJUST' } }),
+    )
+  })
+
+  it('조정 내역 탭으로 바꾸면 조정 이력을 부른다 (S-14)', async () => {
+    get.mockImplementation((url: string) =>
+      Promise.resolve({ data: url === '/owner/inventory/adjustments' ? [] : items }),
+    )
+    renderPage()
+    await rowOf('SHP-20261020-001')
+
+    await userEvent.click(screen.getByRole('tab', { name: '조정 내역' }))
+
+    expect(await screen.findByText(/아직 조정한 적이 없어요/)).toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/owner/inventory/adjustments')
+  })
+
   it('통계 탭으로 바꾸면 이력 대신 기간 통계를 부른다 (S-42)', async () => {
     get.mockImplementation((url: string) =>
       Promise.resolve({
@@ -155,6 +196,7 @@ describe('재고 변동 이력 (S-13)', () => {
                 inboundQuantity: 0,
                 soldQuantity: 0,
                 disposedQuantity: 0,
+                adjustedQuantity: 0,
                 disposalRate: null,
                 products: [],
               }

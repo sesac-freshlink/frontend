@@ -104,10 +104,9 @@ describe('유통기한 관리 (S-30·S-32)', () => {
     mockLots(lots)
     renderPage()
 
-    expect(await screen.findByRole('tab', { name: '경과 2' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
+    // 역할(role) 찾기는 매번 접근성 트리를 계산해 느리다. 글자로 먼저 기다리고 역할은 한 번만 찾는다
+    await screen.findByText('흰우유 200ml')
+    expect(screen.getByRole('tab', { name: '경과 2' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: '임박 2' })).toHaveAttribute('aria-selected', 'false')
     expect(get).toHaveBeenCalledWith('/owner/inventory/expiring')
     expect(screen.getByText('흰우유 200ml')).toBeInTheDocument()
