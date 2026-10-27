@@ -40,6 +40,7 @@ describe('lot 상세 바로 열기 (S-11 /owner/inventory/:productId)', () => {
               name: '제육볶음 도시락',
               category: '도시락',
               price: 4900,
+              imageUrl: null,
               totalQuantity: 3,
               reservedQuantity: 0,
               availableQuantity: 3,

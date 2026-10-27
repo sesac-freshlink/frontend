@@ -16,6 +16,7 @@ const products: StoreProduct[] = [
     name: '매운 컵라면 115g',
     category: '라면',
     price: 1700,
+    imageUrl: 'https://img.example/P015.jpg',
     availableQuantity: 3,
     soldOut: false,
   },
@@ -24,6 +25,7 @@ const products: StoreProduct[] = [
     name: '샌드위치 햄치즈',
     category: '샌드위치',
     price: 3200,
+    imageUrl: null,
     availableQuantity: 0,
     soldOut: true,
   },
@@ -97,7 +99,19 @@ describe('고객 점포 상품 목록 (U-10)', () => {
       productName: '매운 컵라면 115g',
       price: '1700',
       available: '3',
+      imageUrl: 'https://img.example/P015.jpg',
     })
+  })
+
+  it('이미지가 있는 상품은 썸네일을, 없는 상품은 자리표시를 보여 준다', async () => {
+    get.mockResolvedValue({ data: products })
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+
+    expect(await screen.findByRole('img', { name: '매운 컵라면 115g' })).toHaveAttribute(
+      'src',
+      'https://img.example/P015.jpg',
+    )
+    expect(screen.getByRole('img', { name: '샌드위치 햄치즈 이미지 없음' })).toBeInTheDocument()
   })
 
   it('새로고침으로 점포 이름이 사라져도 이 세션에 남긴 이름을 다시 쓴다', async () => {

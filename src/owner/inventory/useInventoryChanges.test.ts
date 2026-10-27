@@ -10,6 +10,7 @@ function item(productId: number, quantities: [number, number, number]): Inventor
     name: `상품 ${productId}`,
     category: '기타',
     price: 1000,
+    imageUrl: null,
     totalQuantity,
     reservedQuantity,
     availableQuantity,

@@ -1,6 +1,7 @@
 import { LoaderCircle, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/shared/ui/cn'
+import { ProductThumb } from '@/shared/ui/ProductThumb'
 import { apiErrorMessage, useInventory, type InventoryItem } from '../api'
 import { LotDetailPanel } from '../components/LotDetailPanel'
 import { SafetyStockSettings } from '../components/SafetyStockSettings'
@@ -193,9 +194,14 @@ function InventoryRow({ item, changed, selected, onSelect }: RowProps) {
         changed && 'bg-amber-100 hover:bg-amber-100',
       )}
     >
-      <td className="px-4 py-3 whitespace-nowrap">
-        <p className="font-medium">{item.name}</p>
-        <p className="text-xs text-slate-400">{item.productCode}</p>
+      <td className="px-4 py-2 whitespace-nowrap">
+        <div className="flex items-center gap-3">
+          <ProductThumb src={item.imageUrl} name={item.name} />
+          <div>
+            <p className="font-medium">{item.name}</p>
+            <p className="text-xs text-slate-400">{item.productCode}</p>
+          </div>
+        </div>
       </td>
       <td className="px-3 py-3 whitespace-nowrap text-slate-600">{item.category}</td>
       <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
