@@ -1,6 +1,6 @@
 import { ImageOff } from 'lucide-react'
 import { useState } from 'react'
-import { cn } from '@/shared/ui/cn'
+import { cn } from './cn'
 
 interface Props {
   /** 없으면(null) 자리표시를 보여 준다 */
@@ -11,7 +11,8 @@ interface Props {
 }
 
 /**
- * 상품 썸네일. 주소가 없거나 불러오지 못하면 회색 자리표시를 보여 준다.
+ * 상품 썸네일. 점주 재고 목록(S-10)과 고객 상품 목록(U-10)이 같이 쓴다.
+ * 주소가 없거나 불러오지 못하면 회색 자리표시를 보여 준다.
  * 이미지는 외부(CU 사이트 CDN) 주소라 언제든 막힐 수 있어 자리표시가 꼭 있어야 한다
  */
 export function ProductThumb({ src, name, className }: Props) {

@@ -14,6 +14,8 @@ export interface CheckoutItem {
   price: number
   /** 구매 가능 수량. 알면 넘긴다 (수량 선택 상한) */
   available?: number
+  /** 상품 이미지 주소. 있으면 넘긴다 (주문 화면 표시용) */
+  imageUrl?: string
 }
 
 /**
@@ -29,6 +31,7 @@ export function checkoutPath(item: CheckoutItem): string {
     price: String(item.price),
   })
   if (item.available !== undefined) q.set('available', String(item.available))
+  if (item.imageUrl) q.set('imageUrl', item.imageUrl)
   return `/customer/orders/new?${q.toString()}`
 }
 

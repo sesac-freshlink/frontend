@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { checkoutPath } from '@/customer/order/checkout'
 import { formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
+import { ProductThumb } from '@/shared/ui/ProductThumb'
 import { useStoreProducts, type StoreProduct } from '../api'
 import { useStoreName } from '../useStoreName'
 
@@ -108,6 +109,7 @@ function ProductList({ products, storeId, storeName }: ListProps) {
                   productName: p.name,
                   price: p.price,
                   available: p.availableQuantity,
+                  ...(p.imageUrl !== null && { imageUrl: p.imageUrl }),
                 })
           }
         />
@@ -120,6 +122,7 @@ function ProductList({ products, storeId, storeName }: ListProps) {
 function ProductRow({ product, to }: { product: StoreProduct; to?: string }) {
   const body = (
     <>
+      <ProductThumb src={product.imageUrl} name={product.name} className="size-12" />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{product.name}</span>
         <span className="block text-xs text-slate-400">{product.category}</span>

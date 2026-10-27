@@ -42,6 +42,8 @@ export interface StoreProduct {
   name: string
   category: string
   price: number
+  /** 상품 이미지 주소. 없으면 null (화면이 자리표시를 보여 준다) */
+  imageUrl: string | null
   availableQuantity: number
   soldOut: boolean
 }
