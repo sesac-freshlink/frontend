@@ -17,7 +17,7 @@ export function AdminStoresPage() {
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">점포 관리</h1>
+          <h1 className="text-xl font-bold text-slate-900">점포 목록</h1>
           <p className="text-sm text-slate-500">등록된 점포예요. 최근 등록한 점포가 위에 있어요.</p>
         </div>
         <Link
