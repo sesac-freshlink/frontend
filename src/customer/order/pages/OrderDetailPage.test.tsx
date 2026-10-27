@@ -105,6 +105,15 @@ describe('주문 상세 (U-22·U-31)', () => {
     expect(screen.getByRole('button', { name: '3,400원 결제하기' })).toBeInTheDocument()
   })
 
+  it('토스 실패 URL 로 돌아와도 서버가 결제 완료면 서버 상태대로 보여 주고 덮어쓰지 않는다', async () => {
+    orderReturns({ status: 'PAID', paidAt: '2026-10-20T15:35:10+09:00' })
+    renderAt('/customer/orders/123?code=PAY_PROCESS_CANCELED&message=x&orderId=FL-20261020-000123')
+    expect(await screen.findByText('결제 완료')).toBeInTheDocument()
+    expect(screen.queryByText(/결제가 완료되지 않았어요/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /결제하기/ })).not.toBeInTheDocument()
+    expect(post).not.toHaveBeenCalled()
+  })
+
   it('재고 부족으로 끝나면 사유 문구와 상품으로 돌아가기를 보여 준다', async () => {
     orderReturns({ status: 'OUT_OF_STOCK', failureReason: 'OUT_OF_STOCK', amount: null })
     renderAt('/customer/orders/123')

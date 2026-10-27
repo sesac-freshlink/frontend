@@ -33,7 +33,12 @@ export function SignupPage() {
       <h1 className="text-2xl font-bold text-emerald-600">FreshLink 회원가입</h1>
       {flow.step === 'form' && <SignupFormStep onSubmit={flow.submitForm} />}
       {flow.step === 'code' && <CodeStep email={flow.email} onSubmit={flow.submitCode} />}
-      {flow.step === 'profile' && (
+      {flow.step === 'profile' && flow.autoSaving && (
+        <p role="status" className="text-center text-sm text-slate-500">
+          프로필을 저장하고 있어요…
+        </p>
+      )}
+      {flow.step === 'profile' && !flow.autoSaving && (
         <ProfileStep defaults={flow.profileDefaults} onSubmit={flow.submitProfile} />
       )}
       {flow.step !== 'profile' && (
