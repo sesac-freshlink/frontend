@@ -46,6 +46,8 @@ describe('lot 상세 바로 열기 (S-11 /owner/inventory/:productId)', () => {
               nearestExpiry: '2026-10-23T23:59:59+09:00',
               imminentLotCount: 0,
               expiredLotCount: 0,
+              safetyStock: 5,
+              lowStock: true,
             },
           ],
         })

@@ -17,6 +17,10 @@ export interface InventoryItem {
   nearestExpiry: string | null
   imminentLotCount: number
   expiredLotCount: number
+  /** S-40 안전재고. 점주가 정하지 않았으면 기본값 5 */
+  safetyStock: number
+  /** 구매 가능 수량이 안전재고보다 적으면 true */
+  lowStock: boolean
 }
 
 /** lot 상태. 서버가 지금 시각으로 계산해서 내려 준다 */
@@ -92,6 +96,23 @@ export interface DisposalHistoryItem {
   createdAt: string
   /** 처리 전(REQUESTED)이면 null */
   processedAt: string | null
+}
+
+/** S-40 상품 하나의 안전재고. inventory-service SafetyStockResponse 와 같은 모양. 입고 전 상품도 온다 */
+export interface SafetyStockItem {
+  productId: number
+  productCode: string
+  name: string
+  category: string
+  safetyStock: number
+  /** false 면 점주가 정하지 않아 기본값(5)이다 */
+  customized: boolean
+}
+
+/** S-40 안전재고 변경 요청 (0~999) */
+export interface UpdateSafetyStockRequest {
+  productId: number
+  safetyStock: number
 }
 
 /** 서버 오류 본문 (common ErrorResponse) */
@@ -171,6 +192,32 @@ export function useDisposals() {
     queryKey: ['owner', 'disposals'],
     queryFn: async () => (await api.get<DisposalHistoryItem[]>('/owner/disposals')).data,
     refetchInterval: POLL_MS.ownerInventory,
+  })
+}
+
+/** S-40 상품별 안전재고. 설정값이라 폴링하지 않고, 바꾸면 다시 읽는다 */
+export function useSafetyStocks() {
+  return useQuery({
+    queryKey: ['owner', 'safetyStocks'],
+    queryFn: async () => (await api.get<SafetyStockItem[]>('/owner/inventory/safety-stocks')).data,
+  })
+}
+
+/** S-40 상품 하나의 안전재고 변경. 재고 목록의 부족 표시(lowStock)도 바뀌므로 같이 다시 읽는다 */
+export function useUpdateSafetyStock() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ productId, safetyStock }: UpdateSafetyStockRequest) =>
+      (
+        await api.put<SafetyStockItem>(`/owner/inventory/safety-stocks/${productId}`, {
+          safetyStock,
+        })
+      ).data,
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['owner', 'safetyStocks'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
+      ]),
   })
 }
 

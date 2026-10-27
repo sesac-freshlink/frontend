@@ -5,6 +5,7 @@ import { apiErrorMessage, useExpiring, type ExpiringLot } from '../api'
 import { DisposalHistory } from '../components/DisposalHistory'
 import { DisposeConfirmDialog } from '../components/DisposeConfirmDialog'
 import { LotStatusBadge } from '../components/LotDetailPanel'
+import { TabButton } from '../components/TabButton'
 import { formatDateTime } from '../format'
 
 type Tab = 'imminent' | 'expired'
@@ -91,31 +92,6 @@ export function ExpiringPage() {
 
       {confirming && <DisposeConfirmDialog lots={selectedLots} onClose={closeDialog} />}
     </section>
-  )
-}
-
-function TabButton({
-  label,
-  selected,
-  onSelect,
-}: {
-  label: string
-  selected: boolean
-  onSelect: () => void
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={selected}
-      onClick={onSelect}
-      className={cn(
-        '-mb-px border-b-2 border-transparent px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-900',
-        selected && 'border-emerald-600 text-emerald-700 hover:text-emerald-700',
-      )}
-    >
-      {label}
-    </button>
   )
 }
 
