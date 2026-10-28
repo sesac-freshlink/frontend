@@ -30,6 +30,7 @@ describe('점주 신규 주문 목록 (S-50)', () => {
           quantity: 2,
           amount: 3400,
           paidAt: '2026-10-20T15:35:10+09:00',
+          payment: null,
         },
       ],
     })
@@ -42,6 +43,40 @@ describe('점주 신규 주문 목록 (S-50)', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '새로 고침' }))
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2))
+  })
+
+  it('주문마다 결제 수단·결제 시각·영수증 보기를 보여 주고, 영수증이 없으면 링크만 숨긴다', async () => {
+    const payment = {
+      method: '카드',
+      approvedAt: '2026-10-20T15:35:10+09:00',
+      status: 'DONE' as const,
+      receiptUrl: 'https://receipt.test/1',
+    }
+    const row = {
+      productName: '매운 컵라면 115g',
+      quantity: 2,
+      amount: 3400,
+      paidAt: '2026-10-20T15:35:10+09:00',
+    }
+    get.mockResolvedValue({
+      data: [
+        { ...row, orderId: 1, orderNo: 'FL-20261020-000001', payment },
+        {
+          ...row,
+          orderId: 2,
+          orderNo: 'FL-20261020-000002',
+          payment: { ...payment, method: '간편결제', receiptUrl: null },
+        },
+      ],
+    })
+    renderPage()
+
+    expect(await screen.findByText('FL-20261020-000001')).toBeInTheDocument()
+    expect(screen.getByText('카드')).toBeInTheDocument()
+    expect(screen.getByText('간편결제')).toBeInTheDocument()
+    const links = screen.getAllByRole('link', { name: '영수증 보기' })
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute('href', 'https://receipt.test/1')
   })
 
   it('주문이 없으면 안내한다', async () => {

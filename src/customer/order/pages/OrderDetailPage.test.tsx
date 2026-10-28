@@ -27,6 +27,16 @@ const base: Order = {
   paymentExpiresAt: '2026-10-20T15:42:00+09:00',
   paidAt: null,
   createdAt: '2026-10-20T15:31:55+09:00',
+  payment: null,
+  // 결제 마감 15:42 의 7분 30초 전. 기기 시계와 상관없이 이 값 기준으로 센다
+  serverTime: '2026-10-20T15:34:30+09:00',
+}
+
+const paidPayment = {
+  method: '카드',
+  approvedAt: '2026-10-20T15:35:10+09:00',
+  status: 'DONE' as const,
+  receiptUrl: 'https://dashboard.tosspayments.com/receipt/redirection?transactionId=tviva_1',
 }
 
 function renderAt(path: string) {
@@ -120,6 +130,48 @@ describe('주문 상세 (U-22·U-31)', () => {
     expect(await screen.findByText('재고가 부족해 주문이 취소됐어요.')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('link', { name: '상품으로 돌아가기' }))
     expect(await screen.findByText('상품 목록')).toBeInTheDocument()
+  })
+
+  it('결제 대기면 서버 시각 기준 남은 시간을 보여 주고 결제 내역은 없다', async () => {
+    orderReturns({ status: 'PAYMENT_WAITING' })
+    renderAt('/customer/orders/123')
+    // 기기 시계가 몇 시든 serverTime 15:34:30 → 마감 15:42:00 = 7분 30초 (렌더 사이 1초 흐를 수 있음)
+    expect(await screen.findByRole('timer')).toHaveTextContent(/^7분 (30|29)초 남음$/)
+    expect(screen.queryByText('영수증 보기')).not.toBeInTheDocument()
+    expect(screen.queryByText('결제 수단')).not.toBeInTheDocument()
+  })
+
+  it('남은 시간이 0이면 결제 시간이 끝났다고 하고 결제 버튼을 막는다', async () => {
+    orderReturns({ status: 'PAYMENT_WAITING', serverTime: '2026-10-20T15:42:05+09:00' })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByRole('timer')).toHaveTextContent('결제 시간이 끝났어요')
+    expect(screen.queryByRole('button', { name: /결제하기/ })).not.toBeInTheDocument()
+  })
+
+  it('결제 완료면 결제 수단·결제 시각·영수증 보기를 보여 준다', async () => {
+    orderReturns({ status: 'PAID', paidAt: '2026-10-20T15:35:10+09:00', payment: paidPayment })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByText('결제 완료')).toBeInTheDocument()
+    expect(screen.getByText('결제 수단')).toBeInTheDocument()
+    expect(screen.getByText('카드')).toBeInTheDocument()
+    expect(screen.getByText('10/20 15:35')).toBeInTheDocument()
+    const receipt = screen.getByRole('link', { name: '영수증 보기' })
+    expect(receipt).toHaveAttribute('href', paidPayment.receiptUrl)
+    expect(receipt).toHaveAttribute('target', '_blank')
+    expect(receipt).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument()
+  })
+
+  it('영수증 주소가 없으면 영수증 보기만 숨긴다', async () => {
+    orderReturns({
+      status: 'PAID',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: { ...paidPayment, receiptUrl: null },
+    })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByText('결제 완료')).toBeInTheDocument()
+    expect(screen.getByText('카드')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '영수증 보기' })).not.toBeInTheDocument()
   })
 
   it('다른 고객의 주문(403)이면 찾을 수 없다고 한다', async () => {

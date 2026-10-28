@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
+import type { OrderPayment } from '@/customer/order/api'
 import { api } from '@/shared/api/client'
 
-/** OR-04 응답 한 줄 (결제 완료 주문) */
+/** OR-04 응답 한 줄 (결제 완료 주문). payment 는 OR-02 와 같은 모양 */
 export interface OwnerOrder {
   orderId: number
   orderNo: string
@@ -9,6 +10,7 @@ export interface OwnerOrder {
   quantity: number
   amount: number
   paidAt: string
+  payment: OrderPayment | null
 }
 
 /**

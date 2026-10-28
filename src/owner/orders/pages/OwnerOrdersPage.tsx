@@ -1,4 +1,5 @@
 import { LoaderCircle, RefreshCw } from 'lucide-react'
+import { ReceiptLink } from '@/customer/order/components/ReceiptLink'
 import { formatDateTime, formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import { useOwnerOrders } from '../api'
@@ -53,7 +54,9 @@ function OrderTable({ orders }: { orders: ReturnType<typeof useOwnerOrders> }) {
             <th className="px-4 py-3 font-medium">상품</th>
             <th className="px-4 py-3 text-right font-medium">수량</th>
             <th className="px-4 py-3 text-right font-medium">금액</th>
+            <th className="px-4 py-3 font-medium">결제 수단</th>
             <th className="px-4 py-3 text-right font-medium">결제 시각</th>
+            <th className="px-4 py-3 text-right font-medium">영수증</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 text-slate-900">
@@ -63,7 +66,13 @@ function OrderTable({ orders }: { orders: ReturnType<typeof useOwnerOrders> }) {
               <td className="px-4 py-3">{o.productName}</td>
               <td className="px-4 py-3 text-right">{o.quantity}개</td>
               <td className="px-4 py-3 text-right">{formatWon(o.amount)}</td>
-              <td className="px-4 py-3 text-right text-slate-500">{formatDateTime(o.paidAt)}</td>
+              <td className="px-4 py-3">{o.payment?.method ?? '-'}</td>
+              <td className="px-4 py-3 text-right text-slate-500">
+                {formatDateTime(o.payment?.approvedAt ?? o.paidAt)}
+              </td>
+              <td className="px-4 py-3 text-right">
+                <ReceiptLink url={o.payment?.receiptUrl ?? null} />
+              </td>
             </tr>
           ))}
         </tbody>

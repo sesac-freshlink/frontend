@@ -88,6 +88,8 @@ export const orderHandlers = [
       paymentExpiresAt: null,
       paidAt: null,
       createdAt: now.toISOString(),
+      payment: null,
+      serverTime: now.toISOString(),
       createdMs: now.getTime(),
     })
     orderIdByKey.set(key, id)
@@ -102,7 +104,7 @@ export const orderHandlers = [
         { status: 404 },
       )
     advance(o)
-    return HttpResponse.json(publicOrder(o))
+    return HttpResponse.json({ ...publicOrder(o), serverTime: new Date().toISOString() })
   }),
   http.post('/api/orders/:orderId/payment/confirm', async ({ params, request }) => {
     const o = orders.get(Number(params.orderId))
@@ -122,6 +124,16 @@ export const orderHandlers = [
       o.status = 'PAID'
       o.paidAt = new Date().toISOString()
       o.paymentKey = req.paymentKey
+      // 짝수 주문은 영수증 주소가 없는 경우를 흉내 낸다 (결제는 그대로 완료)
+      o.payment = {
+        method: '카드',
+        approvedAt: o.paidAt,
+        status: 'DONE',
+        receiptUrl:
+          o.orderId % 2 === 0
+            ? null
+            : `https://dashboard.tosspayments.com/receipt/redirection?transactionId=mock-${o.orderId}`,
+      }
     } else if (o.paymentKey !== req.paymentKey) {
       return HttpResponse.json({ code: 'ORDER_NOT_PAYABLE', message: '' }, { status: 409 })
     }
@@ -148,6 +160,7 @@ export const orderHandlers = [
         quantity: o.quantity,
         amount: o.amount ?? 0,
         paidAt: o.paidAt ?? '',
+        payment: o.payment,
       }))
     return HttpResponse.json(paid)
   }),
