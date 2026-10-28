@@ -18,7 +18,18 @@ export interface CreateOrderResponse {
   status: OrderStatus
 }
 
-/** OR-02 응답. 상품명·단가·금액은 재고 확보(RESERVED) 뒤에 생긴다 */
+/**
+ * OR-02·OR-04 결제 내역. 결제 승인을 시작한 뒤에 생긴다 (그 전 주문은 payment = null).
+ * approvedAt 은 +09:00, receiptUrl 은 토스 영수증 주소 (없으면 null, 결제는 그대로 완료)
+ */
+export interface OrderPayment {
+  method: string | null
+  approvedAt: string | null
+  status: 'APPROVING' | 'DONE' | 'FAILED'
+  receiptUrl: string | null
+}
+
+/** OR-02 응답. 상품명·단가·금액은 재고 확보(RESERVED) 뒤에 생긴다. serverTime 은 응답을 만든 서버 현재 시각 */
 export interface Order {
   orderId: number
   orderNo: string
@@ -34,6 +45,8 @@ export interface Order {
   paymentExpiresAt: string | null
   paidAt: string | null
   createdAt: string
+  payment: OrderPayment | null
+  serverTime: string
 }
 
 /** OR-03 요청 (토스 성공 URL 로 받은 값 그대로) */

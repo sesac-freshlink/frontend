@@ -1,11 +1,15 @@
 import axios from 'axios'
 import { CircleCheck, CircleX, LoaderCircle } from 'lucide-react'
 import { Link, useParams } from 'react-router'
+import { cn } from '@/shared/ui/cn'
 import { useOrder, type Order } from '../api'
 import { OrderSummary, type SummaryRow } from '../components/OrderSummary'
+import { ReceiptLink } from '../components/ReceiptLink'
+import { formatRemaining } from '../countdown'
 import { formatDateTime, formatHHmm, formatWon } from '../format'
 import { customerMessage, paymentInterruptedMessage } from '../orderStatus'
 import { TossPaymentWidget } from '../TossPaymentWidget'
+import { useCountdown } from '../useCountdown'
 import { useTossReturn } from '../useTossReturn'
 import { OrderCheckoutView } from './OrderCheckoutView'
 
@@ -55,7 +59,12 @@ function OrderView({ orderId }: { orderId: number }) {
       return <Waiting title={message.title} />
     case 'payable':
       return (
-        <Payable order={data} interrupted={toss.interrupted} onInterrupted={toss.markInterrupted} />
+        <Payable
+          order={data}
+          receivedAtMs={order.dataUpdatedAt}
+          interrupted={toss.interrupted}
+          onInterrupted={toss.markInterrupted}
+        />
       )
     case 'done':
       return <Paid order={data} />
@@ -82,20 +91,46 @@ function summaryRows(order: Order): SummaryRow[] {
   ]
 }
 
+/** 결제 완료 화면의 결제 내역. 승인 시각이 없으면 결제 완료 시각(paidAt)을 쓴다 */
+function paymentRows(order: Order): SummaryRow[] {
+  const approvedAt = order.payment?.approvedAt ?? order.paidAt
+  const rows: SummaryRow[] = []
+  if (order.payment?.method) rows.push({ label: '결제 수단', value: order.payment.method })
+  rows.push({ label: '결제 시각', value: approvedAt ? formatDateTime(approvedAt) : '-' })
+  return rows
+}
+
 function Payable({
   order,
+  receivedAtMs,
   interrupted,
   onInterrupted,
 }: {
   order: Order
+  /** 이 주문 응답을 받은 기기 시각. serverTime 과의 차이로 기기 시계를 보정한다 */
+  receivedAtMs: number
   interrupted: boolean
   onInterrupted(): void
 }) {
   const expiresAt = order.paymentExpiresAt ? formatHHmm(order.paymentExpiresAt) : undefined
+  // 서버 시각 기준 남은 초. 0이 돼도 상태는 바꾸지 않고, 다음 폴링에서 서버가 준 상태를 따른다
+  const remaining = useCountdown(order.paymentExpiresAt, order.serverTime, receivedAtMs)
+  const timeUp = remaining === 0
   return (
     <section className="space-y-4">
       <h1 className="text-xl font-bold text-slate-900">결제 대기</h1>
       <OrderSummary rows={summaryRows(order)} />
+      {remaining !== null && (
+        <p
+          role="timer"
+          className={cn(
+            'rounded-lg p-3 text-center text-lg font-bold',
+            timeUp ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700',
+          )}
+        >
+          {timeUp ? '결제 시간이 끝났어요' : formatRemaining(remaining)}
+        </p>
+      )}
       {interrupted && expiresAt ? (
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
           {paymentInterruptedMessage(expiresAt)}
@@ -106,7 +141,7 @@ function Payable({
         </p>
       )}
       {/* 금액·상품명은 PAYMENT_WAITING 이면 서버가 채워 준다 */}
-      {order.amount !== null && order.productName !== null && (
+      {!timeUp && order.amount !== null && order.productName !== null && (
         <TossPaymentWidget
           orderId={order.orderId}
           orderNo={order.orderNo}
@@ -129,12 +164,8 @@ function Paid({ order }: { order: Order }) {
           주문번호 <span className="font-medium text-slate-900">{order.orderNo}</span>
         </p>
       </div>
-      <OrderSummary
-        rows={[
-          ...summaryRows(order),
-          { label: '결제 시각', value: order.paidAt ? formatDateTime(order.paidAt) : '-' },
-        ]}
-      />
+      <OrderSummary rows={[...summaryRows(order), ...paymentRows(order)]} />
+      <ReceiptLink url={order.payment?.receiptUrl ?? null} className="flex justify-center" />
       <p className="text-center text-sm text-slate-500">매장에서 주문번호를 보여 주고 픽업하세요</p>
       <Link
         to="/customer"
