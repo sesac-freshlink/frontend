@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/shared/auth'
 import { apiErrorCode, useCheckNickname, useRegisterProfile } from './api'
-import { signInErrorMessage, signUpErrorMessage } from './authErrors'
+import { isCodeMismatch, signInErrorMessage, signUpErrorMessage } from './authErrors'
 import type { ProfileValues, SignupValues } from './signupSchema'
 
 export type SignupStep = 'form' | 'code' | 'profile'
@@ -50,12 +50,13 @@ export interface UseSignupFlowReturn {
 }
 
 /**
- * C-01 가입 흐름 (기능명세 M1): 입력 → Cognito 가입 → 이메일 코드 확인 → 로그인 → MB-02 프로필 등록 → 고객 홈.
- * 로그인했는데 프로필이 없는 고객은 프로필 등록 단계부터 한다.
+ * C-01 가입 흐름 (기능명세 M1): 입력 → gateway BFF 가입 → 이메일 코드 확인 → 로그인 → MB-02 프로필 등록 → 고객 홈.
+ * 로그인했는데 프로필이 없는 고객(구글 첫 로그인 포함)은 프로필 등록 단계부터 한다.
+ * 구글 사용자가 같은 이메일로 이미 이메일 가입했으면(409 EMAIL_SIGNUP_EXISTS) 로그아웃하고 로그인 화면에서 안내한다.
  * 비밀번호는 로그인에만 쓰고 화면 메모리에만 둔다 (member-service 로 보내지 않는다).
  */
 export function useSignupFlow(): UseSignupFlowReturn {
-  const { user, signUp, confirmSignUp, signIn } = useAuthStore()
+  const { user, signUp, confirmSignUp, signIn, signOut } = useAuthStore()
   const navigate = useNavigate()
   const locationState: unknown = useLocation().state
   const checkNickname = useCheckNickname()
@@ -76,8 +77,14 @@ export function useSignupFlow(): UseSignupFlowReturn {
     try {
       await registerProfile.mutateAsync(values)
     } catch (e) {
-      if (apiErrorCode(e) === 'NICKNAME_DUPLICATED')
-        throw new FieldError('nickname', NICKNAME_TAKEN)
+      const code = apiErrorCode(e)
+      if (code === 'EMAIL_SIGNUP_EXISTS') {
+        // 구글·이메일 계정을 잇지 않고 막는다. 안내는 로그인 화면이 store 의 loginNotice 로 띄운다
+        await signOut('EMAIL_SIGNUP_EXISTS')
+        navigate('/login', { replace: true })
+        return
+      }
+      if (code === 'NICKNAME_DUPLICATED') throw new FieldError('nickname', NICKNAME_TAKEN)
       throw new Error('프로필 저장에 실패했어요. 다시 시도해 주세요.', { cause: e })
     }
     navigate('/customer', { replace: true })
@@ -95,11 +102,7 @@ export function useSignupFlow(): UseSignupFlowReturn {
       })
       if (!availability.available) throw new FieldError('nickname', NICKNAME_TAKEN)
       try {
-        await signUp({
-          email: values.email,
-          password: values.password,
-          role: 'CUSTOMER',
-        })
+        await signUp({ email: values.email, password: values.password })
       } catch (e) {
         throw new Error(signUpErrorMessage(e), { cause: e })
       }
@@ -112,10 +115,10 @@ export function useSignupFlow(): UseSignupFlowReturn {
     async submitCode(code) {
       if (!email) throw new Error('가입 정보를 다시 입력해 주세요.')
       try {
-        await confirmSignUp(email, code, 'CUSTOMER')
+        await confirmSignUp(email, code)
       } catch (e) {
         const message = signUpErrorMessage(e)
-        if (e instanceof Error && e.name === 'CodeMismatchException') {
+        if (isCodeMismatch(e)) {
           throw new FieldError('code', message)
         }
         throw new Error(message, { cause: e })

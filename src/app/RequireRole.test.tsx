@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore, type AuthUser } from '@/shared/auth'
+import { authClient } from '@/shared/auth/store'
 import { RequireRole } from './RequireRole'
 
 const owner: AuthUser = { userId: 'o', role: 'OWNER', storeId: '1' }
@@ -110,5 +111,29 @@ describe('RequireRole', () => {
   it('로그인하지 않고 관리자 화면에 오면 로그인 화면으로 보낸다', () => {
     renderAt('/admin/stores')
     expect(screen.getByText('로그인 화면')).toBeInTheDocument()
+  })
+
+  it('보던 중 세션이 만료되면(401 갱신 실패) 보던 주소를 들고 로그인 화면으로 간다', () => {
+    const signOut = vi.spyOn(authClient, 'signOut').mockResolvedValue(undefined)
+    useAuthStore.setState({ user: owner })
+    const router = createMemoryRouter(
+      [
+        { path: '/login', element: <LoginProbe /> },
+        {
+          path: '/owner',
+          element: <RequireRole role="OWNER" />,
+          children: [{ path: 'inventory', element: <p>점주 재고</p> }],
+        },
+      ],
+      { initialEntries: ['/owner/inventory?tab=lots'] },
+    )
+    render(<RouterProvider router={router} />)
+    expect(screen.getByText('점주 재고')).toBeInTheDocument()
+    act(() => {
+      useAuthStore.getState().expireSession()
+    })
+    expect(screen.getByText('돌아갈 주소 /owner/inventory?tab=lots')).toBeInTheDocument()
+    expect(signOut).toHaveBeenCalledTimes(1)
+    signOut.mockRestore()
   })
 })
