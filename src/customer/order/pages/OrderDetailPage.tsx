@@ -1,12 +1,12 @@
 import axios from 'axios'
-import { CircleCheck, CircleX, LoaderCircle } from 'lucide-react'
+import { CircleCheck, CircleX, LoaderCircle, PackageCheck } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { cn } from '@/shared/ui/cn'
 import { useOrder, type Order } from '../api'
 import { OrderSummary, type SummaryRow } from '../components/OrderSummary'
 import { ReceiptLink } from '../components/ReceiptLink'
 import { formatRemaining } from '../countdown'
-import { formatDateTime, formatHHmm, formatWon } from '../format'
+import { formatDateTime, formatHHmm, formatPickupDate, formatWon } from '../format'
 import { customerMessage, paymentInterruptedMessage } from '../orderStatus'
 import { TossPaymentWidget } from '../TossPaymentWidget'
 import { useCountdown } from '../useCountdown'
@@ -68,6 +68,8 @@ function OrderView({ orderId }: { orderId: number }) {
       )
     case 'done':
       return <Paid order={data} />
+    case 'pickedUp':
+      return <PickedUp order={data} />
     case 'failed':
       return <Failed order={data} title={message.title} />
   }
@@ -89,6 +91,19 @@ function summaryRows(order: Order): SummaryRow[] {
     { label: '수량', value: `${order.quantity}개` },
     { label: '결제 금액', value: order.amount === null ? '-' : formatWon(order.amount) },
   ]
+}
+
+/** 픽업 기한 한 줄 (A4). 재고 확보 전이거나 서버가 아직 안 주면 없다 */
+function pickupRows(order: Order): SummaryRow[] {
+  return order.pickupDeadline
+    ? [{ label: '픽업 기한', value: `${formatPickupDate(order.pickupDeadline)}까지` }]
+    : []
+}
+
+/** 결제 전·완료 화면의 픽업 기한 안내 (추가 명세 A4) */
+function PickupNotice({ order }: { order: Order }) {
+  if (!order.pickupDeadline) return null
+  return <p className="text-sm text-slate-500">픽업 기한이 지나면 취소·환불할 수 없어요</p>
 }
 
 /** 결제 완료 화면의 결제 내역. 승인 시각이 없으면 결제 완료 시각(paidAt)을 쓴다 */
@@ -119,7 +134,8 @@ function Payable({
   return (
     <section className="space-y-4">
       <h1 className="text-xl font-bold text-slate-900">결제 대기</h1>
-      <OrderSummary rows={summaryRows(order)} />
+      <OrderSummary rows={[...summaryRows(order), ...pickupRows(order)]} />
+      <PickupNotice order={order} />
       {remaining !== null && (
         <p
           role="timer"
@@ -164,9 +180,37 @@ function Paid({ order }: { order: Order }) {
           주문번호 <span className="font-medium text-slate-900">{order.orderNo}</span>
         </p>
       </div>
-      <OrderSummary rows={[...summaryRows(order), ...paymentRows(order)]} />
+      <OrderSummary rows={[...summaryRows(order), ...paymentRows(order), ...pickupRows(order)]} />
       <ReceiptLink url={order.payment?.receiptUrl ?? null} className="flex justify-center" />
-      <p className="text-center text-sm text-slate-500">매장에서 주문번호를 보여 주고 픽업하세요</p>
+      <div className="space-y-1 text-center">
+        {/* 기한 날짜는 위 표의 "픽업 기한" 줄에 있다. 문장에 다시 넣으면 폰 폭에서 "까/지"로 끊긴다 */}
+        <p className="text-sm text-slate-500">매장에서 주문번호를 보여 주고 픽업하세요</p>
+        <PickupNotice order={order} />
+      </div>
+      <Link
+        to="/customer"
+        className="block rounded-lg border border-slate-300 py-3 text-center text-sm font-medium text-slate-600"
+      >
+        홈으로
+      </Link>
+    </section>
+  )
+}
+
+/** A5 점주가 픽업 확인한 주문 */
+function PickedUp({ order }: { order: Order }) {
+  const rows = summaryRows(order)
+  if (order.pickedUpAt) rows.push({ label: '픽업 시각', value: formatDateTime(order.pickedUpAt) })
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col items-center gap-2 py-6">
+        <PackageCheck className="size-12 text-emerald-600" />
+        <h1 className="text-xl font-bold text-slate-900">픽업 완료</h1>
+        <p className="text-sm text-slate-500">
+          주문번호 <span className="font-medium text-slate-900">{order.orderNo}</span>
+        </p>
+      </div>
+      <OrderSummary rows={rows} />
       <Link
         to="/customer"
         className="block rounded-lg border border-slate-300 py-3 text-center text-sm font-medium text-slate-600"
@@ -178,6 +222,8 @@ function Paid({ order }: { order: Order }) {
 }
 
 function Failed({ order, title }: { order: Order; title: string }) {
+  // 결제 뒤 픽업 기한이 지난 주문은 결제 금액을 그대로 두고 환불은 0원 (추가 명세 A4)
+  const pickupExpired = order.status === 'PICKUP_EXPIRED'
   return (
     <section className="space-y-4">
       <div className="flex flex-col items-center gap-2 py-6">
@@ -185,6 +231,15 @@ function Failed({ order, title }: { order: Order; title: string }) {
         <h1 className="text-center text-lg font-bold text-slate-900">{title}</h1>
         <p className="text-sm text-slate-500">주문번호 {order.orderNo}</p>
       </div>
+      {pickupExpired && (
+        <OrderSummary
+          rows={[
+            ...summaryRows(order),
+            ...pickupRows(order),
+            { label: '환불 금액', value: formatWon(0) },
+          ]}
+        />
+      )}
       {/* 같은 주문을 다시 결제하지 않고 새 주문으로 시작한다 */}
       <Link
         to={`/customer/stores/${order.storeId}`}

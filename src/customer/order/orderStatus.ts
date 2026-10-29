@@ -11,20 +11,28 @@ export const ORDER_STATUSES = [
   'OUT_OF_STOCK',
   'PAYMENT_FAILED',
   'EXPIRED',
+  'PICKED_UP',
+  'PICKUP_EXPIRED',
 ] as const
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
 
 export type FailureReason =
-  'OUT_OF_STOCK' | 'PRODUCT_NOT_FOUND' | 'INVALID_QUANTITY' | 'PAYMENT_FAILED' | 'EXPIRED'
+  | 'OUT_OF_STOCK'
+  | 'PRODUCT_NOT_FOUND'
+  | 'INVALID_QUANTITY'
+  | 'PAYMENT_FAILED'
+  | 'EXPIRED'
+  | 'PICKUP_DEADLINE'
 
 /**
  * loading: 기다리기만 한다 (로딩 표시)
  * payable: 결제창을 띄운다
  * done: 결제 완료
+ * pickedUp: 픽업 완료 (A5)
  * failed: 끝난 실패. [상품으로 돌아가기]를 둔다 (같은 주문을 다시 결제하지 않는다)
  */
-export type MessageTone = 'loading' | 'payable' | 'done' | 'failed'
+export type MessageTone = 'loading' | 'payable' | 'done' | 'pickedUp' | 'failed'
 
 export interface CustomerMessage {
   title: string
@@ -60,7 +68,13 @@ export function customerMessage(
     case 'PAYMENT_FAILED':
       return { title: '결제에 실패했어요', tone: 'failed' }
     case 'EXPIRED':
-      return { title: '결제 시간이 지나 주문이 취소됐어요', tone: 'failed' }
+      return failureReason === 'PICKUP_DEADLINE'
+        ? { title: '픽업 기한이 지나 주문이 취소됐어요', tone: 'failed' }
+        : { title: '결제 시간이 지나 주문이 취소됐어요', tone: 'failed' }
+    case 'PICKED_UP':
+      return { title: '픽업 완료', tone: 'pickedUp' }
+    case 'PICKUP_EXPIRED':
+      return { title: '픽업 기한이 지났어요', tone: 'failed' }
   }
 }
 
@@ -84,6 +98,8 @@ export function confirmErrorMessage(code: string | undefined): string {
   switch (code) {
     case 'ORDER_EXPIRED':
       return '결제 시간이 지나 주문이 취소됐어요'
+    case 'PICKUP_DEADLINE_PASSED':
+      return '픽업 기한이 지나 주문이 취소됐어요'
     case 'ORDER_NO_MISMATCH':
     case 'PAYMENT_AMOUNT_MISMATCH':
       return '결제 정보가 주문과 맞지 않아요. 다시 결제해 주세요.'

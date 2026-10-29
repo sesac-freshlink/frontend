@@ -29,7 +29,10 @@ export interface OrderPayment {
   receiptUrl: string | null
 }
 
-/** OR-02 응답. 상품명·단가·금액은 재고 확보(RESERVED) 뒤에 생긴다. serverTime 은 응답을 만든 서버 현재 시각 */
+/**
+ * OR-02 응답. 상품명·단가·금액·픽업 기한은 재고 확보(RESERVED) 뒤에 생긴다. serverTime 은 응답을 만든 서버 현재 시각.
+ * pickupDeadline 은 그날 23:59:59(+09:00), pickedUpAt 은 점주 픽업 확인 시각 (A4·A5)
+ */
 export interface Order {
   orderId: number
   orderNo: string
@@ -45,6 +48,8 @@ export interface Order {
   paymentExpiresAt: string | null
   paidAt: string | null
   createdAt: string
+  pickupDeadline: string | null
+  pickedUpAt: string | null
   payment: OrderPayment | null
   serverTime: string
 }
