@@ -187,6 +187,29 @@ export interface AdjustmentHistoryItem {
   createdAt: string
 }
 
+/** 판매 순위 한 줄. inventory-service SalesRankItem 과 같은 모양. 같은 판매 수량이면 같은 순위(1, 2, 2, 4) */
+export interface SalesRankItem {
+  rank: number
+  productId: number
+  productCode: string
+  name: string
+  category: string
+  imageUrl: string | null
+  /** 결제가 확정되어 실물이 줄어든 수량 */
+  soldQuantity: number
+  /** 기간 전체 판매 중 비중(0~1) */
+  share: number
+}
+
+/** 상품별 판매 순위. inventory-service SalesRankingResponse 와 같은 모양 */
+export interface SalesRanking {
+  from: string
+  to: string
+  /** 잘라 내기 전 기간 전체 판매 수량 */
+  totalSoldQuantity: number
+  items: SalesRankItem[]
+}
+
 /** 점주 상품 메모 하나. inventory-service MemoResponse 와 같은 모양. 상품 하나에 메모 하나 */
 export interface ProductMemo {
   productId: number
@@ -356,6 +379,15 @@ export function useAdjustments() {
     queryKey: ['owner', 'adjustments'],
     queryFn: async () =>
       (await api.get<AdjustmentHistoryItem[]>('/owner/inventory/adjustments')).data,
+  })
+}
+
+/** 상품별 판매 순위 (결제 확정 수량 기준, 상위 10개). 탭을 열 때·기간을 바꿀 때 읽는다 */
+export function useSalesRanking(period: StatsPeriod) {
+  return useQuery({
+    queryKey: ['owner', 'salesRanking', period.from, period.to],
+    queryFn: async () =>
+      (await api.get<SalesRanking>('/owner/inventory/sales-ranking', { params: period })).data,
   })
 }
 

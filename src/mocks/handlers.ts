@@ -17,6 +17,8 @@ import type {
   ProductMemo,
   ProductStats,
   SafetyStockItem,
+  SalesRankItem,
+  SalesRanking,
 } from '@/owner/inventory/api'
 import { adminHandlers } from './adminHandlers'
 import { memberHandlers } from './memberHandlers'
@@ -381,6 +383,38 @@ function statsOf(from: string, to: string): InventoryStats {
   }
 }
 
+/** 서버처럼 원장 판매(SALE)를 상품별로 더해 많이 판 순으로 매긴다. 같은 수량은 같은 순위 */
+function salesRankingOf(from: string, to: string, limit: number): SalesRanking {
+  const sold = new Map<number, { name: string; quantity: number }>()
+  for (const item of ledger) {
+    const day = item.createdAt.slice(0, 10)
+    if (item.type !== 'SALE' || day < from || day > to) continue
+    const row = sold.get(item.productId) ?? { name: item.productName, quantity: 0 }
+    row.quantity += Math.abs(item.quantity)
+    sold.set(item.productId, row)
+  }
+  const total = [...sold.values()].reduce((sum, row) => sum + row.quantity, 0)
+  const sorted = [...sold.entries()].sort(
+    ([aId, a], [bId, b]) =>
+      b.quantity - a.quantity || a.name.localeCompare(b.name, 'ko') || aId - bId,
+  )
+  const items: SalesRankItem[] = []
+  sorted.slice(0, limit).forEach(([productId, row], i) => {
+    const product = storeProducts.find((p) => p.productId === productId)
+    items.push({
+      rank: i > 0 && sorted[i - 1][1].quantity === row.quantity ? items[i - 1].rank : i + 1,
+      productId,
+      productCode: `P${String(productId).padStart(3, '0')}`,
+      name: row.name,
+      category: product?.category ?? '-',
+      imageUrl: product?.imageUrl ?? null,
+      soldQuantity: row.quantity,
+      share: Math.round((row.quantity * 10000) / total) / 10000,
+    })
+  })
+  return { from, to, totalSoldQuantity: total, items }
+}
+
 let nextAdjustmentId = 7001
 let nextLedgerId = 9100
 
@@ -540,6 +574,13 @@ export const handlers = [
       )
     }
     return HttpResponse.json(statsOf(from, to))
+  }),
+  http.get('/api/owner/inventory/sales-ranking', ({ request }) => {
+    const params = new URL(request.url).searchParams
+    const to = params.get('to') ?? new Date().toISOString().slice(0, 10)
+    const from = params.get('from') ?? to
+    const limit = Number(params.get('limit') ?? 10)
+    return HttpResponse.json(salesRankingOf(from, to, limit))
   }),
   http.get('/api/owner/inventory/memos', () =>
     HttpResponse.json<ProductMemo[]>(

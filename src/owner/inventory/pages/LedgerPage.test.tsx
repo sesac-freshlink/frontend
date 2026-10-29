@@ -185,6 +185,26 @@ describe('재고 변동 이력 (S-13)', () => {
     expect(get).toHaveBeenCalledWith('/owner/inventory/adjustments')
   })
 
+  it('판매 순위 탭으로 바꾸면 이력 대신 판매 순위를 부른다', async () => {
+    get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data:
+          url === '/owner/inventory/sales-ranking'
+            ? { from: '2026-10-23', to: '2026-10-29', totalSoldQuantity: 0, items: [] }
+            : items,
+      }),
+    )
+    renderPage()
+    await rowOf('SHP-20261020-001')
+
+    await userEvent.click(screen.getByRole('tab', { name: '판매 순위' }))
+
+    expect(await screen.findByText('이 기간에 판매된 상품이 없어요.')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '판매 순위' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByText('SHP-20261020-001')).not.toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/owner/inventory/sales-ranking', expect.anything())
+  })
+
   it('통계 탭으로 바꾸면 이력 대신 기간 통계를 부른다 (S-42)', async () => {
     get.mockImplementation((url: string) =>
       Promise.resolve({
