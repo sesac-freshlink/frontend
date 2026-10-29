@@ -14,6 +14,7 @@ import type {
   InventoryStats,
   LedgerItem,
   LedgerType,
+  ProductMemo,
   ProductStats,
   SafetyStockItem,
 } from '@/owner/inventory/api'
@@ -25,8 +26,8 @@ import { orderHandlers } from './orderHandlers'
  * 백엔드가 나오기 전까지 쓰는 가짜 API. 실제 API 명세(Swagger)가 나오면 응답 모양을 맞춘다.
  * 화면 담당자가 자기 API 핸들러를 여기에 추가한다.
  */
-/** 안전재고 두 값(safetyStock·lowStock)은 응답할 때 safetyStocks 로 채운다 */
-const inventory: Omit<InventoryItem, 'safetyStock' | 'lowStock'>[] = [
+/** 안전재고 두 값(safetyStock·lowStock)과 hasMemo 는 응답할 때 safetyStocks·memos 로 채운다 */
+const inventory: Omit<InventoryItem, 'safetyStock' | 'lowStock' | 'hasMemo'>[] = [
   {
     productId: 1,
     productCode: 'P001',
@@ -445,6 +446,33 @@ function adjustLot(body: AdjustRequest): AdjustResponse | 'BELOW_RESERVED' | 'LO
   }
 }
 
+/** 점주 상품 메모. 상품 하나에 메모 하나. 고칠 때마다 version 이 오른다 */
+const memos = new Map<number, ProductMemo>([
+  [
+    1,
+    {
+      productId: 1,
+      productCode: 'P001',
+      name: '삼각김밥 참치마요',
+      category: '김밥',
+      content: '아침 7시에 앞줄로 진열',
+      version: 0,
+      updatedAt: '2026-10-28T09:10:00+09:00',
+    },
+  ],
+])
+
+function memoConflict() {
+  return HttpResponse.json(
+    {
+      code: 'MEMO_CHANGED',
+      message: '다른 화면에서 메모가 바뀌었습니다. 다시 확인해 주세요',
+      traceId: '',
+    },
+    { status: 409 },
+  )
+}
+
 function toSafetyStockItem(productId: number): SafetyStockItem | undefined {
   const product = storeProducts.find((item) => item.productId === productId)
   if (!product) return undefined
@@ -464,7 +492,12 @@ export const handlers = [
     HttpResponse.json<InventoryItem[]>(
       inventory.map((item) => {
         const safetyStock = safetyStockOf(item.productId)
-        return { ...item, safetyStock, lowStock: item.availableQuantity < safetyStock }
+        return {
+          ...item,
+          safetyStock,
+          lowStock: item.availableQuantity < safetyStock,
+          hasMemo: memos.has(item.productId),
+        }
       }),
     ),
   ),
@@ -507,6 +540,50 @@ export const handlers = [
       )
     }
     return HttpResponse.json(statsOf(from, to))
+  }),
+  http.get('/api/owner/inventory/memos', () =>
+    HttpResponse.json<ProductMemo[]>(
+      [...memos.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    ),
+  ),
+  // 서버처럼 읽은 version 과 지금 version 이 다르면 409. 처음 만들 때는 version 이 없다
+  http.put('/api/owner/inventory/memos/:productId', async ({ params, request }) => {
+    const productId = Number(params.productId)
+    const { content, version } = (await request.json()) as { content: string; version?: number }
+    const product = storeProducts.find((item) => item.productId === productId)
+    if (!product) {
+      return HttpResponse.json(
+        { code: 'PRODUCT_NOT_FOUND', message: '상품이 없습니다', traceId: '' },
+        { status: 404 },
+      )
+    }
+    if (!content?.trim() || content.length > 200) {
+      return HttpResponse.json(
+        { code: 'VALIDATION_ERROR', message: 'content: 1~200자', traceId: '' },
+        { status: 400 },
+      )
+    }
+    const existing = memos.get(productId)
+    if ((existing?.version ?? undefined) !== version) return memoConflict()
+    const memo: ProductMemo = {
+      productId,
+      productCode: `P${String(productId).padStart(3, '0')}`,
+      name: product.name,
+      category: product.category,
+      content: content.trim(),
+      version: existing ? existing.version + 1 : 0,
+      updatedAt: new Date().toISOString(),
+    }
+    memos.set(productId, memo)
+    return HttpResponse.json(memo)
+  }),
+  http.delete('/api/owner/inventory/memos/:productId', ({ params, request }) => {
+    const productId = Number(params.productId)
+    const version = new URL(request.url).searchParams.get('version')
+    const existing = memos.get(productId)
+    if (existing && version !== null && Number(version) !== existing.version) return memoConflict()
+    memos.delete(productId)
+    return new HttpResponse(null, { status: 204 })
   }),
   http.get('/api/owner/inventory/safety-stocks', () =>
     HttpResponse.json<SafetyStockItem[]>(

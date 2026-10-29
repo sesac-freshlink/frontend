@@ -23,6 +23,8 @@ export interface InventoryItem {
   safetyStock: number
   /** 구매 가능 수량이 안전재고보다 적으면 true */
   lowStock: boolean
+  /** 점주 상품 메모가 있으면 true */
+  hasMemo: boolean
 }
 
 /** lot 상태. 서버가 지금 시각으로 계산해서 내려 준다 */
@@ -185,6 +187,32 @@ export interface AdjustmentHistoryItem {
   createdAt: string
 }
 
+/** 점주 상품 메모 하나. inventory-service MemoResponse 와 같은 모양. 상품 하나에 메모 하나 */
+export interface ProductMemo {
+  productId: number
+  productCode: string
+  name: string
+  category: string
+  content: string
+  /** 낙관적 락. 고치거나 지울 때 그대로 보낸다 */
+  version: number
+  /** 마지막으로 고친 시각(+09:00) */
+  updatedAt: string
+}
+
+/** 메모 저장 요청. 처음 만들 때는 version 이 null */
+export interface SaveMemoRequest {
+  productId: number
+  content: string
+  version: number | null
+}
+
+/** 메모 삭제 요청. 읽은 version 을 보내 그 사이 바뀐 메모는 지우지 않는다 */
+export interface DeleteMemoRequest {
+  productId: number
+  version: number
+}
+
 /** 서버 오류 본문 (common ErrorResponse) */
 interface ErrorBody {
   code?: string
@@ -329,6 +357,54 @@ export function useAdjustments() {
     queryFn: async () =>
       (await api.get<AdjustmentHistoryItem[]>('/owner/inventory/adjustments')).data,
   })
+}
+
+/** 점주 상품 메모 목록 (메모가 있는 상품만, 최근 수정 순). 저장·삭제하면 다시 읽으므로 폴링하지 않는다 */
+export function useMemos() {
+  return useQuery({
+    queryKey: ['owner', 'memos'],
+    queryFn: async () => (await api.get<ProductMemo[]>('/owner/inventory/memos')).data,
+  })
+}
+
+/** 메모·재고 목록(hasMemo)을 다시 읽는다. 409 때도 다시 읽어야 다른 화면이 바꾼 내용이 보인다 */
+function invalidateMemos(queryClient: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['owner', 'memos'] }),
+    queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
+  ])
+}
+
+/** 메모 저장 (없으면 만들고 있으면 고친다). 읽은 뒤 다른 화면이 바꿨으면 409 MEMO_CHANGED */
+export function useSaveMemo() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ productId, content, version }: SaveMemoRequest) =>
+      (
+        await api.put<ProductMemo>(`/owner/inventory/memos/${productId}`, {
+          content,
+          ...(version === null ? {} : { version }),
+        })
+      ).data,
+    onSettled: () => invalidateMemos(queryClient),
+  })
+}
+
+/** 메모 삭제. 읽은 뒤 다른 화면이 바꿨으면 409 MEMO_CHANGED */
+export function useDeleteMemo() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ productId, version }: DeleteMemoRequest) => {
+      await api.delete(`/owner/inventory/memos/${productId}`, { params: { version } })
+    },
+    onSettled: () => invalidateMemos(queryClient),
+  })
+}
+
+/** 서버 오류의 code. 409 중 메모 충돌만 골라낼 때 쓴다 */
+export function apiErrorCode(error: unknown): string | undefined {
+  if (axios.isAxiosError<ErrorBody>(error)) return error.response?.data?.code
+  return undefined
 }
 
 /** 서버 오류 본문의 message 를 꺼낸다. 없으면 fallback */
