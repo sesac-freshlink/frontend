@@ -522,7 +522,11 @@ function toSafetyStockItem(productId: number): SafetyStockItem | undefined {
 }
 
 export const handlers = [
-  http.get('/api/stores/:storeId/products', () => HttpResponse.json(storeProducts)),
+  // 서버처럼 q 가 있으면 상품명에 들어간 것만
+  http.get('/api/stores/:storeId/products', ({ request }) => {
+    const q = (new URL(request.url).searchParams.get('q') ?? '').trim()
+    return HttpResponse.json(q ? storeProducts.filter((p) => p.name.includes(q)) : storeProducts)
+  }),
   // 서버처럼 검색(q)·상태(status, 쉼표로 여러 개는 모두 만족)·메모·페이지를 처리한다
   http.get('/api/owner/inventory', ({ request }) => {
     const params = new URL(request.url).searchParams

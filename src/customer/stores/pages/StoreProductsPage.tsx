@@ -1,15 +1,17 @@
-import { ChevronLeft, ChevronRight, LoaderCircle, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LoaderCircle, RefreshCw, Search } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { checkoutPath } from '@/customer/order/checkout'
 import { formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
-import { useStoreProducts, type StoreProduct } from '../api'
+import { PRODUCT_KEYWORD_MAX, useStoreProducts, type StoreProduct } from '../api'
 import { useStoreName } from '../useStoreName'
 
 /**
- * U-10 점포 상품 목록 (/customer/stores/:storeId). 상품 30개를 전부 보여 주고 품절은 흐리게 둔다.
- * 상품을 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때와 새로고침 때만 읽는다
+ * U-10 점포 상품 목록 (/customer/stores/:storeId). 상품을 전부 보여 주고 품절은 흐리게 둔다.
+ * 위 검색창에 상품명을 넣고 검색을 누르면 서버가 거른 목록을 보여 준다.
+ * 상품을 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때·검색할 때·새로고침 때만 읽는다
  */
 export function StoreProductsPage() {
   const { storeId: raw } = useParams()
@@ -20,7 +22,18 @@ export function StoreProductsPage() {
 
 function StoreProducts({ storeId }: { storeId: number }) {
   const storeName = useStoreName(storeId)
-  const products = useStoreProducts(storeId)
+  const [draft, setDraft] = useState('')
+  const [keyword, setKeyword] = useState('')
+  const products = useStoreProducts(storeId, keyword)
+
+  const onSearch = (e: FormEvent) => {
+    e.preventDefault()
+    setKeyword(draft)
+  }
+  const clearSearch = () => {
+    setDraft('')
+    setKeyword('')
+  }
 
   return (
     <section className="space-y-4">
@@ -43,7 +56,32 @@ function StoreProducts({ storeId }: { storeId: number }) {
           <RefreshCw className={cn('size-5', products.isFetching && 'animate-spin')} />
         </button>
       </div>
-      <ProductList products={products} storeId={storeId} storeName={storeName} />
+      <form onSubmit={onSearch} className="flex gap-2" role="search">
+        <label className="flex flex-1 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
+          <Search className="size-4 shrink-0 text-slate-400" />
+          <span className="sr-only">상품 검색어</span>
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            maxLength={PRODUCT_KEYWORD_MAX}
+            placeholder="상품명"
+            className="w-full text-sm text-slate-900 outline-none"
+          />
+        </label>
+        <button
+          type="submit"
+          className="shrink-0 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white"
+        >
+          검색
+        </button>
+      </form>
+      <ProductList
+        products={products}
+        storeId={storeId}
+        storeName={storeName}
+        keyword={keyword.trim()}
+        onClearSearch={clearSearch}
+      />
     </section>
   )
 }
@@ -52,9 +90,12 @@ interface ListProps {
   products: ReturnType<typeof useStoreProducts>
   storeId: number
   storeName: string | undefined
+  /** 지금 걸려 있는 검색어(앞뒤 공백 뺀 것). 없으면 빈 문자열 */
+  keyword: string
+  onClearSearch: () => void
 }
 
-function ProductList({ products, storeId, storeName }: ListProps) {
+function ProductList({ products, storeId, storeName, keyword, onClearSearch }: ListProps) {
   if (products.isPending) {
     return (
       <div className="flex justify-center py-10 text-slate-400">
@@ -77,6 +118,20 @@ function ProductList({ products, storeId, storeName }: ListProps) {
     )
   }
   if (products.data.length === 0) {
+    if (keyword) {
+      return (
+        <div className="space-y-2 py-10 text-center">
+          <p className="text-sm text-slate-500">‘{keyword}’ 상품이 없어요.</p>
+          <button
+            type="button"
+            onClick={onClearSearch}
+            className="text-sm text-emerald-600 underline"
+          >
+            전체 상품 보기
+          </button>
+        </div>
+      )
+    }
     return <p className="py-10 text-center text-sm text-slate-500">이 점포에는 상품이 없어요.</p>
   }
   // 점포 이름은 점포 검색에서 받아 온다. 주소로 바로 들어와 이름을 모르면 주문 화면에 넘길 수 없다

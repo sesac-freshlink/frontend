@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { AxiosRequestConfig } from 'axios'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
@@ -30,6 +31,12 @@ const products: StoreProduct[] = [
     soldOut: true,
   },
 ]
+
+/** 가짜 get 이 받은 검색어(q). 없으면 빈 문자열 */
+function qOf(config?: AxiosRequestConfig): string {
+  const params = config?.params as { q?: string } | undefined
+  return params?.q ?? ''
+}
 
 function renderAt(path: string, state?: { storeName: string }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -141,6 +148,41 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     await userEvent.click(screen.getByRole('button', { name: '새로고침' }))
     expect(await screen.findByText('상품을 불러오지 못했어요.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '다시 시도' })).toBeInTheDocument()
+  })
+
+  it('검색어를 넣고 검색을 누르면 q 로 서버에 묻고 거른 목록을 보여 준다', async () => {
+    get.mockImplementation((_url: string, config?: AxiosRequestConfig) =>
+      Promise.resolve({
+        data: qOf(config) ? products.filter((p) => p.name.includes(qOf(config))) : products,
+      }),
+    )
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    await screen.findByText('샌드위치 햄치즈')
+
+    // 치는 동안에는 묻지 않는다. 검색을 누를 때만
+    await userEvent.type(screen.getByRole('textbox', { name: '상품 검색어' }), ' 컵라면 ')
+    expect(get).toHaveBeenCalledTimes(1)
+    await userEvent.click(screen.getByRole('button', { name: '검색' }))
+
+    await waitFor(() => expect(screen.queryByText('샌드위치 햄치즈')).not.toBeInTheDocument())
+    expect(screen.getByText('매운 컵라면 115g')).toBeInTheDocument()
+    expect(get).toHaveBeenLastCalledWith('/stores/1/products', { params: { q: '컵라면' } })
+  })
+
+  it('검색 결과가 없으면 안내와 전체 상품 보기를 보여 주고, 누르면 검색을 지운다', async () => {
+    get.mockImplementation((_url: string, config?: AxiosRequestConfig) =>
+      Promise.resolve({ data: qOf(config) ? [] : products }),
+    )
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    await screen.findByText('샌드위치 햄치즈')
+
+    await userEvent.type(screen.getByRole('textbox', { name: '상품 검색어' }), '없는상품')
+    await userEvent.click(screen.getByRole('button', { name: '검색' }))
+    expect(await screen.findByText('‘없는상품’ 상품이 없어요.')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '전체 상품 보기' }))
+    expect(await screen.findByText('샌드위치 햄치즈')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '상품 검색어' })).toHaveValue('')
   })
 
   it('숫자가 아닌 점포 주소는 점포 찾기로 안내한다', () => {
