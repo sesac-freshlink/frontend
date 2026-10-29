@@ -48,13 +48,25 @@ export interface StoreProduct {
   soldOut: boolean
 }
 
+/** 상품 검색어 최대 길이 (inventory-service U-10: 앞뒤 공백을 빼고 50자) */
+export const PRODUCT_KEYWORD_MAX = 50
+
 /**
- * U-10 점포 상품 목록 (inventory-service, 로그인 없이도 된다). 상품 30개 전부, 상품명순.
- * 폴링하지 않고 화면에 들어올 때와 새로고침 때만 읽는다. 살 수 있는지는 주문 때 서버가 최종 판정한다
+ * U-10 점포 상품 목록 (inventory-service, 로그인 없이도 된다). 상품 전부, 상품명순.
+ * keyword 가 있으면 상품명에 들어간 것만 서버가 거른다(q). 검색을 누를 때만 keyword 가 바뀐다.
+ * 폴링하지 않고 화면에 들어올 때·검색할 때·새로고침 때만 읽는다. 살 수 있는지는 주문 때 서버가 최종 판정한다
  */
-export function useStoreProducts(storeId: number) {
+export function useStoreProducts(storeId: number, keyword = '') {
+  const trimmed = keyword.trim()
+  const url = `/stores/${storeId}/products`
   return useQuery({
-    queryKey: ['customer', 'stores', storeId, 'products'],
-    queryFn: async () => (await api.get<StoreProduct[]>(`/stores/${storeId}/products`)).data,
+    queryKey: ['customer', 'stores', storeId, 'products', trimmed],
+    queryFn: async () =>
+      (trimmed
+        ? await api.get<StoreProduct[]>(url, { params: { q: trimmed } })
+        : await api.get<StoreProduct[]>(url)
+      ).data,
+    // 검색어를 바꾸는 동안 이전 결과를 그대로 둬서 목록이 깜빡이지 않게 한다
+    placeholderData: keepPreviousData,
   })
 }
