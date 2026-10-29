@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AxiosError, AxiosHeaders } from 'axios'
+import { AxiosError, AxiosHeaders, type AxiosRequestConfig } from 'axios'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
-import type { InventoryItem, InventoryLotItem } from '../api'
+import type { InventoryItem, InventoryListPage, InventoryLotItem } from '../api'
 import { InventoryPage } from './InventoryPage'
 
 vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn(), put: vi.fn() } }))
@@ -112,6 +112,57 @@ function renderPage() {
   )
 }
 
+type Params = Record<string, string | number | boolean>
+
+/**
+ * 서버처럼 검색(q)·상태(status 쉼표, 모두 만족)·메모·페이지를 처리해 페이지 응답을 만든다.
+ * 순서는 받은 목록 그대로(서버가 정한다). 다른 주소는 others 에서 찾는다
+ */
+function serveInventory(list: InventoryItem[], others: Record<string, unknown> = {}) {
+  return (url: string, config?: AxiosRequestConfig) => {
+    if (url !== '/owner/inventory') {
+      return url in others
+        ? Promise.resolve({ data: others[url] })
+        : Promise.reject(new Error(`unexpected ${url}`))
+    }
+    const params = (config?.params ?? {}) as Params
+    const q = String(params.q ?? '').toLowerCase()
+    const statuses = String(params.status ?? '')
+      .split(',')
+      .filter(Boolean)
+    const page = Number(params.page ?? 0)
+    const size = Number(params.size ?? 20)
+    const filtered = list.filter(
+      (item) =>
+        (!q || item.name.toLowerCase().includes(q) || item.productCode.toLowerCase().includes(q)) &&
+        (!params.memo || item.hasMemo) &&
+        statuses.every(
+          (status) =>
+            (status === 'LOW_STOCK' && item.lowStock) ||
+            (status === 'IMMINENT' && item.imminentLotCount > 0) ||
+            (status === 'EXPIRED' && item.expiredLotCount > 0) ||
+            (status === 'SOLD_OUT' && item.availableQuantity === 0),
+        ),
+    )
+    const data: InventoryListPage = {
+      items: filtered.slice(page * size, page * size + size),
+      page,
+      size,
+      totalElements: filtered.length,
+      totalPages: Math.ceil(filtered.length / size),
+      lowStockCount: list.filter((item) => item.lowStock).length,
+    }
+    return Promise.resolve({ data })
+  }
+}
+
+/** 표에 보이는 상품명(서버 순서) */
+const shownNames = () =>
+  screen
+    .getAllByRole('row')
+    .slice(1)
+    .map((r) => r.querySelector('p')?.textContent)
+
 describe('점주 재고 목록 (S-10)', () => {
   beforeEach(() => {
     get.mockReset()
@@ -136,13 +187,13 @@ describe('점주 재고 목록 (S-10)', () => {
   })
 
   it('빈 목록이면 안내 문구를 보여 준다', async () => {
-    get.mockResolvedValue({ data: [] })
+    get.mockImplementation(serveInventory([]))
     renderPage()
     expect(await screen.findByText(/아직 입고된 상품이 없어요/)).toBeInTheDocument()
   })
 
   it('상품 코드·이름·카테고리·가격·수량 3종·유통기한을 서버 순서대로 보여 준다', async () => {
-    get.mockResolvedValue({ data: items })
+    get.mockImplementation(serveInventory(items))
     renderPage()
 
     const row = (await screen.findByText('매운 컵라면 115g')).closest('tr')!
@@ -162,7 +213,7 @@ describe('점주 재고 목록 (S-10)', () => {
   })
 
   it('이미지가 있는 상품은 썸네일을, 없는 상품은 자리표시를 보여 준다', async () => {
-    get.mockResolvedValue({ data: items })
+    get.mockImplementation(serveInventory(items))
     renderPage()
     const noodle = (await screen.findByText('매운 컵라면 115g')).closest('tr')!
     expect(within(noodle).getByRole('img', { name: '매운 컵라면 115g' })).toHaveAttribute(
@@ -174,14 +225,14 @@ describe('점주 재고 목록 (S-10)', () => {
   })
 
   it('nearestExpiry 가 null 이면 "-" 로 보여 준다', async () => {
-    get.mockResolvedValue({ data: items })
+    get.mockImplementation(serveInventory(items))
     renderPage()
     const row = (await screen.findByText('샌드위치 햄치즈')).closest('tr')!
     expect(within(row).getAllByText('-').length).toBeGreaterThan(0)
   })
 
   it('임박·경과 lot 이 있는 상품에만 개수 배지를 붙인다', async () => {
-    get.mockResolvedValue({ data: items })
+    get.mockImplementation(serveInventory(items))
     renderPage()
     const milk = (await screen.findByText('흰 우유 500ml')).closest('tr')!
     expect(within(milk).getByText('임박 1')).toBeInTheDocument()
@@ -199,7 +250,7 @@ describe('안전재고 부족 표시 (S-40)', () => {
   })
 
   it('구매 가능 수량이 안전재고보다 적은 상품에 부족 배지를 붙이고 위에 건수를 보여 준다', async () => {
-    get.mockResolvedValue({ data: items })
+    get.mockImplementation(serveInventory(items))
     renderPage()
 
     const milk = (await screen.findByText('흰 우유 500ml')).closest('tr')!
@@ -210,47 +261,44 @@ describe('안전재고 부족 표시 (S-40)', () => {
   })
 
   it('부족한 상품이 없으면 건수를 보여 주지 않는다', async () => {
-    get.mockResolvedValue({ data: items.map((item) => ({ ...item, lowStock: false })) })
+    get.mockImplementation(serveInventory(items.map((item) => ({ ...item, lowStock: false }))))
     renderPage()
     await screen.findByText('흰 우유 500ml')
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  it('부족한 상품만 보기를 켜면 부족 상품만 남는다', async () => {
-    get.mockResolvedValue({ data: items })
+  it('부족 칩을 누르면 status=LOW_STOCK 으로 서버에 묻고 부족 상품만 남는다', async () => {
+    get.mockImplementation(serveInventory(items))
     renderPage()
-    await userEvent.click(await screen.findByRole('checkbox', { name: '부족한 상품만 보기' }))
+    await userEvent.click(await screen.findByRole('button', { name: '부족' }))
 
-    const names = screen
-      .getAllByRole('row')
-      .slice(1)
-      .map((r) => r.querySelector('p')?.textContent)
-    expect(names).toEqual(['흰 우유 500ml', '샌드위치 햄치즈'])
+    expect(screen.getByRole('button', { name: '부족' })).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => expect(shownNames()).toEqual(['흰 우유 500ml', '샌드위치 햄치즈']))
+    expect(get).toHaveBeenCalledWith('/owner/inventory', {
+      params: { status: 'LOW_STOCK', page: 0, size: 20 },
+    })
   })
 
   it('부족 상품이 없는데 부족만 보기를 켜면 안내 문구를 보여 준다', async () => {
-    get.mockResolvedValue({ data: items.map((item) => ({ ...item, lowStock: false })) })
+    get.mockImplementation(serveInventory(items.map((item) => ({ ...item, lowStock: false }))))
     renderPage()
-    await userEvent.click(await screen.findByRole('checkbox', { name: '부족한 상품만 보기' }))
-    expect(screen.getByText('안전재고보다 적은 상품이 없어요.')).toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('button', { name: '부족' }))
+    expect(await screen.findByText('안전재고보다 적은 상품이 없어요.')).toBeInTheDocument()
   })
 
   it('안전재고 설정 탭으로 바꾸면 상품별 안전재고를 읽어 온다', async () => {
-    get.mockImplementation((url: string) =>
-      Promise.resolve({
-        data:
-          url === '/owner/inventory/safety-stocks'
-            ? [
-                {
-                  productId: 15,
-                  productCode: 'P015',
-                  name: '매운 컵라면 115g',
-                  category: '라면',
-                  safetyStock: 5,
-                  customized: false,
-                },
-              ]
-            : items,
+    get.mockImplementation(
+      serveInventory(items, {
+        '/owner/inventory/safety-stocks': [
+          {
+            productId: 15,
+            productCode: 'P015',
+            name: '매운 컵라면 115g',
+            category: '라면',
+            safetyStock: 5,
+            customized: false,
+          },
+        ],
       }),
     )
     renderPage()
@@ -274,10 +322,9 @@ describe('lot 상세 패널 (S-11)', () => {
 
   /** lot 응답은 호출될 때 만든다. 미리 만든 거부 Promise 는 붙기 전에 unhandled 로 잡힌다 */
   function mockInventoryAndLots(lotsResult: () => Promise<{ data: InventoryLotItem[] }>) {
-    get.mockImplementation((url: string) => {
-      if (url === '/owner/inventory') return Promise.resolve({ data: items })
+    get.mockImplementation((url: string, config?: AxiosRequestConfig) => {
       if (url === '/owner/inventory/12/lots') return lotsResult()
-      return Promise.reject(new Error(`unexpected ${url}`))
+      return serveInventory(items)(url, config)
     })
   }
 
@@ -362,9 +409,7 @@ describe('점주 상품 메모 (재고 화면)', () => {
 
   beforeEach(() => {
     get.mockReset()
-    get.mockImplementation((url: string) =>
-      Promise.resolve({ data: url === '/owner/inventory/memos' ? [memoOfRamen] : items }),
-    )
+    get.mockImplementation(serveInventory(items, { '/owner/inventory/memos': [memoOfRamen] }))
   })
 
   it('메모가 있는 상품의 버튼은 보기, 없는 상품은 쓰기다', async () => {
@@ -375,22 +420,21 @@ describe('점주 상품 메모 (재고 화면)', () => {
     expect(screen.getByRole('button', { name: '흰 우유 500ml 메모 쓰기' })).toBeInTheDocument()
   })
 
-  it('메모 있는 상품만 보기를 켜면 메모가 있는 상품만 남는다', async () => {
+  it('메모 있음 칩을 누르면 memo=true 로 서버에 묻고 메모가 있는 상품만 남는다', async () => {
     renderPage()
-    await userEvent.click(await screen.findByRole('checkbox', { name: '메모 있는 상품만 보기' }))
+    await userEvent.click(await screen.findByRole('button', { name: '메모 있음' }))
 
-    const names = screen
-      .getAllByRole('row')
-      .slice(1)
-      .map((r) => r.querySelector('p')?.textContent)
-    expect(names).toEqual(['매운 컵라면 115g'])
+    await waitFor(() => expect(shownNames()).toEqual(['매운 컵라면 115g']))
+    expect(get).toHaveBeenCalledWith('/owner/inventory', {
+      params: { memo: true, page: 0, size: 20 },
+    })
   })
 
-  it('부족만 보기와 메모만 보기를 같이 켜서 남는 상품이 없으면 안내 문구를 보여 준다', async () => {
+  it('부족과 메모 있음을 같이 켜서 남는 상품이 없으면 안내 문구를 보여 준다', async () => {
     renderPage()
-    await userEvent.click(await screen.findByRole('checkbox', { name: '메모 있는 상품만 보기' }))
-    await userEvent.click(screen.getByRole('checkbox', { name: '부족한 상품만 보기' }))
-    expect(screen.getByText('조건에 맞는 상품이 없어요.')).toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('button', { name: '메모 있음' }))
+    await userEvent.click(screen.getByRole('button', { name: '부족' }))
+    expect(await screen.findByText('조건에 맞는 상품이 없어요.')).toBeInTheDocument()
   })
 
   it('메모 버튼을 누르면 메모 모달이 열리고 lot 패널은 열리지 않는다', async () => {
@@ -409,5 +453,81 @@ describe('점주 상품 메모 (재고 화면)', () => {
     expect(await screen.findByText('냉장 2칸에 둠')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '매운 컵라면 115g 메모 수정' })).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+})
+
+describe('검색·필터·페이지 (서버가 거르고 자른다)', () => {
+  beforeEach(() => {
+    get.mockReset()
+  })
+
+  it('검색어는 다 친 뒤 한 번만 서버에 묻는다', async () => {
+    get.mockImplementation(serveInventory(items))
+    renderPage()
+    await screen.findByText('매운 컵라면 115g')
+
+    await userEvent.type(screen.getByRole('searchbox', { name: '상품명·코드 검색' }), '우유')
+
+    await waitFor(() => expect(shownNames()).toEqual(['흰 우유 500ml']))
+    expect(get).toHaveBeenCalledWith('/owner/inventory', {
+      params: { q: '우유', page: 0, size: 20 },
+    })
+    // 한 글자씩 묻지 않는다
+    expect(get).not.toHaveBeenCalledWith('/owner/inventory', {
+      params: { q: '우', page: 0, size: 20 },
+    })
+  })
+
+  it('여러 상태 칩은 쉼표로 이어 보내고 모두 만족하는 상품만 남는다', async () => {
+    get.mockImplementation(serveInventory(items))
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: '임박' }))
+    await userEvent.click(screen.getByRole('button', { name: '부족' }))
+
+    await waitFor(() => expect(shownNames()).toEqual(['흰 우유 500ml']))
+    expect(get).toHaveBeenCalledWith('/owner/inventory', {
+      params: { status: 'IMMINENT,LOW_STOCK', page: 0, size: 20 },
+    })
+  })
+
+  it('다음 페이지를 누르면 page=1 로 묻고, 조건을 바꾸면 첫 페이지로 돌아간다', async () => {
+    const many: InventoryItem[] = Array.from({ length: 25 }, (_, i) => ({
+      ...items[0],
+      productId: 100 + i,
+      productCode: `P${100 + i}`,
+      name: `상품 ${String(i + 1).padStart(2, '0')}`,
+      lowStock: i % 2 === 0,
+    }))
+    get.mockImplementation(serveInventory(many))
+    renderPage()
+    await screen.findByText('상품 01')
+    expect(screen.getByText('총 25개')).toBeInTheDocument()
+    expect(screen.getByText('1 / 2')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '이전 페이지' })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: '다음 페이지' }))
+
+    expect(await screen.findByText('상품 21')).toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '다음 페이지' })).toBeDisabled()
+    expect(get).toHaveBeenCalledWith('/owner/inventory', { params: { page: 1, size: 20 } })
+
+    await userEvent.click(screen.getByRole('button', { name: '부족' }))
+    await waitFor(() => expect(screen.getByText('1 / 1')).toBeInTheDocument())
+    expect(get).toHaveBeenCalledWith('/owner/inventory', {
+      params: { status: 'LOW_STOCK', page: 0, size: 20 },
+    })
+  })
+
+  it('위쪽 부족 건수는 검색·필터와 상관없이 응답의 점포 전체 건수다', async () => {
+    get.mockImplementation(serveInventory(items))
+    renderPage()
+    await userEvent.type(
+      await screen.findByRole('searchbox', { name: '상품명·코드 검색' }),
+      '컵라면',
+    )
+
+    await waitFor(() => expect(shownNames()).toEqual(['매운 컵라면 115g']))
+    expect(screen.getByRole('status')).toHaveTextContent('안전재고보다 적은 상품 2개')
   })
 })
