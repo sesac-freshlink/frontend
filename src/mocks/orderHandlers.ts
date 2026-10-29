@@ -6,9 +6,9 @@ import type {
   CreateOrderResponse,
   Order,
 } from '@/customer/order/api'
-import type { OwnerOrder } from '@/owner/orders/api'
+import type { OwnerOrder, PickupResponse } from '@/owner/orders/api'
 
-/** order-service 가짜 API (김경우): OR-01~03 고객 주문·결제, OR-04 점주 신규 주문 */
+/** order-service 가짜 API (김경우): OR-01~03 고객 주문·결제, OR-04 점주 신규 주문, OR-05 픽업 확인 */
 // 상품 999 는 재고 부족으로 끝나는 주문을 흉내 낸다
 const products: Record<number, { name: string; price: number }> = {
   1: { name: '삼각김밥 참치마요', price: 1500 },
@@ -22,6 +22,14 @@ let nextOrderId = 1
 function orderNo(id: number) {
   const day = new Date().toISOString().slice(0, 10).replaceAll('-', '')
   return `FL-${day}-${String(id).padStart(6, '0')}`
+}
+
+/** 픽업 기한: 오늘부터 days 일 뒤 그날 23:59:59 KST (진짜는 lot 유통기한 중 가장 빠른 날) */
+function pickupDeadline(days: number) {
+  const kstDate = new Date(Date.now() + 9 * 3_600_000 + days * 86_400_000)
+    .toISOString()
+    .slice(0, 10)
+  return `${kstDate}T23:59:59+09:00`
 }
 
 /** 진짜처럼 1.5초 뒤 재고 결과(RESERVED·RESERVE_FAILED)가 온 것으로 본다 */
@@ -38,6 +46,7 @@ function advance(order: Order & { createdMs: number }) {
   order.unitPrice = product.price
   order.amount = product.price * order.quantity
   order.paymentExpiresAt = new Date(Date.now() + 10 * 60_000).toISOString()
+  order.pickupDeadline = pickupDeadline(2)
 }
 
 function publicOrder({
@@ -88,6 +97,8 @@ export const orderHandlers = [
       paymentExpiresAt: null,
       paidAt: null,
       createdAt: now.toISOString(),
+      pickupDeadline: null,
+      pickedUpAt: null,
       payment: null,
       serverTime: now.toISOString(),
       createdMs: now.getTime(),
@@ -119,6 +130,16 @@ export const orderHandlers = [
     }
     if (req.amount !== o.amount) {
       return HttpResponse.json({ code: 'PAYMENT_AMOUNT_MISMATCH', message: '' }, { status: 400 })
+    }
+    if (
+      o.status === 'PAYMENT_WAITING' &&
+      o.pickupDeadline &&
+      Date.now() > Date.parse(o.pickupDeadline)
+    ) {
+      // 결제 시간이 남아도 픽업 기한이 지나면 막는다 (OR-03 6-1)
+      o.status = 'EXPIRED'
+      o.failureReason = 'PICKUP_DEADLINE'
+      return HttpResponse.json({ code: 'PICKUP_DEADLINE_PASSED', message: '' }, { status: 409 })
     }
     if (o.status === 'PAYMENT_WAITING') {
       o.status = 'PAID'
@@ -160,8 +181,39 @@ export const orderHandlers = [
         quantity: o.quantity,
         amount: o.amount ?? 0,
         paidAt: o.paidAt ?? '',
+        pickupDeadline: o.pickupDeadline,
         payment: o.payment,
       }))
     return HttpResponse.json(paid)
+  }),
+  // OR-05 픽업 확인 (가짜 로그인 점주는 점포 확인을 하지 않는다)
+  http.post('/api/owner/orders/:orderId/pickup', ({ params }) => {
+    const o = orders.get(Number(params.orderId))
+    if (!o)
+      return HttpResponse.json(
+        { code: 'ORDER_NOT_FOUND', message: '주문이 없습니다' },
+        { status: 404 },
+      )
+    if (o.status !== 'PAID') {
+      return HttpResponse.json(
+        { code: 'ORDER_NOT_PICKABLE', message: '픽업할 수 없는 주문입니다' },
+        { status: 409 },
+      )
+    }
+    if (o.pickupDeadline && Date.now() > Date.parse(o.pickupDeadline)) {
+      return HttpResponse.json(
+        { code: 'PICKUP_DEADLINE_PASSED', message: '픽업 기한이 지난 주문입니다' },
+        { status: 409 },
+      )
+    }
+    o.status = 'PICKED_UP'
+    o.pickedUpAt = new Date().toISOString()
+    const body: PickupResponse = {
+      orderId: o.orderId,
+      orderNo: o.orderNo,
+      status: o.status,
+      pickedUpAt: o.pickedUpAt,
+    }
+    return HttpResponse.json(body)
   }),
 ]

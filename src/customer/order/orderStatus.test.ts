@@ -17,6 +17,18 @@ describe('customerMessage', () => {
     expect(customerMessage('EXPIRED', 'EXPIRED').title).toBe('결제 시간이 지나 주문이 취소됐어요')
   })
 
+  it('픽업 상태 문구 (A4·A5, API 명세 7장)', () => {
+    expect(customerMessage('PICKED_UP', null)).toEqual({ title: '픽업 완료', tone: 'pickedUp' })
+    expect(customerMessage('PICKUP_EXPIRED', null)).toEqual({
+      title: '픽업 기한이 지났어요',
+      tone: 'failed',
+    })
+    expect(customerMessage('EXPIRED', 'PICKUP_DEADLINE')).toEqual({
+      title: '픽업 기한이 지나 주문이 취소됐어요',
+      tone: 'failed',
+    })
+  })
+
   it('재고 확보 실패는 사유별로 다르게', () => {
     expect(customerMessage('OUT_OF_STOCK', 'OUT_OF_STOCK').title).toBe(
       '재고가 부족해 주문이 취소됐어요.',
@@ -56,6 +68,8 @@ describe('isPollingStatus', () => {
     expect(isPollingStatus('OUT_OF_STOCK')).toBe(false)
     expect(isPollingStatus('PAYMENT_FAILED')).toBe(false)
     expect(isPollingStatus('EXPIRED')).toBe(false)
+    expect(isPollingStatus('PICKED_UP')).toBe(false)
+    expect(isPollingStatus('PICKUP_EXPIRED')).toBe(false)
     expect(isPollingStatus(undefined)).toBe(true)
   })
 })
@@ -69,6 +83,7 @@ describe('결제 중단·승인 오류 문구', () => {
 
   it('승인 오류 code 별 문구, 모르는 code 는 기본 문구', () => {
     expect(confirmErrorMessage('ORDER_EXPIRED')).toBe('결제 시간이 지나 주문이 취소됐어요')
+    expect(confirmErrorMessage('PICKUP_DEADLINE_PASSED')).toBe('픽업 기한이 지나 주문이 취소됐어요')
     expect(confirmErrorMessage('PAYMENT_AMOUNT_MISMATCH')).toBe(
       '결제 정보가 주문과 맞지 않아요. 다시 결제해 주세요.',
     )
