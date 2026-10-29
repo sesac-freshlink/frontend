@@ -24,6 +24,7 @@ import type {
   SalesRanking,
 } from '@/owner/inventory/api'
 import { adminHandlers } from './adminHandlers'
+import { authHandlers, csrfGuard } from './authHandlers'
 import { memberHandlers } from './memberHandlers'
 import { orderHandlers } from './orderHandlers'
 
@@ -524,6 +525,9 @@ function toSafetyStockItem(productId: number): SafetyStockItem | undefined {
 }
 
 export const handlers = [
+  // CSRF 헤더 검사는 맨 앞 (실서버 gateway 와 같게). 통과하면 다음 핸들러로 넘어간다
+  csrfGuard,
+  ...authHandlers,
   // U-10 상품 상세. 남은 재고가 있으면 먼저 받게 될 상품의 유통기한(가짜: 모레 23:59)
   http.get('/api/stores/:storeId/products/:productId', ({ params }) => {
     const product = storeProducts.find((p) => p.productId === Number(params.productId))
