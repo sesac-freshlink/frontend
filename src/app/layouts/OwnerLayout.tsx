@@ -1,4 +1,4 @@
-import { ClipboardList, History, LogOut, Package, TriangleAlert } from 'lucide-react'
+import { ChartColumn, ClipboardList, History, LogOut, Package, TriangleAlert } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
 import { useAuthStore } from '@/shared/auth'
 import { cn } from '@/shared/ui/cn'
@@ -8,6 +8,7 @@ const MENU = [
   { to: '/owner/ledger', label: '변동 이력', icon: History },
   { to: '/owner/expiring', label: '임박·폐기', icon: TriangleAlert },
   { to: '/owner/orders', label: '주문', icon: ClipboardList },
+  { to: '/owner/sales', label: '매출', icon: ChartColumn },
 ]
 
 /** 점주 화면: 매장 포스기(가로 화면)용 왼쪽 사이드 메뉴 */
