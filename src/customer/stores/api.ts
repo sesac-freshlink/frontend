@@ -48,6 +48,21 @@ export interface StoreProduct {
   soldOut: boolean
 }
 
+/** U-10 상품 상세. inventory-service StoreProductDetailResponse 와 같은 모양 */
+export interface StoreProductDetail extends StoreProduct {
+  /** 먼저 받게 될 상품의 유통기한(+09:00). 유통기한 빠른 것부터 준다. 품절이면 null */
+  nearestExpiry: string | null
+}
+
+/** U-10 상품 상세 (로그인 없이도 된다). 들어올 때만 읽는다. 살 수 있는지는 주문 때 서버가 최종 판정한다 */
+export function useStoreProduct(storeId: number, productId: number) {
+  return useQuery({
+    queryKey: ['customer', 'stores', storeId, 'product', productId],
+    queryFn: async () =>
+      (await api.get<StoreProductDetail>(`/stores/${storeId}/products/${productId}`)).data,
+  })
+}
+
 /** 상품 검색어 최대 길이 (inventory-service U-10: 앞뒤 공백을 빼고 50자) */
 export const PRODUCT_KEYWORD_MAX = 50
 

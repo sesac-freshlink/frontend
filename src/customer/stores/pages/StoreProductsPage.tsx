@@ -1,7 +1,6 @@
 import { ChevronLeft, ChevronRight, LoaderCircle, RefreshCw, Search } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
-import { checkoutPath } from '@/customer/order/checkout'
 import { formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
@@ -11,7 +10,7 @@ import { useStoreName } from '../useStoreName'
 /**
  * U-10 점포 상품 목록 (/customer/stores/:storeId). 상품을 전부 보여 주고 품절은 흐리게 둔다.
  * 위 검색창에 상품명을 넣고 검색을 누르면 서버가 거른 목록을 보여 준다.
- * 상품을 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때·검색할 때·새로고침 때만 읽는다
+ * 상품을 누르면 상품 상세로 가고, 거기서 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때·검색할 때·새로고침 때만 읽는다
  */
 export function StoreProductsPage() {
   const { storeId: raw } = useParams()
@@ -154,19 +153,7 @@ function ProductList({ products, storeId, storeName, keyword, onClearSearch }: L
         <ProductRow
           key={p.productId}
           product={p}
-          to={
-            p.soldOut
-              ? undefined
-              : checkoutPath({
-                  storeId,
-                  storeName,
-                  productId: p.productId,
-                  productName: p.name,
-                  price: p.price,
-                  available: p.availableQuantity,
-                  ...(p.imageUrl !== null && { imageUrl: p.imageUrl }),
-                })
-          }
+          to={p.soldOut ? undefined : `/customer/stores/${storeId}/products/${p.productId}`}
         />
       ))}
     </ul>

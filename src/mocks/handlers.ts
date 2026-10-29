@@ -524,6 +524,21 @@ function toSafetyStockItem(productId: number): SafetyStockItem | undefined {
 }
 
 export const handlers = [
+  // U-10 상품 상세. 남은 재고가 있으면 먼저 받게 될 상품의 유통기한(가짜: 모레 23:59)
+  http.get('/api/stores/:storeId/products/:productId', ({ params }) => {
+    const product = storeProducts.find((p) => p.productId === Number(params.productId))
+    if (!product) {
+      return HttpResponse.json(
+        { code: 'PRODUCT_NOT_FOUND', message: '상품이 없습니다', traceId: '' },
+        { status: 404 },
+      )
+    }
+    const expiry = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    return HttpResponse.json({
+      ...product,
+      nearestExpiry: product.soldOut ? null : `${expiry}T23:59:59+09:00`,
+    })
+  }),
   // 서버처럼 q 가 있으면 상품명에 들어간 것만
   http.get('/api/stores/:storeId/products', ({ request }) => {
     const q = (new URL(request.url).searchParams.get('q') ?? '').trim()

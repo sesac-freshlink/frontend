@@ -5,6 +5,7 @@ import { LoginPage } from '@/auth/pages/LoginPage'
 import { SignupPage } from '@/auth/pages/SignupPage'
 import { OrderDetailPage } from '@/customer/order/pages/OrderDetailPage'
 import { CustomerHomePage } from '@/customer/stores/pages/CustomerHomePage'
+import { StoreProductDetailPage } from '@/customer/stores/pages/StoreProductDetailPage'
 import { StoreProductsPage } from '@/customer/stores/pages/StoreProductsPage'
 import { ExpiringPage } from '@/owner/inventory/pages/ExpiringPage'
 import { InventoryPage } from '@/owner/inventory/pages/InventoryPage'
@@ -47,6 +48,7 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <CustomerHomePage /> },
           { path: 'stores/:storeId', element: <StoreProductsPage /> },
+          { path: 'stores/:storeId/products/:productId', element: <StoreProductDetailPage /> },
           { path: 'orders/:id', element: <OrderDetailPage /> },
         ],
       },
