@@ -26,6 +26,7 @@ const items: InventoryItem[] = [
     expiredLotCount: 0,
     safetyStock: 5,
     lowStock: false,
+    hasMemo: true,
   },
   {
     productId: 12,
@@ -42,6 +43,7 @@ const items: InventoryItem[] = [
     expiredLotCount: 1,
     safetyStock: 12,
     lowStock: true,
+    hasMemo: false,
   },
   {
     productId: 3,
@@ -58,6 +60,7 @@ const items: InventoryItem[] = [
     expiredLotCount: 0,
     safetyStock: 5,
     lowStock: true,
+    hasMemo: false,
   },
 ]
 
@@ -343,5 +346,68 @@ describe('lot 상세 패널 (S-11)', () => {
 
     await userEvent.click(await screen.findByText('흰 우유 500ml'))
     expect(await screen.findByText('상품이 없습니다')).toBeInTheDocument()
+  })
+})
+
+describe('점주 상품 메모 (재고 화면)', () => {
+  const memoOfRamen = {
+    productId: 15,
+    productCode: 'P015',
+    name: '매운 컵라면 115g',
+    category: '라면',
+    content: '냉장 2칸에 둠',
+    version: 0,
+    updatedAt: '2026-10-28T09:10:00+09:00',
+  }
+
+  beforeEach(() => {
+    get.mockReset()
+    get.mockImplementation((url: string) =>
+      Promise.resolve({ data: url === '/owner/inventory/memos' ? [memoOfRamen] : items }),
+    )
+  })
+
+  it('메모가 있는 상품의 버튼은 보기, 없는 상품은 쓰기다', async () => {
+    renderPage()
+    expect(
+      await screen.findByRole('button', { name: '매운 컵라면 115g 메모 보기' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '흰 우유 500ml 메모 쓰기' })).toBeInTheDocument()
+  })
+
+  it('메모 있는 상품만 보기를 켜면 메모가 있는 상품만 남는다', async () => {
+    renderPage()
+    await userEvent.click(await screen.findByRole('checkbox', { name: '메모 있는 상품만 보기' }))
+
+    const names = screen
+      .getAllByRole('row')
+      .slice(1)
+      .map((r) => r.querySelector('p')?.textContent)
+    expect(names).toEqual(['매운 컵라면 115g'])
+  })
+
+  it('부족만 보기와 메모만 보기를 같이 켜서 남는 상품이 없으면 안내 문구를 보여 준다', async () => {
+    renderPage()
+    await userEvent.click(await screen.findByRole('checkbox', { name: '메모 있는 상품만 보기' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: '부족한 상품만 보기' }))
+    expect(screen.getByText('조건에 맞는 상품이 없어요.')).toBeInTheDocument()
+  })
+
+  it('메모 버튼을 누르면 메모 모달이 열리고 lot 패널은 열리지 않는다', async () => {
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: '매운 컵라면 115g 메모 보기' }))
+
+    expect(await screen.findByRole('dialog', { name: '상품 메모' })).toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: '내용' })).toHaveValue('냉장 2칸에 둠')
+    expect(get).not.toHaveBeenCalledWith('/owner/inventory/15/lots')
+  })
+
+  it('메모 탭으로 바꾸면 메모가 있는 상품만 모아 보여 준다', async () => {
+    renderPage()
+    await userEvent.click(await screen.findByRole('tab', { name: '메모' }))
+
+    expect(await screen.findByText('냉장 2칸에 둠')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '매운 컵라면 115g 메모 수정' })).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 })
