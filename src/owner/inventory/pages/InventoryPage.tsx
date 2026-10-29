@@ -1,8 +1,21 @@
-import { LoaderCircle, StickyNote, TriangleAlert } from 'lucide-react'
-import { useState } from 'react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  LoaderCircle,
+  Search,
+  StickyNote,
+  TriangleAlert,
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
-import { apiErrorMessage, useInventory, type InventoryItem } from '../api'
+import {
+  apiErrorMessage,
+  useInventory,
+  type InventoryItem,
+  type InventoryQuery,
+  type InventoryStatusFilter,
+} from '../api'
 import { LotDetailPanel } from '../components/LotDetailPanel'
 import { MemoDialog } from '../components/MemoDialog'
 import { MemoList } from '../components/MemoList'
@@ -18,27 +31,50 @@ interface MemoTarget {
   name: string
 }
 
+/** 한 페이지 상품 수 */
+export const PAGE_SIZE = 20
+/** 검색어를 다 친 뒤 서버에 묻기까지 기다리는 시간 */
+export const SEARCH_DELAY_MS = 300
+
+const STATUS_FILTERS: { value: InventoryStatusFilter; label: string }[] = [
+  { value: 'LOW_STOCK', label: '부족' },
+  { value: 'IMMINENT', label: '임박' },
+  { value: 'EXPIRED', label: '경과' },
+  { value: 'SOLD_OUT', label: '품절' },
+]
+
 /**
  * S-10·S-15 점주 재고 목록. 3초마다 다시 읽고(POLL_MS.ownerInventory) 숫자가 바뀐 행을 잠깐 강조한다.
+ * 검색(상품명·코드)·상태 필터·메모 필터·페이지는 서버가 한다(GET /owner/inventory?q&status&memo&page&size).
  * 행을 고르면 오른쪽에 S-11 lot 상세 패널이 열린다 (포스기 가로 화면).
- * 구매 가능 수량이 안전재고보다 적은 상품은 "부족" 배지와 상단 건수로 알리고, 안전재고는 옆 탭(S-40)에서 정한다.
+ * 구매 가능 수량이 안전재고보다 적은 상품은 "부족" 배지와 상단 건수(점포 전체)로 알리고, 안전재고는 옆 탭(S-40)에서 정한다.
  * 행마다 메모 버튼으로 상품 메모를 쓰고, 메모 탭에서 메모만 모아 본다
  */
 export function InventoryPage() {
-  const inventory = useInventory()
-  const { changedIds } = useInventoryChanges(inventory.data)
+  const [searchText, setSearchText] = useState('')
+  const q = useDebounced(searchText, SEARCH_DELAY_MS)
+  const [statuses, setStatuses] = useState<InventoryStatusFilter[]>([])
+  const [memoOnly, setMemoOnly] = useState(false)
+  const [page, setPage] = useState(0)
+  const query: InventoryQuery = { q, statuses, memoOnly, page, size: PAGE_SIZE }
+
+  const inventory = useInventory(query)
+  const { changedIds } = useInventoryChanges(inventory.data?.items)
   const [tab, setTab] = useState<Tab>('stock')
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [lowOnly, setLowOnly] = useState(false)
-  const [memoOnly, setMemoOnly] = useState(false)
   const [memoTarget, setMemoTarget] = useState<MemoTarget | null>(null)
 
-  const selected = inventory.data?.find((item) => item.productId === selectedId)
-  const lowStockCount = inventory.data?.filter((item) => item.lowStock).length ?? 0
+  const selected = inventory.data?.items.find((item) => item.productId === selectedId)
+  const lowStockCount = inventory.data?.lowStockCount ?? 0
 
   const openTab = (next: Tab) => {
     setTab(next)
     setSelectedId(null)
+  }
+  // 조건이 바뀌면 첫 페이지부터 본다
+  const toggleStatus = (value: InventoryStatusFilter) => {
+    setStatuses((now) => (now.includes(value) ? now.filter((s) => s !== value) : [...now, value]))
+    setPage(0)
   }
 
   return (
@@ -79,25 +115,42 @@ export function InventoryPage() {
       {tab === 'memo' && <MemoList />}
       {tab === 'stock' && (
         <>
-          <div className="flex flex-wrap gap-4">
-            <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-              <input
-                type="checkbox"
-                checked={lowOnly}
-                onChange={(e) => setLowOnly(e.target.checked)}
-                className="size-4 accent-emerald-600"
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="relative">
+              <Search
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
+                aria-hidden
               />
-              부족한 상품만 보기
-            </label>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-600">
               <input
-                type="checkbox"
-                checked={memoOnly}
-                onChange={(e) => setMemoOnly(e.target.checked)}
-                className="size-4 accent-emerald-600"
+                type="search"
+                value={searchText}
+                onChange={(e) => {
+                  setSearchText(e.target.value)
+                  setPage(0)
+                }}
+                placeholder="상품명·코드 검색"
+                aria-label="상품명·코드 검색"
+                className="w-60 rounded-lg border border-slate-200 bg-white py-2 pr-3 pl-9 text-sm focus:border-emerald-600 focus:outline-none"
               />
-              메모 있는 상품만 보기
             </label>
+            <div role="group" aria-label="상태" className="flex flex-wrap gap-1.5">
+              {STATUS_FILTERS.map(({ value, label }) => (
+                <FilterChip
+                  key={value}
+                  label={label}
+                  pressed={statuses.includes(value)}
+                  onToggle={() => toggleStatus(value)}
+                />
+              ))}
+              <FilterChip
+                label="메모 있음"
+                pressed={memoOnly}
+                onToggle={() => {
+                  setMemoOnly((now) => !now)
+                  setPage(0)
+                }}
+              />
+            </div>
           </div>
           {/* 패널이 열리면 목록 칸을 minmax(0,1fr) 로 둬서 표가 넓어도 레이아웃이 화면 밖으로 밀리지 않게 한다 */}
           <div
@@ -106,15 +159,24 @@ export function InventoryPage() {
               selectedId !== null ? 'grid-cols-[minmax(0,1fr)_20rem]' : 'grid-cols-1',
             )}
           >
-            <InventoryTable
-              inventory={inventory}
-              lowOnly={lowOnly}
-              memoOnly={memoOnly}
-              changedIds={changedIds}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-              onMemo={setMemoTarget}
-            />
+            <div className="min-w-0 space-y-3">
+              <InventoryTable
+                inventory={inventory}
+                query={query}
+                changedIds={changedIds}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                onMemo={setMemoTarget}
+              />
+              {inventory.data && inventory.data.totalElements > 0 && (
+                <Pagination
+                  page={inventory.data.page}
+                  totalPages={inventory.data.totalPages}
+                  totalElements={inventory.data.totalElements}
+                  onPage={setPage}
+                />
+              )}
+            </div>
             {selectedId !== null && (
               <LotDetailPanel
                 key={selectedId}
@@ -137,12 +199,80 @@ export function InventoryPage() {
   )
 }
 
+/** 값이 delayMs 동안 바뀌지 않으면 그 값을 돌려준다. 검색어를 칠 때마다 서버에 묻지 않게 한다 */
+function useDebounced(value: string, delayMs: number): string {
+  const [settled, setSettled] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), delayMs)
+    return () => clearTimeout(timer)
+  }, [value, delayMs])
+  return settled
+}
+
+interface FilterChipProps {
+  label: string
+  pressed: boolean
+  onToggle: () => void
+}
+
+function FilterChip({ label, pressed, onToggle }: FilterChipProps) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onToggle}
+      className={cn(
+        'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50',
+        pressed && 'border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-50',
+      )}
+    >
+      {label}
+    </button>
+  )
+}
+
+interface PaginationProps {
+  /** 0부터 */
+  page: number
+  totalPages: number
+  totalElements: number
+  onPage: (page: number) => void
+}
+
+function Pagination({ page, totalPages, totalElements, onPage }: PaginationProps) {
+  return (
+    <nav aria-label="페이지" className="flex items-center justify-between text-sm text-slate-500">
+      <p className="tabular-nums">총 {totalElements}개</p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPage(page - 1)}
+          disabled={page <= 0}
+          aria-label="이전 페이지"
+          className="rounded-md border border-slate-200 bg-white p-1.5 hover:bg-slate-50 disabled:opacity-40"
+        >
+          <ChevronLeft className="size-4" aria-hidden />
+        </button>
+        <span className="tabular-nums">
+          {page + 1} / {Math.max(totalPages, 1)}
+        </span>
+        <button
+          type="button"
+          onClick={() => onPage(page + 1)}
+          disabled={page + 1 >= totalPages}
+          aria-label="다음 페이지"
+          className="rounded-md border border-slate-200 bg-white p-1.5 hover:bg-slate-50 disabled:opacity-40"
+        >
+          <ChevronRight className="size-4" aria-hidden />
+        </button>
+      </div>
+    </nav>
+  )
+}
+
 interface TableProps {
   inventory: ReturnType<typeof useInventory>
-  /** true 면 lowStock 인 상품만 */
-  lowOnly: boolean
-  /** true 면 메모가 있는 상품만 */
-  memoOnly: boolean
+  query: InventoryQuery
   changedIds: ReadonlySet<number>
   selectedId: number | null
   onSelect: (productId: number) => void
@@ -151,8 +281,7 @@ interface TableProps {
 
 function InventoryTable({
   inventory,
-  lowOnly,
-  memoOnly,
+  query,
   changedIds,
   selectedId,
   onSelect,
@@ -172,20 +301,9 @@ function InventoryTable({
       </p>
     )
   }
-  if (inventory.data.length === 0) {
-    return (
-      <p className="py-16 text-center text-sm text-slate-500">
-        아직 입고된 상품이 없어요. 입고되면 여기에 바로 보여요.
-      </p>
-    )
-  }
-  const rows = inventory.data.filter(
-    (item) => (!lowOnly || item.lowStock) && (!memoOnly || item.hasMemo),
-  )
+  const rows = inventory.data.items
   if (rows.length === 0) {
-    return (
-      <p className="py-16 text-center text-sm text-slate-500">{emptyMessage(lowOnly, memoOnly)}</p>
-    )
+    return <p className="py-16 text-center text-sm text-slate-500">{emptyMessage(query)}</p>
   }
 
   return (
@@ -304,10 +422,19 @@ interface BadgeProps {
   expired: number
 }
 
-function emptyMessage(lowOnly: boolean, memoOnly: boolean): string {
-  if (lowOnly && memoOnly) return '조건에 맞는 상품이 없어요.'
-  if (memoOnly) return '메모가 있는 상품이 없어요.'
-  return '안전재고보다 적은 상품이 없어요.'
+/** 빈 목록 문구. 조건이 없으면 입고 전 안내, 조건 하나면 그 조건에 맞춘 문구 */
+function emptyMessage(query: InventoryQuery): string {
+  const hasSearch = query.q.trim().length > 0
+  if (!hasSearch && query.statuses.length === 0 && !query.memoOnly) {
+    return query.page > 0
+      ? '이 페이지에 상품이 없어요. 앞 페이지로 가 보세요.'
+      : '아직 입고된 상품이 없어요. 입고되면 여기에 바로 보여요.'
+  }
+  const onlyLowStock = query.statuses.length === 1 && query.statuses[0] === 'LOW_STOCK'
+  if (!hasSearch && !query.memoOnly && onlyLowStock) return '안전재고보다 적은 상품이 없어요.'
+  if (!hasSearch && query.memoOnly && query.statuses.length === 0)
+    return '메모가 있는 상품이 없어요.'
+  return '조건에 맞는 상품이 없어요.'
 }
 
 /** 안전재고보다 적으면 "부족", 임박·경과 lot 이 있으면 개수와 함께 배지를 붙인다 */

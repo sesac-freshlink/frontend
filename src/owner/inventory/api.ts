@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { api } from '@/shared/api/client'
 import { POLL_MS } from '@/shared/api/queryClient'
@@ -25,6 +25,32 @@ export interface InventoryItem {
   lowStock: boolean
   /** 점주 상품 메모가 있으면 true */
   hasMemo: boolean
+}
+
+/** S-10 상태 필터. 여러 개면 모두 만족하는 상품만 */
+export type InventoryStatusFilter = 'IMMINENT' | 'EXPIRED' | 'SOLD_OUT' | 'LOW_STOCK'
+
+/** S-10 재고 목록 검색 조건. 서버가 거르고 페이지로 자른다 */
+export interface InventoryQuery {
+  /** 상품명·상품 코드 검색어. 비면 조건 없음 */
+  q: string
+  statuses: InventoryStatusFilter[]
+  /** true 면 메모가 있는 상품만 */
+  memoOnly: boolean
+  /** 0부터 */
+  page: number
+  size: number
+}
+
+/** S-10 재고 목록 한 페이지. inventory-service InventoryPageResponse 와 같은 모양 */
+export interface InventoryListPage {
+  items: InventoryItem[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  /** 검색·필터·페이지와 상관없이 점포 전체에서 안전재고보다 적은 상품 수 */
+  lowStockCount: number
 }
 
 /** lot 상태. 서버가 지금 시각으로 계산해서 내려 준다 */
@@ -242,13 +268,31 @@ interface ErrorBody {
   message?: string
 }
 
-/** S-10 재고 목록 + S-15 3초 폴링으로 실시간 반영 */
-export function useInventory() {
+/**
+ * S-10 재고 목록 한 페이지 + S-15 3초 폴링으로 실시간 반영. 검색·필터·페이지는 서버가 한다.
+ * 조건을 바꾸는 동안에는 앞 페이지를 그대로 보여 줘 표가 깜빡이지 않게 한다
+ */
+export function useInventory(query: InventoryQuery) {
   return useQuery({
-    queryKey: ['owner', 'inventory'],
-    queryFn: async () => (await api.get<InventoryItem[]>('/owner/inventory')).data,
+    queryKey: ['owner', 'inventory', query],
+    queryFn: async () =>
+      (await api.get<InventoryListPage>('/owner/inventory', { params: inventoryParams(query) }))
+        .data,
     refetchInterval: POLL_MS.ownerInventory,
+    placeholderData: keepPreviousData,
   })
+}
+
+/** 서버 쿼리 모양. 빈 조건은 보내지 않고, 상태는 쉼표로 잇는다(status=IMMINENT,LOW_STOCK) */
+export function inventoryParams(query: InventoryQuery): Record<string, string | number | boolean> {
+  const q = query.q.trim()
+  return {
+    ...(q ? { q } : {}),
+    ...(query.statuses.length > 0 ? { status: query.statuses.join(',') } : {}),
+    ...(query.memoOnly ? { memo: true } : {}),
+    page: query.page,
+    size: query.size,
+  }
 }
 
 /**

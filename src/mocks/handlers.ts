@@ -11,6 +11,7 @@ import type {
   ExpiringLot,
   InventoryItem,
   InventoryLotItem,
+  InventoryListPage,
   InventoryStats,
   LedgerItem,
   LedgerType,
@@ -522,19 +523,43 @@ function toSafetyStockItem(productId: number): SafetyStockItem | undefined {
 
 export const handlers = [
   http.get('/api/stores/:storeId/products', () => HttpResponse.json(storeProducts)),
-  http.get('/api/owner/inventory', () =>
-    HttpResponse.json<InventoryItem[]>(
-      inventory.map((item) => {
-        const safetyStock = safetyStockOf(item.productId)
-        return {
-          ...item,
-          safetyStock,
-          lowStock: item.availableQuantity < safetyStock,
-          hasMemo: memos.has(item.productId),
-        }
-      }),
-    ),
-  ),
+  // 서버처럼 검색(q)·상태(status, 쉼표로 여러 개는 모두 만족)·메모·페이지를 처리한다
+  http.get('/api/owner/inventory', ({ request }) => {
+    const params = new URL(request.url).searchParams
+    const q = (params.get('q') ?? '').trim().toLowerCase()
+    const statuses = (params.get('status') ?? '').split(',').filter(Boolean)
+    const memoOnly = params.get('memo') === 'true'
+    const page = Number(params.get('page') ?? 0)
+    const size = Number(params.get('size') ?? 20)
+    const all: InventoryItem[] = inventory.map((item) => {
+      const safetyStock = safetyStockOf(item.productId)
+      return {
+        ...item,
+        safetyStock,
+        lowStock: item.availableQuantity < safetyStock,
+        hasMemo: memos.has(item.productId),
+      }
+    })
+    const matches = (item: InventoryItem) =>
+      (!q || item.name.toLowerCase().includes(q) || item.productCode.toLowerCase().includes(q)) &&
+      (!memoOnly || item.hasMemo) &&
+      statuses.every(
+        (status) =>
+          (status === 'LOW_STOCK' && item.lowStock) ||
+          (status === 'IMMINENT' && item.imminentLotCount > 0) ||
+          (status === 'EXPIRED' && item.expiredLotCount > 0) ||
+          (status === 'SOLD_OUT' && item.availableQuantity === 0),
+      )
+    const filtered = all.filter(matches).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+    return HttpResponse.json<InventoryListPage>({
+      items: filtered.slice(page * size, page * size + size),
+      page,
+      size,
+      totalElements: filtered.length,
+      totalPages: Math.ceil(filtered.length / size),
+      lowStockCount: all.filter((item) => item.lowStock).length,
+    })
+  }),
   http.post('/api/owner/inventory/adjustments', async ({ request }) => {
     const body = (await request.json()) as AdjustRequest
     if (!Number.isInteger(body.delta) || body.delta === 0 || Math.abs(body.delta) > 999) {
