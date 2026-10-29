@@ -46,31 +46,31 @@ function OrderTable({ orders }: { orders: ReturnType<typeof useOwnerOrders> }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-slate-500">
+        <thead className="bg-slate-50 text-left whitespace-nowrap text-slate-500">
           <tr>
-            <th className="px-4 py-3 font-medium">주문번호</th>
-            <th className="px-4 py-3 font-medium">상품</th>
-            <th className="px-4 py-3 text-right font-medium">수량</th>
-            <th className="px-4 py-3 text-right font-medium">금액</th>
-            <th className="px-4 py-3 font-medium">결제 수단</th>
-            <th className="px-4 py-3 text-right font-medium">결제 시각</th>
-            <th className="px-4 py-3 text-right font-medium">영수증</th>
+            <th className="px-3 py-3 font-medium">주문번호</th>
+            <th className="px-3 py-3 font-medium">상품</th>
+            <th className="px-3 py-3 text-right font-medium">수량</th>
+            <th className="px-3 py-3 text-right font-medium">금액</th>
+            <th className="px-3 py-3 font-medium">결제 수단</th>
+            <th className="px-3 py-3 text-right font-medium">결제 시각</th>
+            <th className="px-3 py-3 text-right font-medium">영수증</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200 text-slate-900">
+        <tbody className="divide-y divide-slate-200 whitespace-nowrap text-slate-900">
           {orders.data.map((o) => (
             <tr key={o.orderId}>
-              <td className="px-4 py-3 font-medium">{o.orderNo}</td>
-              <td className="px-4 py-3">{o.productName}</td>
-              <td className="px-4 py-3 text-right">{o.quantity}개</td>
-              <td className="px-4 py-3 text-right">{formatWon(o.amount)}</td>
-              <td className="px-4 py-3">{o.payment?.method ?? '-'}</td>
-              <td className="px-4 py-3 text-right text-slate-500">
+              <td className="px-3 py-3 font-medium">{o.orderNo}</td>
+              <td className="px-3 py-3">{o.productName}</td>
+              <td className="px-3 py-3 text-right">{o.quantity}개</td>
+              <td className="px-3 py-3 text-right">{formatWon(o.amount)}</td>
+              <td className="px-3 py-3">{o.payment?.method ?? '-'}</td>
+              <td className="px-3 py-3 text-right text-slate-500">
                 {formatDateTime(o.payment?.approvedAt ?? o.paidAt)}
               </td>
-              <td className="px-4 py-3 text-right">
+              <td className="px-3 py-3 text-right">
                 <ReceiptLink url={o.payment?.receiptUrl ?? null} />
               </td>
             </tr>
