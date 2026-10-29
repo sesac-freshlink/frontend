@@ -4,15 +4,17 @@ import { cn } from '@/shared/ui/cn'
 import { apiErrorMessage, useExpiring, type ExpiringLot } from '../api'
 import { DisposalHistory } from '../components/DisposalHistory'
 import { DisposeConfirmDialog } from '../components/DisposeConfirmDialog'
+import { ExpiryCalendar } from '../components/ExpiryCalendar'
 import { LotStatusBadge } from '../components/LotDetailPanel'
 import { TabButton } from '../components/TabButton'
 import { formatDateTime } from '../format'
 
-type Tab = 'imminent' | 'expired'
+type Tab = 'imminent' | 'expired' | 'calendar'
 
 /**
  * S-30·S-32 유통기한 관리. 임박(24시간 이내)·경과 lot 을 탭으로 나누고, 골라서 폐기 요청한다.
- * 폐기 수량은 lot 의 폐기 가능 수량 전량이다(부분 폐기는 미정)
+ * 폐기 수량은 lot 의 폐기 가능 수량 전량이다(부분 폐기는 미정).
+ * 달력 탭은 달마다 기한이 끝나는 lot 을 날짜 칸에 보여 준다(날짜를 누르면 그날 lot 목록)
  */
 export function ExpiringPage() {
   const expiring = useExpiring()
@@ -25,7 +27,7 @@ export function ExpiringPage() {
   const imminent = lots.filter((lot) => !lot.expired)
   const expired = lots.filter((lot) => lot.expired)
   const activeTab: Tab = tab ?? (expired.length > 0 ? 'expired' : 'imminent')
-  const rows = activeTab === 'expired' ? expired : imminent
+  const rows = activeTab === 'expired' ? expired : activeTab === 'imminent' ? imminent : []
   // 폴링으로 목록이 바뀌면 사라졌거나 폐기할 수 없게 된 lot 은 선택에서 빠진다
   const selectedLots = rows.filter((lot) => selected.has(lot.lotId) && lot.disposableQuantity > 0)
 
@@ -63,17 +65,23 @@ export function ExpiringPage() {
             요청해요.
           </p>
         </div>
-        <button
-          type="button"
-          disabled={selectedLots.length === 0}
-          onClick={() => setConfirming(true)}
-          className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:hover:bg-red-600"
-        >
-          선택 폐기 ({selectedLots.length})
-        </button>
+        {activeTab !== 'calendar' && (
+          <button
+            type="button"
+            disabled={selectedLots.length === 0}
+            onClick={() => setConfirming(true)}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:hover:bg-red-600"
+          >
+            선택 폐기 ({selectedLots.length})
+          </button>
+        )}
       </div>
 
-      <div role="tablist" aria-label="임박·경과" className="flex gap-1 border-b border-slate-200">
+      <div
+        role="tablist"
+        aria-label="임박·경과·달력"
+        className="flex gap-1 border-b border-slate-200"
+      >
         <TabButton
           label={`임박 ${imminent.length}`}
           selected={activeTab === 'imminent'}
@@ -84,11 +92,21 @@ export function ExpiringPage() {
           selected={activeTab === 'expired'}
           onSelect={() => changeTab('expired')}
         />
+        <TabButton
+          label="달력"
+          selected={activeTab === 'calendar'}
+          onSelect={() => changeTab('calendar')}
+        />
       </div>
 
-      <ExpiringTable expiring={expiring} rows={rows} selected={selected} onToggle={toggle} />
-
-      <DisposalHistory />
+      {activeTab === 'calendar' ? (
+        <ExpiryCalendar />
+      ) : (
+        <>
+          <ExpiringTable expiring={expiring} rows={rows} selected={selected} onToggle={toggle} />
+          <DisposalHistory />
+        </>
+      )}
 
       {confirming && <DisposeConfirmDialog lots={selectedLots} onClose={closeDialog} />}
     </section>

@@ -213,6 +213,36 @@ export interface AdjustmentHistoryItem {
   createdAt: string
 }
 
+/** 유통기한 달력의 lot 하나. 상태는 서버가 지금 시각으로 계산한다 */
+export interface ExpiryCalendarLot {
+  lotId: number
+  productId: number
+  productCode: string
+  name: string
+  /** 기한(+09:00) */
+  expiryDate: string
+  quantity: number
+  reservedQuantity: number
+  status: InventoryLotStatus
+}
+
+/** 유통기한 달력의 하루. lot 이 있는 날만 온다 */
+export interface ExpiryCalendarDay {
+  /** "YYYY-MM-DD" */
+  date: string
+  lotCount: number
+  /** 그날 끝나는 lot 의 실물 수량 합 */
+  quantity: number
+  lots: ExpiryCalendarLot[]
+}
+
+/** 유통기한 달력. inventory-service ExpiryCalendarResponse 와 같은 모양 */
+export interface ExpiryCalendar {
+  /** "YYYY-MM" */
+  month: string
+  days: ExpiryCalendarDay[]
+}
+
 /** 판매 순위 한 줄. inventory-service SalesRankItem 과 같은 모양. 같은 판매 수량이면 같은 순위(1, 2, 2, 4) */
 export interface SalesRankItem {
   rank: number
@@ -344,6 +374,7 @@ export function useDisposeLot() {
         queryClient.invalidateQueries({ queryKey: ['owner', 'expiring'] }),
         queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
         queryClient.invalidateQueries({ queryKey: ['owner', 'disposals'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'expiryCalendar'] }),
       ]),
   })
 }
@@ -412,6 +443,7 @@ export function useAdjustLot() {
           ['owner', 'ledger'],
           ['owner', 'stats'],
           ['owner', 'adjustments'],
+          ['owner', 'expiryCalendar'],
         ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
       ),
   })
@@ -423,6 +455,16 @@ export function useAdjustments() {
     queryKey: ['owner', 'adjustments'],
     queryFn: async () =>
       (await api.get<AdjustmentHistoryItem[]>('/owner/inventory/adjustments')).data,
+  })
+}
+
+/** 유통기한 달력 (그 달에 기한이 끝나는 lot 을 날짜별로). 달을 바꿀 때 읽고, 폐기·조정하면 다시 읽는다 */
+export function useExpiryCalendar(month: string) {
+  return useQuery({
+    queryKey: ['owner', 'expiryCalendar', month],
+    queryFn: async () =>
+      (await api.get<ExpiryCalendar>('/owner/inventory/expiry-calendar', { params: { month } }))
+        .data,
   })
 }
 

@@ -234,4 +234,25 @@ describe('유통기한 관리 (S-30·S-32)', () => {
     renderPage()
     expect(await screen.findByText('연결된 점포가 없습니다')).toBeInTheDocument()
   })
+
+  it('달력 탭으로 바꾸면 선택 폐기 버튼이 사라지고 이번 달 달력을 부른다', async () => {
+    get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data:
+          url === '/owner/inventory/expiry-calendar'
+            ? { month: '2026-10', days: [] }
+            : url === '/owner/disposals'
+              ? []
+              : [],
+      }),
+    )
+    renderPage()
+    await userEvent.click(await screen.findByRole('tab', { name: '달력' }))
+
+    expect(screen.getByRole('tab', { name: '달력' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('button', { name: /선택 폐기/ })).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/owner/inventory/expiry-calendar', expect.anything()),
+    )
+  })
 })
