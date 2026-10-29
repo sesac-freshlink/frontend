@@ -9,6 +9,8 @@ import type {
   DisposeRequest,
   DisposeResponse,
   ExpiringLot,
+  ExpiryCalendar,
+  ExpiryCalendarLot,
   InventoryItem,
   InventoryLotItem,
   InventoryListPage,
@@ -685,6 +687,41 @@ export const handlers = [
     return HttpResponse.json(type ? ledger.filter((item) => item.type === type) : ledger)
   }),
   http.get('/api/owner/inventory/expiring', () => HttpResponse.json(expiring)),
+  // 유통기한 달력. 가짜 lot(상품별)에서 그 달에 기한이 끝나고 수량이 남은 것을 날짜별로 묶는다
+  http.get('/api/owner/inventory/expiry-calendar', ({ request }) => {
+    const month =
+      new URL(request.url).searchParams.get('month') ?? new Date().toISOString().slice(0, 7)
+    const byDate = new Map<string, ExpiryCalendarLot[]>()
+    for (const [productId, productLots] of Object.entries(lots)) {
+      const item = inventory.find((p) => p.productId === Number(productId))
+      for (const lot of productLots) {
+        if (lot.quantity <= 0 || lot.expiryDate.slice(0, 7) !== month) continue
+        const date = lot.expiryDate.slice(0, 10)
+        byDate.set(date, [
+          ...(byDate.get(date) ?? []),
+          {
+            lotId: lot.lotId,
+            productId: Number(productId),
+            productCode: item?.productCode ?? `P${String(productId).padStart(3, '0')}`,
+            name: item?.name ?? `상품 ${productId}`,
+            expiryDate: lot.expiryDate,
+            quantity: lot.quantity,
+            reservedQuantity: lot.reservedQuantity,
+            status: lot.status,
+          },
+        ])
+      }
+    }
+    const days = [...byDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, dayLots]) => ({
+        date,
+        lotCount: dayLots.length,
+        quantity: dayLots.reduce((sum, lot) => sum + lot.quantity, 0),
+        lots: dayLots,
+      }))
+    return HttpResponse.json<ExpiryCalendar>({ month, days })
+  }),
   http.post('/api/owner/disposals', async ({ request }) => {
     const body = (await request.json()) as DisposeRequest
     const lot = expiring.find((item) => item.lotId === body.lotId)
