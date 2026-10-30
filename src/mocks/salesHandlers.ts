@@ -1,14 +1,15 @@
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
-import { http, HttpResponse } from 'msw'
-import type { SalesPeriod, SalesResponse, SalesUnit } from '@/owner/sales/api'
+import { http, HttpResponse, sse } from 'msw'
+import type { SalesPeriod, SalesResponse, SalesUnit, TodaySales } from '@/owner/sales/api'
 import { kstToday, MAX_DAYS, weekStart } from '@/owner/sales/sales'
 
 dayjs.extend(utc)
 
 /**
  * order-service 가짜 API (김경우): 점주 매출 대시보드(기능 ID 미정) GET /owner/orders/sales.
- * 검사·묶음 규칙은 order-service SalesPeriod·SalesUnit 과 같다. 금액은 날짜로 정해지는 가짜 값이라 매번 같다
+ * 검사·묶음 규칙은 order-service SalesPeriod·SalesUnit 과 같다. 금액은 날짜로 정해지는 가짜 값이라 매번 같다.
+ * 매출 SSE GET /owner/orders/sales/stream 은 연결하면 오늘 합계를 한 번 보낸다 (가짜 결제 완료는 없다)
  */
 
 /** 오늘부터 이만큼 지난 날까지만 가짜 매출이 있다. 더 옛날과 내일 이후는 0 */
@@ -94,6 +95,22 @@ export function buildSales(
   return { from, to, unit, periods: [...buckets.values()] }
 }
 
+/**
+ * 매출 SSE 가짜: 연결하면 오늘 합계를 한 번 보낸다. MSW sse 는 EventSource 가 없는 곳(테스트의 jsdom)에서 만들면
+ * 바로 오류라, 브라우저에서만 넣는다
+ */
+const salesStreamHandlers =
+  typeof EventSource === 'undefined'
+    ? []
+    : [
+        sse<{ sales: string }>('/api/owner/orders/sales/stream', ({ client }) => {
+          const today = kstToday()
+          const { amount, count } = fakeDay(today, today)
+          const data: TodaySales = { date: today, paidAmount: amount, paidCount: count }
+          client.send({ event: 'sales', data: JSON.stringify(data) })
+        }),
+      ]
+
 export const salesHandlers = [
   http.get('/api/owner/orders/sales', ({ request }) => {
     const params = new URL(request.url).searchParams
@@ -113,4 +130,5 @@ export const salesHandlers = [
     if (!unit) return validation('unit: day·week·month 중 하나여야 합니다')
     return HttpResponse.json(buildSales(from, to, unit))
   }),
+  ...salesStreamHandlers,
 ]
