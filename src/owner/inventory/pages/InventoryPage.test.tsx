@@ -394,6 +394,19 @@ describe('lot 상세 패널 (S-11)', () => {
     await userEvent.click(await screen.findByText('흰 우유 500ml'))
     expect(await screen.findByText('상품이 없습니다')).toBeInTheDocument()
   })
+
+  it('lot 응답이 목록이 아니면(배포 사이 어긋남) 화면이 멈추지 않고 패널에 안내만 보여 준다', async () => {
+    mockInventoryAndLots(() =>
+      Promise.resolve({ data: '<!doctype html>' as unknown as InventoryLotItem[] }),
+    )
+    renderPage()
+
+    await userEvent.click(await screen.findByText('흰 우유 500ml'))
+
+    const panel = await screen.findByRole('complementary', { name: 'lot 상세' })
+    expect(await within(panel).findByText('lot 정보를 불러오지 못했어요.')).toBeInTheDocument()
+    expect(within(panel).getByRole('heading', { name: '흰 우유 500ml' })).toBeInTheDocument()
+  })
 })
 
 describe('점주 상품 메모 (재고 화면)', () => {

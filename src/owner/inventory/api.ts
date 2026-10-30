@@ -332,8 +332,13 @@ export function inventoryParams(query: InventoryQuery): Record<string, string | 
 export function useInventoryLots(productId: number) {
   return useQuery({
     queryKey: ['owner', 'inventory', productId, 'lots'],
-    queryFn: async () =>
-      (await api.get<InventoryLotItem[]>(`/owner/inventory/${productId}/lots`)).data,
+    queryFn: async () => {
+      const { data } = await api.get<InventoryLotItem[]>(`/owner/inventory/${productId}/lots`)
+      // 배포 사이에 잠깐 어긋나 목록 대신 다른 것(HTML 등)이 오면 화면 전체가 멈췄다(10/29 dev).
+      // 배열이 아니면 오류로 돌려 패널에만 안내가 뜨고 다음 폴링 때 다시 읽는다
+      if (!Array.isArray(data)) throw new Error('lot 응답이 목록이 아니에요')
+      return data
+    },
     refetchInterval: POLL_MS.ownerInventory,
   })
 }
