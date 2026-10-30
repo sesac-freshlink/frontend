@@ -241,6 +241,26 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     await waitFor(() => expect(error).toHaveBeenCalledWith('픽업 기한이 지난 주문이에요'))
   })
 
+  it('상품별 판매 순위 탭으로 바꾸면 주문 대신 판매 순위를 부른다 (변동 이력에서 옮김)', async () => {
+    get.mockImplementation((url: string) =>
+      Promise.resolve(
+        url === '/owner/inventory/sales-ranking'
+          ? { data: { from: '2026-10-24', to: '2026-10-30', totalSoldQuantity: 0, items: [] } }
+          : pageOf([paidOrder]),
+      ),
+    )
+    renderPage()
+    expect(await screen.findByText('FL-20261020-000123')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '주문 목록' })).toHaveAttribute('aria-selected', 'true')
+
+    await userEvent.click(screen.getByRole('tab', { name: '상품별 판매 순위' }))
+
+    expect(await screen.findByText('이 기간에 판매된 상품이 없어요.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '상품별 판매 순위' })).toBeInTheDocument()
+    expect(screen.queryByText('FL-20261020-000123')).not.toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/owner/inventory/sales-ranking', expect.anything())
+  })
+
   it('구분을 바꾸면 그 구분으로 다시 읽고, [픽업 확인]은 픽업 대기에서만 보인다 (A6)', async () => {
     get.mockResolvedValue(pageOf([paidOrder]))
     renderPage()
