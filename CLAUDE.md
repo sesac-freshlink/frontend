@@ -187,6 +187,7 @@ npm run build          # tsc -b && vite build
 
 - 가짜 로그인: `admin`으로 시작하는 이메일 = 관리자, `owner`로 시작하는 이메일 = 점주, 나머지 = 고객, 비밀번호 아무거나.
 - 실제 gateway: `.env.local`에 `VITE_API_MOCK=false` → Vite proxy가 `/api`를 `localhost:8080`으로.
+- 진짜 로그인(이메일·구글, 쿠키) 확인은 dev 배포 주소에서 한다. PC에 gateway를 띄우는 개발 환경은 쓰지 않는다.
 
 ---
 

@@ -116,6 +116,7 @@ npm run dev
 - **가짜 API(MSW):** 개발 서버에서는 기본으로 MSW가 `/api` 요청을 가로채 가짜 응답을 준다. 백엔드 없이 화면을 만들 수 있다. 가짜 응답은 `src/mocks/handlers.ts`에 추가한다.
 - **실제 gateway:** `.env.local`에 `VITE_API_MOCK=false`를 두면 MSW를 끄고, Vite proxy가 `/api`를 로컬 gateway(`http://localhost:8080`)로 넘긴다. 운영과 똑같이 상대 경로로 부른다.
 - **로그인:** `VITE_API_MOCK`을 끄지 않으면(`true`, 기본) 개발 서버에서 MSW 가짜 API와 함께 개발용 가짜 로그인을 쓴다. `admin`으로 시작하는 이메일은 관리자, `owner`로 시작하는 이메일은 점주, 나머지는 고객으로 들어가고 비밀번호는 아무거나 된다. [구글로 로그인]을 누르면 프로필이 없는 가짜 구글 고객으로, `dup`으로 시작하는 이메일은 같은 이메일로 이미 이메일 가입한 사람을 막는지 확인하는 고객으로 들어간다. `VITE_API_MOCK=false`면 로컬 gateway의 BFF 로그인을 쓴다. 설정 예시는 [.env.example](.env.example).
+- **실제 로그인 확인:** 진짜 로그인(이메일·구글, 쿠키, 새로 고침 유지)은 dev 배포 주소(CloudFront)에서 확인한다. 팀은 PC에 gateway를 띄우는 개발 환경을 쓰지 않는다.
 
 | 명령 | 하는 일 |
 | --- | --- |
