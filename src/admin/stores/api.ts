@@ -17,6 +17,12 @@ export interface AdminStore {
   ownerEmail: string | null
   /** ISO-8601 +09:00 */
   createdAt: string
+  /** 점포 상세 값. 아직 넣지 않았으면 null */
+  latitude: number | null
+  longitude: number | null
+  description: string | null
+  /** 같은 주소의 /images/stores/... 경로. 없으면 null */
+  imageUrl: string | null
 }
 
 /** AD-01 요청. initialPassword 는 이 요청 본문에만 싣는다 */
@@ -28,12 +34,30 @@ export interface CreateAdminStoreRequest {
   initialPassword: string
 }
 
-/** AD-03 요청. 보낸 필드만 바뀐다 */
+/** AD-03 요청. 보낸 필드만 바뀐다. imageKey 는 업로드 주소 발급에서 받은 키 */
 export interface UpdateAdminStoreRequest {
   name?: string
   address?: string
   region?: RegionCode
+  latitude?: number
+  longitude?: number
+  description?: string
+  imageKey?: string
 }
+
+/** 점포 이미지 업로드 주소 (member-service POST /admin/stores/{storeId}/image-upload-url). 5분 유효 */
+export interface StoreImageUploadUrl {
+  /** S3 presigned PUT 주소 (외부 주소). 이 주소에만 브라우저가 바로 올린다 */
+  uploadUrl: string
+  imageKey: string
+  imageUrl: string
+  /** 서명에 들어간 형식. PUT 때 이 Content-Type 을 그대로 보내야 한다 */
+  contentType: string
+  expiresAt: string
+}
+
+/** 점포 이미지 형식 (서버가 키를 .jpg 로 정하고 Content-Type image/jpeg 로 서명한다) */
+export const STORE_IMAGE_TYPE = 'image/jpeg'
 
 /** 페이지 응답 형식 (member-service API 명세 0장) */
 export interface PageResponse<T> {
@@ -84,5 +108,27 @@ export function useUpdateAdminStore() {
       (await api.patch<AdminStore>(`/admin/stores/${storeId}`, body)).data,
     // 성공·409·404 모두 목록이 바뀌었을 수 있어 다시 받는다
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin', 'stores'] }),
+  })
+}
+
+/**
+ * 점포 이미지 올리기: 업로드 주소를 받고(member) 그 주소로 파일을 바로 PUT 한다(S3). 키를 돌려준다.
+ * S3 주소는 우리 API 가 아니라 api 인스턴스(baseURL·쿠키·CSRF 헤더)를 쓰지 않고 fetch 로 보낸다.
+ * 키는 점포 수정(AD-03)의 imageKey 로 저장해야 화면에 나온다
+ */
+export function useUploadStoreImage() {
+  return useMutation({
+    mutationFn: async ({ storeId, file }: { storeId: number; file: File }) => {
+      const issued = (
+        await api.post<StoreImageUploadUrl>(`/admin/stores/${storeId}/image-upload-url`)
+      ).data
+      const res = await fetch(issued.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': issued.contentType },
+        body: file,
+      })
+      if (!res.ok) throw new Error(`이미지 업로드 실패 ${res.status}`)
+      return issued
+    },
   })
 }

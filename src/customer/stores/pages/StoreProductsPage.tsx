@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, LoaderCircle, RefreshCw, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Info, LoaderCircle, RefreshCw, Search } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { formatWon } from '@/customer/order/format'
@@ -44,6 +44,13 @@ function StoreProducts({ storeId }: { storeId: number }) {
         <div>
           <h1 className="text-xl font-bold text-slate-900">{storeName ?? '점포 상품'}</h1>
           <p className="text-sm text-slate-500">상품을 고르면 바로 구매로 넘어가요</p>
+          <Link
+            to={`/customer/stores/${storeId}/info`}
+            className="mt-1 inline-flex items-center gap-1 text-sm text-emerald-600"
+          >
+            <Info className="size-4" aria-hidden="true" />
+            점포 정보·위치
+          </Link>
         </div>
         <button
           type="button"

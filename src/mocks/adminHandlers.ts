@@ -4,6 +4,7 @@ import type {
   AdminStore,
   CreateAdminStoreRequest,
   PageResponse,
+  StoreImageUploadUrl,
   UpdateAdminStoreRequest,
 } from '@/admin/stores/api'
 import { ADMIN_STORE_PAGE_SIZE } from '@/admin/stores/api'
@@ -32,8 +33,31 @@ function seedStore(id: number): AdminStore {
     status,
     ownerEmail: status === 'PENDING' ? null : `owner${id}@test.com`,
     createdAt: `2026-10-${String(id).padStart(2, '0')}T10:00:00+09:00`,
+    ...storeDetailSeed(id),
   }
 }
+
+/** 1번 점포만 점포 상세 값(좌표·설명·이미지)을 채워 둔다. 고객 점포 상세(memberHandlers)가 같은 값을 읽는다 */
+function storeDetailSeed(
+  id: number,
+): Pick<AdminStore, 'latitude' | 'longitude' | 'description' | 'imageUrl'> {
+  return id === 1
+    ? {
+        latitude: 37.498095,
+        longitude: 127.02761,
+        description: '강남역 11번 출구에서 200m. 24시간 운영해요',
+        imageUrl: '/mock-store.svg',
+      }
+    : { latitude: null, longitude: null, description: null, imageUrl: null }
+}
+
+/** 고객 점포 상세(memberHandlers)용: 운영 중 점포 한 건. 관리자 수정이 바로 보이게 같은 가짜 DB를 읽는다 */
+export function findActiveStore(storeId: number): AdminStore | undefined {
+  return stores.find((s) => s.storeId === storeId && s.status === 'ACTIVE')
+}
+
+/** 가짜 S3 업로드 주소 (MSW가 PUT 을 받는다) */
+const MOCK_S3 = 'https://freshlink-mock-frontend.s3.ap-northeast-2.amazonaws.com'
 
 function seedStores(): AdminStore[] {
   return Array.from({ length: 21 }, (_, i) => seedStore(21 - i))
@@ -111,6 +135,10 @@ export const adminHandlers = [
       status: 'ACTIVE',
       ownerEmail,
       createdAt: nowKst(),
+      latitude: null,
+      longitude: null,
+      description: null,
+      imageUrl: null,
     }
     // 이름에 '실패'가 들어가면 점주 계정 생성 실패를 흉내 낸다 (PENDING 점포가 남는다)
     if (name.includes('실패')) {
@@ -128,8 +156,25 @@ export const adminHandlers = [
       return error(409, 'STORE_NOT_EDITABLE', '등록 중인 점포는 수정할 수 없습니다')
     }
     const req = (await request.json()) as Partial<UpdateAdminStoreRequest>
-    if (req.name === undefined && req.address === undefined && req.region === undefined) {
+    if (
+      req.name === undefined &&
+      req.address === undefined &&
+      req.region === undefined &&
+      req.latitude === undefined &&
+      req.longitude === undefined &&
+      req.description === undefined &&
+      req.imageKey === undefined
+    ) {
       return error(400, 'VALIDATION_ERROR', '바꿀 항목이 없습니다')
+    }
+    if (req.latitude !== undefined && (req.latitude < -90 || req.latitude > 90)) {
+      return error(400, 'VALIDATION_ERROR', 'latitude: -90~90이어야 합니다')
+    }
+    if (req.longitude !== undefined && (req.longitude < -180 || req.longitude > 180)) {
+      return error(400, 'VALIDATION_ERROR', 'longitude: -180~180이어야 합니다')
+    }
+    if (req.imageKey !== undefined && !req.imageKey.startsWith(`images/stores/${storeId}/`)) {
+      return error(400, 'STORE_IMAGE_KEY_INVALID', '이 점포에 발급한 이미지 키가 아닙니다')
     }
     if (req.name !== undefined && !isValidName(req.name)) {
       return error(400, 'VALIDATION_ERROR', '점포명은 2~30자입니다')
@@ -149,8 +194,35 @@ export const adminHandlers = [
       ...(name !== undefined && { name }),
       ...(req.address !== undefined && { address: req.address.trim() }),
       ...(req.region !== undefined && { region: req.region }),
+      ...(req.latitude !== undefined && { latitude: req.latitude }),
+      ...(req.longitude !== undefined && { longitude: req.longitude }),
+      ...(req.description !== undefined && { description: req.description.trim() }),
+      // 가짜 S3 에는 실제 파일이 없어 미리 넣어 둔 그림으로 보여 준다
+      ...(req.imageKey !== undefined && { imageUrl: '/mock-store.svg' }),
     }
     stores = stores.map((s) => (s.storeId === storeId ? updated : s))
     return HttpResponse.json(updated)
   }),
+  http.post('/api/admin/stores/:storeId/image-upload-url', ({ params }) => {
+    const storeId = Number(params.storeId)
+    const found = stores.find((s) => s.storeId === storeId)
+    if (!found) return error(404, 'STORE_NOT_FOUND', '점포가 없습니다')
+    if (found.status === 'PENDING') {
+      return error(409, 'STORE_NOT_EDITABLE', '등록 중인 점포는 수정할 수 없습니다')
+    }
+    const imageKey = `images/stores/${storeId}/${crypto.randomUUID()}.jpg`
+    const body: StoreImageUploadUrl = {
+      uploadUrl: `${MOCK_S3}/${imageKey}?X-Amz-Expires=300`,
+      imageKey,
+      imageUrl: `/${imageKey}`,
+      contentType: 'image/jpeg',
+      expiresAt: nowKst(),
+    }
+    return HttpResponse.json(body)
+  }),
+  http.put(`${MOCK_S3}/images/stores/*`, ({ request }) =>
+    request.headers.get('Content-Type') === 'image/jpeg'
+      ? new HttpResponse(null, { status: 200 })
+      : new HttpResponse(null, { status: 403 }),
+  ),
 ]
