@@ -27,6 +27,7 @@ import { adminHandlers } from './adminHandlers'
 import { authHandlers, csrfGuard } from './authHandlers'
 import { memberHandlers } from './memberHandlers'
 import { orderHandlers } from './orderHandlers'
+import { salesHandlers } from './salesHandlers'
 
 /**
  * 백엔드가 나오기 전까지 쓰는 가짜 API. 실제 API 명세(Swagger)가 나오면 응답 모양을 맞춘다.
@@ -815,4 +816,5 @@ export const handlers = [
   ...adminHandlers,
   ...memberHandlers,
   ...orderHandlers,
+  ...salesHandlers,
 ]

@@ -13,6 +13,7 @@ import { InventoryPage } from '@/owner/inventory/pages/InventoryPage'
 import { LedgerPage } from '@/owner/inventory/pages/LedgerPage'
 import { LotDetailPage } from '@/owner/inventory/pages/LotDetailPage'
 import { OwnerOrdersPage } from '@/owner/orders/pages/OwnerOrdersPage'
+import { OwnerSalesPage } from '@/owner/sales/pages/OwnerSalesPage'
 import { AdminLayout } from './layouts/AdminLayout'
 import { CustomerLayout } from './layouts/CustomerLayout'
 import { OwnerLayout } from './layouts/OwnerLayout'
@@ -36,6 +37,7 @@ export const routes: RouteObject[] = [
           { path: 'ledger', element: <LedgerPage /> },
           { path: 'expiring', element: <ExpiringPage /> },
           { path: 'orders', element: <OwnerOrdersPage /> },
+          { path: 'sales', element: <OwnerSalesPage /> },
         ],
       },
     ],
