@@ -1,5 +1,7 @@
 import { create } from 'zustand'
+import { isMockApi } from '@/shared/api/mockMode'
 import { createBffClient } from './bffClient'
+import { leaveForSsoLogout, takeLoginNotice } from './ssoLogout'
 import type { AuthClient, AuthUser, LoginNotice, SignUpInput } from './types'
 
 /** 로그인은 항상 gateway BFF 로 한다. 개발 서버의 가짜 로그인은 MSW 가 /api/auth/* 를 흉내 낸다 */
@@ -15,7 +17,10 @@ interface AuthState {
   signIn(email: string, password: string): Promise<AuthUser>
   signUp(input: SignUpInput): Promise<void>
   confirmSignUp(email: string, code: string): Promise<void>
-  /** notice 를 주면 로그인 화면이 그 안내를 띄운다 */
+  /**
+   * notice 를 주면 로그인 화면이 그 안내를 띄운다.
+   * 실제 gateway 를 쓸 때는 쿠키를 지운 뒤 Cognito 로그인 기록도 지우러 이동한다 (가짜 API 에는 그 주소가 없다)
+   */
   signOut(notice?: LoginNotice): Promise<void>
   /**
    * 401 갱신 (api interceptor 전용). 성공이면 user 를 응답으로 바꾸고(역할·점포 반영) true.
@@ -29,7 +34,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   restoring: true,
-  loginNotice: null,
+  loginNotice: takeLoginNotice(),
   async restore() {
     const user = await authClient.restore()
     set({ user, restoring: false })
@@ -44,6 +49,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   async signOut(notice) {
     await authClient.signOut()
     set({ user: null, loginNotice: notice ?? null })
+    if (!isMockApi) leaveForSsoLogout(notice)
   },
   async refreshSession() {
     const user = await authClient.refresh()
