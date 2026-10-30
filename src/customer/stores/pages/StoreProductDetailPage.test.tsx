@@ -21,6 +21,9 @@ const milk: StoreProductDetail = {
   availableQuantity: 7,
   soldOut: false,
   nearestExpiry: '2026-10-30T23:59:59+09:00',
+  recommended: true,
+  newArrival: false,
+  firstCome: false,
 }
 
 function renderAt(path: string, state?: { storeName: string }) {
@@ -66,6 +69,8 @@ describe('고객 상품 상세 (U-10)', () => {
     expect(await screen.findByRole('heading', { name: '흰 우유 500ml' })).toBeInTheDocument()
     expect(get).toHaveBeenCalledWith('/stores/1/products/12')
     expect(screen.getByText('유제품')).toBeInTheDocument()
+    // 점주 추천이면 이름 아래에 배지가 붙는다
+    expect(screen.getByText('추천')).toBeInTheDocument()
     expect(screen.getByText('1,900원')).toBeInTheDocument()
     expect(screen.getByText('7개')).toBeInTheDocument()
     expect(screen.getByText('10/30 23:59까지')).toBeInTheDocument()
