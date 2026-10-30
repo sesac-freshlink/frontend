@@ -47,6 +47,8 @@ export interface UseSignupFlowReturn {
   submitForm(values: SignupValues): Promise<void>
   submitCode(code: string): Promise<void>
   submitProfile(values: ProfileValues): Promise<void>
+  /** 프로필 등록을 그만두고 로그아웃한 뒤 로그인 화면으로 간다 (구글로 잘못 들어온 경우 다른 계정을 고를 수 있게) */
+  leaveProfile(): Promise<void>
 }
 
 /**
@@ -149,5 +151,10 @@ export function useSignupFlow(): UseSignupFlowReturn {
     },
 
     submitProfile: saveProfile,
+
+    async leaveProfile() {
+      await signOut()
+      navigate('/login', { replace: true })
+    },
   }
 }
