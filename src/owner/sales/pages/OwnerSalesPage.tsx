@@ -2,7 +2,7 @@ import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
-import { useSales, type SalesResponse, type SalesUnit } from '../api'
+import { useSales, useSalesStream, type SalesResponse, type SalesUnit } from '../api'
 import { SalesChart } from '../components/SalesChart'
 import {
   formatShortDate,
@@ -29,7 +29,7 @@ const CHART_TITLE: Record<SalesUnit, string> = {
 /**
  * 점주 매출 대시보드 (기능 ID 미정, order-service GET /owner/orders/sales).
  * 위에 오늘·이번 주 순매출과 고른 기간의 결제·환불 건수 카드, 아래에 기간·단위 선택과 순매출 그래프·표를 둔다.
- * 오늘 매출 카드의 실시간 갱신(매출 SSE)은 아직 없다. 화면에 들어올 때와 기간·단위를 바꿀 때 읽는다
+ * 화면에 들어올 때와 기간·단위를 바꿀 때 읽고, 결제가 완료되면 매출 SSE(useSalesStream)를 받아 다시 읽는다
  */
 export function OwnerSalesPage() {
   // 오늘·이번 주는 화면에 들어올 때 정한다. 자정을 넘기면 빠른 기간 버튼을 다시 누르면 된다
@@ -39,6 +39,8 @@ export function OwnerSalesPage() {
   const [preset, setPreset] = useState<QuickRange | null>('last7')
   const [range, setRange] = useState<SalesRange>(() => quickRange('last7', now))
   const [unit, setUnit] = useState<SalesUnit>('day')
+
+  useSalesStream()
 
   const error = rangeError(range)
   const sales = useSales(error ? null : { ...range, unit })
