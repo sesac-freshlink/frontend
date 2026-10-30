@@ -7,8 +7,10 @@ import { api } from '@/shared/api/client'
 import type { StoreProductDetail } from '../api'
 import { StoreProductDetailPage } from './StoreProductDetailPage'
 
-vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn() } }))
+vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }))
 const get = vi.mocked(api.get)
+const post = vi.mocked(api.post)
+const del = vi.mocked(api.delete)
 
 const milk: StoreProductDetail = {
   productId: 12,
@@ -49,6 +51,8 @@ function renderAt(path: string, state?: { storeName: string }) {
 describe('고객 상품 상세 (U-10)', () => {
   beforeEach(() => {
     get.mockReset()
+    post.mockReset()
+    del.mockReset()
     sessionStorage.clear()
   })
 
@@ -106,6 +110,37 @@ describe('고객 상품 상세 (U-10)', () => {
     expect(await screen.findByRole('button', { name: '품절' })).toBeDisabled()
     expect(screen.queryByText(/까지$/)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '구매하기' })).not.toBeInTheDocument()
+  })
+
+  it('품절이면 재입고 알림을 신청하고 취소할 수 있다', async () => {
+    const soldOut = { ...milk, availableQuantity: 0, soldOut: true, nearestExpiry: null }
+    get.mockImplementation((url: string) =>
+      Promise.resolve(
+        url === '/notifications/restock/12'
+          ? { data: { storeId: 1, productId: 12, subscribed: false } }
+          : { data: soldOut },
+      ),
+    )
+    post.mockResolvedValue({ data: { storeId: 1, productId: 12, subscribed: true } })
+    del.mockResolvedValue({ data: null })
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    await userEvent.click(await screen.findByRole('button', { name: /재입고 알림 받기/ }))
+    expect(post).toHaveBeenCalledWith('/notifications/restock/12', null, { params: { storeId: 1 } })
+    expect(get).toHaveBeenCalledWith('/notifications/restock/12', { params: { storeId: 1 } })
+
+    await userEvent.click(await screen.findByRole('button', { name: /재입고 알림 신청됨/ }))
+    expect(del).toHaveBeenCalledWith('/notifications/restock/12', { params: { storeId: 1 } })
+    expect(await screen.findByRole('button', { name: /재입고 알림 받기/ })).toBeInTheDocument()
+  })
+
+  it('팔고 있는 상품에는 재입고 알림 버튼이 없고 신청 상태도 묻지 않는다', async () => {
+    get.mockResolvedValue({ data: milk })
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    expect(await screen.findByRole('link', { name: '구매하기' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /재입고/ })).not.toBeInTheDocument()
+    expect(get).toHaveBeenCalledTimes(1)
   })
 
   it('점포 이름을 모르면 구매를 막고 점포 찾기로 안내한다', async () => {

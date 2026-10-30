@@ -26,6 +26,7 @@ import type {
 import { adminHandlers } from './adminHandlers'
 import { authHandlers, csrfGuard } from './authHandlers'
 import { memberHandlers } from './memberHandlers'
+import { notificationHandlers } from './notificationHandlers'
 import { orderHandlers } from './orderHandlers'
 import { salesHandlers } from './salesHandlers'
 
@@ -905,4 +906,5 @@ export const handlers = [
   ...memberHandlers,
   ...orderHandlers,
   ...salesHandlers,
+  ...notificationHandlers,
 ]
