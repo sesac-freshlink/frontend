@@ -1,6 +1,7 @@
 import { ChartColumn, ClipboardList, History, LogOut, Package, TriangleAlert } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
 import { useAuthStore } from '@/shared/auth'
+import { NotificationBell } from '@/shared/notifications/NotificationBell'
 import { cn } from '@/shared/ui/cn'
 
 const MENU = [
@@ -11,16 +12,19 @@ const MENU = [
   { to: '/owner/sales', label: '매출', icon: ChartColumn },
 ]
 
-/** 점주 화면: 매장 포스기(가로 화면)용 왼쪽 사이드 메뉴 */
+/** 점주 화면: 매장 포스기(가로 화면)용 왼쪽 사이드 메뉴. 맨 위에 알림 종(유통기한 임박·경과) */
 export function OwnerLayout() {
   const { user, signOut } = useAuthStore()
 
   return (
     <div className="flex min-h-dvh">
       <aside className="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-white">
-        <div className="px-5 py-4">
-          <p className="text-lg font-bold text-emerald-600">FreshLink</p>
-          <p className="text-xs text-slate-500">점포 {user?.storeId ?? '-'}</p>
+        <div className="flex items-start justify-between px-5 py-4">
+          <div>
+            <p className="text-lg font-bold text-emerald-600">FreshLink</p>
+            <p className="text-xs text-slate-500">점포 {user?.storeId ?? '-'}</p>
+          </div>
+          <NotificationBell align="start" />
         </div>
         <nav className="flex-1 space-y-1 px-3">
           {MENU.map(({ to, label, icon: Icon }) => (
