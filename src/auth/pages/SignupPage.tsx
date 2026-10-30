@@ -22,6 +22,13 @@ import { FieldError, NICKNAME_TAKEN, useSignupFlow } from '../useSignupFlow'
 
 /** C-01 고객 회원가입 (기능명세 M1). 입력 → 이메일 인증 코드 → 프로필 등록 */
 export function SignupPage() {
+  const restoring = useAuthStore((s) => s.restoring)
+  // 새로고침 직후 세션 확인이 끝나야 로그인한 고객인지 알고 시작 단계를 고를 수 있다
+  if (restoring) return <FullScreenSpinner />
+  return <SignupSteps />
+}
+
+function SignupSteps() {
   const user = useAuthStore((s) => s.user)
   const flow = useSignupFlow()
 
@@ -39,7 +46,11 @@ export function SignupPage() {
         </p>
       )}
       {flow.step === 'profile' && !flow.autoSaving && (
-        <ProfileStep defaults={flow.profileDefaults} onSubmit={flow.submitProfile} />
+        <ProfileStep
+          defaults={flow.profileDefaults}
+          onSubmit={flow.submitProfile}
+          onBack={flow.leaveProfile}
+        />
       )}
       {flow.step !== 'profile' && (
         <Link to="/login" className="text-center text-sm text-slate-500 underline">
@@ -195,9 +206,11 @@ function CodeStep({
 function ProfileStep({
   defaults,
   onSubmit,
+  onBack,
 }: {
   defaults: ProfileValues | undefined
   onSubmit(values: ProfileValues): Promise<void>
+  onBack(): Promise<void>
 }) {
   const user = useAuthStore((s) => s.user)
   const profile = useMyProfile()
@@ -230,6 +243,14 @@ function ProfileStep({
       <ProfileFields register={register} errors={formState.errors} />
       <button type="submit" disabled={formState.isSubmitting} className={primaryButtonClass}>
         프로필 등록
+      </button>
+      <button
+        type="button"
+        onClick={() => void onBack()}
+        disabled={formState.isSubmitting}
+        className="w-full text-center text-sm text-slate-500 underline"
+      >
+        뒤로가기
       </button>
     </form>
   )

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { toast } from 'sonner'
@@ -424,5 +424,30 @@ describe('회원가입 (C-01)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(EMAIL_SIGNUP_EXISTS_MESSAGE)
     expect(toastError).not.toHaveBeenCalled()
     toastError.mockRestore()
+  })
+
+  it('새로고침 직후 세션 확인이 끝나기 전에는 기다렸다가, 구글 고객이면 프로필 단계를 보여 준다', async () => {
+    useAuthStore.setState({ restoring: true })
+    get.mockRejectedValue(notFound)
+    renderAt('/signup')
+    expect(screen.getByLabelText('불러오는 중')).toBeInTheDocument()
+    expect(screen.queryByLabelText('비밀번호')).not.toBeInTheDocument()
+
+    act(() => useAuthStore.setState({ restoring: false, user: customer }))
+
+    expect(await screen.findByLabelText('이름')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '프로필 등록' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('비밀번호')).not.toBeInTheDocument()
+  })
+
+  it('프로필 단계에서 뒤로가기를 누르면 로그아웃하고 로그인 화면으로 간다', async () => {
+    useAuthStore.setState({ user: customer })
+    get.mockRejectedValue(notFound)
+    const router = renderAt('/signup')
+    await userEvent.click(await screen.findByRole('button', { name: '뒤로가기' }))
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    expect(signOut).toHaveBeenCalledWith()
+    expect(post).not.toHaveBeenCalled()
   })
 })
