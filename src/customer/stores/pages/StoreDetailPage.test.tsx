@@ -2,13 +2,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
 import type { StoreDetail } from '../api'
+import { loadKakaoMaps } from '../kakaoMap'
 import { StoreDetailPage } from './StoreDetailPage'
 
 vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn() } }))
+vi.mock('../kakaoMap', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../kakaoMap')>()),
+  loadKakaoMaps: vi.fn(),
+}))
 const get = vi.mocked(api.get)
+const loadMaps = vi.mocked(loadKakaoMaps)
 
 const gangnam: StoreDetail = {
   storeId: 1,
@@ -42,6 +48,13 @@ function renderAt(path: string) {
 
 beforeEach(() => {
   get.mockReset()
+  loadMaps.mockReset()
+  // CI 빌드에는 레포 변수의 카카오 키가 들어오므로 테스트마다 키를 정해 둔다 (기본: 없음)
+  vi.stubEnv('VITE_KAKAO_MAP_KEY', '')
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
 })
 
 describe('고객 점포 상세', () => {
@@ -64,6 +77,17 @@ describe('고객 점포 상세', () => {
     renderAt('/customer/stores/1/info')
 
     expect(await screen.findByText('지도가 아직 없어요')).toBeInTheDocument()
+    expect(loadMaps).not.toHaveBeenCalled()
+  })
+
+  it('키가 있으면 카카오맵 SDK 를 키로 부르고, 불러오지 못하면 안내로 바꾼다', async () => {
+    vi.stubEnv('VITE_KAKAO_MAP_KEY', 'test-key')
+    loadMaps.mockRejectedValue(new Error('blocked'))
+    get.mockResolvedValue({ data: gangnam })
+    renderAt('/customer/stores/1/info')
+
+    expect(await screen.findByText('지도를 불러오지 못했어요')).toBeInTheDocument()
+    expect(loadMaps).toHaveBeenCalledWith('test-key')
   })
 
   it('관리자가 아직 넣지 않은 값은 자리표시로 둔다', async () => {
