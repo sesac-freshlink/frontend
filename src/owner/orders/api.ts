@@ -78,8 +78,39 @@ export function usePickUpOrder() {
   })
 }
 
+/** N-02 픽업 준비 완료 응답 (OR-05 와 같은 모양, pickedUpAt 은 null) */
+export type ReadyResponse = Omit<PickupResponse, 'pickedUpAt'> & { pickedUpAt: null }
+
+/**
+ * N-02 픽업 준비 완료 (order-service POST /owner/orders/{orderId}/ready). 고객에게 픽업 준비 완료 알림이 간다.
+ * 성공·실패 모두 목록을 다시 읽는다 (준비 완료가 되면 같은 줄의 버튼이 [픽업 확인]으로 바뀐다)
+ */
+export function useMarkReadyForPickup() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (orderId: number) =>
+      (await api.post<ReadyResponse>(`/owner/orders/${orderId}/ready`)).data,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ownerOrdersKey }),
+  })
+}
+
+const READY_ERROR_TEXT: Record<string, string> = {
+  ORDER_NOT_READYABLE: '이미 픽업했거나 준비 완료로 바꿀 수 없는 주문이에요',
+  PICKUP_DEADLINE_PASSED: '픽업 기한이 지난 주문이에요',
+  STORE_ORDER_ACCESS_DENIED: '우리 점포 주문만 처리할 수 있어요',
+  ORDER_NOT_FOUND: '주문을 찾을 수 없어요',
+}
+
+/** 픽업 준비 완료 오류를 점주 화면 문구로 */
+export function readyErrorMessage(e: unknown): string {
+  const code = apiErrorCode(e)
+  return (
+    (code && READY_ERROR_TEXT[code]) || '준비 완료 처리에 실패했어요. 잠시 뒤 다시 시도해 주세요.'
+  )
+}
+
 const PICKUP_ERROR_TEXT: Record<string, string> = {
-  ORDER_NOT_PICKABLE: '이미 픽업했거나 처리할 수 없는 주문이에요',
+  ORDER_NOT_PICKABLE: '픽업 준비 완료를 먼저 누르거나, 이미 픽업한 주문이에요',
   PICKUP_DEADLINE_PASSED: '픽업 기한이 지난 주문이에요',
   STORE_ORDER_ACCESS_DENIED: '우리 점포 주문만 처리할 수 있어요',
   ORDER_NOT_FOUND: '주문을 찾을 수 없어요',

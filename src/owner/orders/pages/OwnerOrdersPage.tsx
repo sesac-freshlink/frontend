@@ -1,5 +1,6 @@
 import { LoaderCircle, RefreshCw } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
+import { toast } from 'sonner'
 import { DEFAULT_ORDER_PAGE_SIZE, ORDER_PAGE_SIZES, type OrderPageSize } from '@/customer/order/api'
 import { ReceiptLink } from '@/customer/order/components/ReceiptLink'
 import { formatDateTime, formatShortPickupDate, formatWon } from '@/customer/order/format'
@@ -10,7 +11,13 @@ import { PageNav } from '@/shared/ui/PageNav'
 import { PeriodFilter } from '@/shared/ui/PeriodFilter'
 import { SalesRankingPanel } from '@/owner/inventory/components/SalesRankingPanel'
 import { TabButton } from '@/owner/inventory/components/TabButton'
-import { type OwnerOrder, type OwnerOrderTab, useOwnerOrders } from '../api'
+import {
+  type OwnerOrder,
+  type OwnerOrderTab,
+  readyErrorMessage,
+  useMarkReadyForPickup,
+  useOwnerOrders,
+} from '../api'
 import { PickupConfirmModal } from '../components/PickupConfirmModal'
 
 interface TabInfo {
@@ -51,7 +58,8 @@ const TABS: TabInfo[] = [
 /**
  * S-50·A6 /owner/orders 점주 주문 목록. 구분(픽업 대기·픽업 완료·취소·환불·기한 경과)과 기간(주문일 기준)으로 고른다.
  * 진입·구분·기간 변경·[새로 고침] 때만 조회한다 (폴링 없음).
- * 픽업 대기에서만 A5 [픽업 확인] → 확인 모달 → 픽업 완료하면 픽업 완료 구분으로 옮겨 간다
+ * 픽업 대기에서 결제 완료 주문은 N-02 [준비 완료](포장을 끝내면, 고객에게 알림),
+ * 준비 완료 주문은 A5 [픽업 확인] → 확인 모달 → 픽업 완료하면 픽업 완료 구분으로 옮겨 간다
  */
 type View = 'orders' | 'ranking'
 
@@ -233,7 +241,7 @@ const PICKUP_DEADLINE_COLUMN: Column = {
   cell: (o) => (o.pickupDeadline ? formatShortPickupDate(o.pickupDeadline) : '-'),
 }
 
-/** 구분마다 더 보여 주는 칸. 픽업 대기의 [픽업 확인] 칸은 OrderTable 이 붙인다 */
+/** 구분마다 더 보여 주는 칸. 픽업 대기의 [준비 완료]·[픽업 확인] 칸은 OrderTable 이 붙인다 */
 const EXTRA_COLUMNS: Record<OwnerOrderTab, Column[]> = {
   PICKUP_WAITING: [PICKUP_DEADLINE_COLUMN],
   PICKED_UP: [
@@ -258,16 +266,19 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
       label: '픽업',
       srOnly: true,
       right: true,
-      cell: (o) => (
-        <button
-          type="button"
-          onClick={() => setPickupOrderId(o.orderId)}
-          aria-label={`${o.orderNo} 픽업 확인`}
-          className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          픽업 확인
-        </button>
-      ),
+      cell: (o) =>
+        o.status === 'READY_FOR_PICKUP' ? (
+          <button
+            type="button"
+            onClick={() => setPickupOrderId(o.orderId)}
+            aria-label={`${o.orderNo} 픽업 확인`}
+            className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            픽업 확인
+          </button>
+        ) : (
+          <ReadyButton order={o} />
+        ),
     })
   }
 
@@ -300,5 +311,29 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
         </tbody>
       </table>
     </div>
+  )
+}
+
+/** N-02 [준비 완료]: 포장을 끝내면 누른다. 확인 모달 없이 바로 바꾸고 고객에게 알림이 간다 */
+function ReadyButton({ order }: { order: OwnerOrder }) {
+  const ready = useMarkReadyForPickup()
+  const onClick = async () => {
+    try {
+      await ready.mutateAsync(order.orderId)
+      toast.success(`${order.orderNo} 픽업 준비 완료. 고객에게 알렸어요`)
+    } catch (e) {
+      toast.error(readyErrorMessage(e))
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => void onClick()}
+      disabled={ready.isPending}
+      aria-label={`${order.orderNo} 픽업 준비 완료`}
+      className="rounded-lg border border-emerald-600 px-2.5 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+    >
+      준비 완료
+    </button>
   )
 }

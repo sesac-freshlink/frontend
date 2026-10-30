@@ -30,6 +30,15 @@ describe('customerMessage', () => {
     })
   })
 
+  it('픽업 준비 완료 문구 (N-02): 결제 완료처럼 보이되 가게에서 받아 가라고 안내한다', () => {
+    expect(customerMessage('READY_FOR_PICKUP', null)).toEqual({
+      title: '픽업 준비 완료 · 가게에서 받아 가세요',
+      tone: 'done',
+    })
+    expect(orderStatusLabel('READY_FOR_PICKUP', null)).toBe('픽업 준비 완료')
+    expect(isPollingStatus('READY_FOR_PICKUP')).toBe(false)
+  })
+
   it('재고 확보 실패는 사유별로 다르게', () => {
     expect(customerMessage('OUT_OF_STOCK', 'OUT_OF_STOCK').title).toBe(
       '재고가 부족해 주문이 취소됐어요.',

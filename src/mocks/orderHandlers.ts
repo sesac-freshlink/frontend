@@ -10,7 +10,7 @@ import type {
   OrderPage,
 } from '@/customer/order/api'
 import type { OrderStatus } from '@/customer/order/orderStatus'
-import type { OwnerOrder, OwnerOrderTab, PickupResponse } from '@/owner/orders/api'
+import type { OwnerOrder, OwnerOrderTab, PickupResponse, ReadyResponse } from '@/owner/orders/api'
 
 /**
  * order-service 가짜 API (김경우): OR-01~03 고객 주문·결제, OR-04 점주 주문 목록(A6 구분), OR-05 픽업 확인, OR-06 고객 주문 내역(A3).
@@ -83,10 +83,10 @@ function publicOrder({
  */
 const SEED: [hoursAgo: number, status: OrderStatus, productId: number, quantity: number][] = [
   [1, 'PAID', 1, 2],
-  [3, 'PAID', 2, 1],
+  [3, 'READY_FOR_PICKUP', 2, 1],
   [5, 'PAID', 3, 1],
   [8, 'PAID', 1, 1],
-  [20, 'PAID', 2, 3],
+  [20, 'READY_FOR_PICKUP', 2, 3],
   [22, 'PAID', 3, 2],
   [26, 'PAID', 1, 4],
   [30, 'PAID', 2, 2],
@@ -118,11 +118,17 @@ function seedOrder(hoursAgo: number, status: OrderStatus, productId: number, qua
   const id = nextOrderId++
   const product = products[productId]
   const createdMs = Date.now() - hoursAgo * HOUR
-  const paid = status === 'PAID' || status === 'PICKED_UP' || status === 'PICKUP_EXPIRED'
+  const paid =
+    status === 'PAID' ||
+    status === 'READY_FOR_PICKUP' ||
+    status === 'PICKED_UP' ||
+    status === 'PICKUP_EXPIRED'
   const paidAt = paid ? kstIso(createdMs + 2 * 60_000) : null
   // 픽업 대기는 앞으로 1~3일, 나머지는 주문일 다음 날 (기한 경과는 이미 지났다)
   const deadline =
-    status === 'PAID' ? pickupDeadline(1 + (id % 3)) : `${kstDate(createdMs + DAY)}T23:59:59+09:00`
+    status === 'PAID' || status === 'READY_FOR_PICKUP'
+      ? pickupDeadline(1 + (id % 3))
+      : `${kstDate(createdMs + DAY)}T23:59:59+09:00`
   const failureReason =
     status === 'OUT_OF_STOCK'
       ? 'OUT_OF_STOCK'
@@ -181,7 +187,7 @@ resetOrders()
 
 /** A3 구분별 상태 (order-service CustomerOrderTab 과 같다). OUT_OF_STOCK·PAYMENT_FAILED 는 어디에도 없다 */
 const CUSTOMER_TABS: Record<CustomerOrderTab, readonly OrderStatus[]> = {
-  PICKUP_WAITING: ['PAID'],
+  PICKUP_WAITING: ['PAID', 'READY_FOR_PICKUP'],
   PICKED_UP: ['PICKED_UP'],
   CANCELED: ['EXPIRED'],
   ALL: [
@@ -189,6 +195,7 @@ const CUSTOMER_TABS: Record<CustomerOrderTab, readonly OrderStatus[]> = {
     'PAYMENT_WAITING',
     'PAYMENT_APPROVING',
     'PAID',
+    'READY_FOR_PICKUP',
     'PICKED_UP',
     'EXPIRED',
     'PICKUP_EXPIRED',
@@ -200,7 +207,7 @@ const OWNER_TABS: Record<
   OwnerOrderTab,
   { statuses: readonly OrderStatus[]; sortBy: (o: MockOrder) => string }
 > = {
-  PICKUP_WAITING: { statuses: ['PAID'], sortBy: (o) => o.paidAt ?? '' },
+  PICKUP_WAITING: { statuses: ['PAID', 'READY_FOR_PICKUP'], sortBy: (o) => o.paidAt ?? '' },
   PICKED_UP: { statuses: ['PICKED_UP'], sortBy: (o) => o.pickedUpAt ?? '' },
   CANCELED: { statuses: [], sortBy: (o) => o.createdAt },
   PICKUP_EXPIRED: { statuses: ['PICKUP_EXPIRED'], sortBy: (o) => o.pickupDeadline ?? '' },
@@ -429,7 +436,7 @@ export const orderHandlers = [
     const url = new URL(request.url)
     if (!url.searchParams.has('tab')) {
       const paid = [...orders.values()]
-        .filter((o) => o.status === 'PAID')
+        .filter((o) => o.status === 'PAID' || o.status === 'READY_FOR_PICKUP')
         .sort(newestFirst((o) => o.paidAt ?? ''))
         .map(ownerOrder)
       return HttpResponse.json(paid)
@@ -443,7 +450,36 @@ export const orderHandlers = [
       .map(ownerOrder)
     return HttpResponse.json(toPage(rows, q.page, q.size))
   }),
-  // OR-05 픽업 확인 (가짜 로그인 점주는 점포 확인을 하지 않는다)
+  // N-02 픽업 준비 완료 (가짜 로그인 점주는 점포 확인을 하지 않는다). 이미 준비 완료면 그대로 200
+  http.post('/api/owner/orders/:orderId/ready', ({ params }) => {
+    const o = orders.get(Number(params.orderId))
+    if (!o)
+      return HttpResponse.json(
+        { code: 'ORDER_NOT_FOUND', message: '주문이 없습니다' },
+        { status: 404 },
+      )
+    if (o.status !== 'PAID' && o.status !== 'READY_FOR_PICKUP') {
+      return HttpResponse.json(
+        { code: 'ORDER_NOT_READYABLE', message: '픽업 준비 완료로 바꿀 수 없는 주문입니다' },
+        { status: 409 },
+      )
+    }
+    if (o.pickupDeadline && Date.now() > Date.parse(o.pickupDeadline)) {
+      return HttpResponse.json(
+        { code: 'PICKUP_DEADLINE_PASSED', message: '픽업 기한이 지난 주문입니다' },
+        { status: 409 },
+      )
+    }
+    o.status = 'READY_FOR_PICKUP'
+    const body: ReadyResponse = {
+      orderId: o.orderId,
+      orderNo: o.orderNo,
+      status: o.status,
+      pickedUpAt: null,
+    }
+    return HttpResponse.json(body)
+  }),
+  // OR-05 픽업 확인 (가짜 로그인 점주는 점포 확인을 하지 않는다). 픽업 준비 완료를 먼저 거친다 (N-02)
   http.post('/api/owner/orders/:orderId/pickup', ({ params }) => {
     const o = orders.get(Number(params.orderId))
     if (!o)
@@ -451,7 +487,7 @@ export const orderHandlers = [
         { code: 'ORDER_NOT_FOUND', message: '주문이 없습니다' },
         { status: 404 },
       )
-    if (o.status !== 'PAID') {
+    if (o.status !== 'READY_FOR_PICKUP') {
       return HttpResponse.json(
         { code: 'ORDER_NOT_PICKABLE', message: '픽업할 수 없는 주문입니다' },
         { status: 409 },

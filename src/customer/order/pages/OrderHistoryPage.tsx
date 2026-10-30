@@ -149,11 +149,12 @@ function OrderRow({ order }: { order: CustomerOrderSummary }) {
           <p className="truncate text-xs text-slate-500">
             {order.storeName} · {formatDateTime(order.createdAt)}
           </p>
-          {order.status === 'PAID' && order.pickupDeadline && (
-            <p className="text-xs text-emerald-700">
-              {formatPickupDate(order.pickupDeadline)}까지 픽업
-            </p>
-          )}
+          {(order.status === 'PAID' || order.status === 'READY_FOR_PICKUP') &&
+            order.pickupDeadline && (
+              <p className="text-xs text-emerald-700">
+                {formatPickupDate(order.pickupDeadline)}까지 픽업
+              </p>
+            )}
         </div>
         <p className="shrink-0 text-right text-sm font-medium text-slate-900">
           {order.amount === null ? '-' : formatWon(order.amount)}

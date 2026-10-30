@@ -13,6 +13,7 @@ export const ORDER_STATUSES = [
   'EXPIRED',
   'PICKED_UP',
   'PICKUP_EXPIRED',
+  'READY_FOR_PICKUP',
 ] as const
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
@@ -58,6 +59,8 @@ export function customerMessage(
       return { title: '결제 결과를 확인하고 있어요', tone: 'loading' }
     case 'PAID':
       return { title: '결제 완료', tone: 'done' }
+    case 'READY_FOR_PICKUP':
+      return { title: '픽업 준비 완료 · 가게에서 받아 가세요', tone: 'done' }
     case 'OUT_OF_STOCK':
       return {
         title:
@@ -89,6 +92,8 @@ export function orderStatusLabel(status: OrderStatus, failureReason: FailureReas
       return '결제 확인 중'
     case 'PAID':
       return '픽업 대기'
+    case 'READY_FOR_PICKUP':
+      return '픽업 준비 완료'
     case 'PICKED_UP':
       return '픽업 완료'
     case 'PICKUP_EXPIRED':

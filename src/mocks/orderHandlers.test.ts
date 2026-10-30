@@ -39,7 +39,7 @@ describe('주문 목록 가짜 API (OR-06·OR-04 tab)', () => {
   it('고객 구분은 서버 CustomerOrderTab 과 같은 상태만 내린다', async () => {
     const only = async (tab: string) =>
       new Set((await customer(`tab=${tab}&size=50`)).content.map((o) => o.status))
-    expect(await only('PICKUP_WAITING')).toEqual(new Set(['PAID']))
+    expect(await only('PICKUP_WAITING')).toEqual(new Set(['PAID', 'READY_FOR_PICKUP']))
     expect(await only('PICKED_UP')).toEqual(new Set(['PICKED_UP']))
     expect(await only('CANCELED')).toEqual(new Set(['EXPIRED']))
   })
@@ -79,7 +79,7 @@ describe('주문 목록 가짜 API (OR-06·OR-04 tab)', () => {
   it('점주 목록은 tab 이 없으면 결제 완료 배열, 있으면 구분별 페이지다', async () => {
     const legacy = (await (await call('/api/owner/orders')).json()) as OwnerOrder[]
     expect(Array.isArray(legacy)).toBe(true)
-    expect(legacy.every((o) => o.status === 'PAID')).toBe(true)
+    expect(legacy.every((o) => o.status === 'PAID' || o.status === 'READY_FOR_PICKUP')).toBe(true)
 
     const waiting = await owner('tab=PICKUP_WAITING&size=50')
     expect(waiting.totalElements).toBe(legacy.length)
