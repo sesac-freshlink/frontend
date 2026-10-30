@@ -1,5 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/api/client'
+import { type DatePeriod, isReversedPeriod, periodParams } from '@/shared/api/period'
 import { POLL_MS } from '@/shared/api/queryClient'
 import { isPollingStatus, type FailureReason, type OrderStatus } from './orderStatus'
 
@@ -73,7 +74,67 @@ export interface ConfirmPaymentResponse {
   paidAt: string | null
 }
 
+/** 목록 한 페이지 (order-service A3·A6). page 는 0부터 */
+export interface OrderPage<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+/** A3 고객 주문 내역 구분 */
+export type CustomerOrderTab = 'PICKUP_WAITING' | 'PICKED_UP' | 'CANCELED' | 'ALL'
+
+/** 한 페이지 개수 (추가 명세 A3·A6: 10·20·50, 기본 20) */
+export const ORDER_PAGE_SIZES = [10, 20, 50] as const
+export type OrderPageSize = (typeof ORDER_PAGE_SIZES)[number]
+export const DEFAULT_ORDER_PAGE_SIZE: OrderPageSize = 20
+
+/** A3 고객 주문 내역 한 줄. 시각은 +09:00 */
+export interface CustomerOrderSummary {
+  orderId: number
+  orderNo: string
+  status: OrderStatus
+  failureReason: FailureReason | null
+  storeName: string
+  productName: string | null
+  quantity: number
+  amount: number | null
+  createdAt: string
+  pickupDeadline: string | null
+}
+
 const orderKey = (orderId: number) => ['customer', 'order', orderId]
+
+/** A3 고객 주문 내역 조회 조건. period 는 주문일 기준 (빈 쪽은 보내지 않는다) */
+export interface CustomerOrdersQuery {
+  tab: CustomerOrderTab
+  /** 0부터 */
+  page: number
+  size: OrderPageSize
+  period: DatePeriod
+}
+
+/**
+ * A3 고객 주문 내역 (order-service OR-06). 진입·구분 전환·[새로 고침] 때만 부른다 (폴링 없음).
+ * 페이지를 넘기는 동안 이전 목록을 보여 준다. 시작 날짜가 끝 날짜보다 늦으면 서버가 400 을 주므로 부르지 않는다
+ */
+export function useCustomerOrders({ tab, page, size, period }: CustomerOrdersQuery) {
+  const range = periodParams(period)
+  return useQuery({
+    queryKey: ['customer', 'orders', tab, page, size, range],
+    queryFn: async () =>
+      (
+        await api.get<OrderPage<CustomerOrderSummary>>('/orders', {
+          params: { tab, page, size, ...range },
+        })
+      ).data,
+    enabled: !isReversedPeriod(period),
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+  })
+}
 
 /** U-22·U-31 주문 조회 (OR-02). 진행 중 상태에서만 2초 폴링 */
 export function useOrder(orderId: number | undefined) {

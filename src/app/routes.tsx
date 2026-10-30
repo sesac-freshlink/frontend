@@ -4,6 +4,7 @@ import { StoreRegisterPage } from '@/admin/stores/pages/StoreRegisterPage'
 import { LoginPage } from '@/auth/pages/LoginPage'
 import { SignupPage } from '@/auth/pages/SignupPage'
 import { OrderDetailPage } from '@/customer/order/pages/OrderDetailPage'
+import { OrderHistoryPage } from '@/customer/order/pages/OrderHistoryPage'
 import { CustomerHomePage } from '@/customer/stores/pages/CustomerHomePage'
 import { StoreProductDetailPage } from '@/customer/stores/pages/StoreProductDetailPage'
 import { StoreProductsPage } from '@/customer/stores/pages/StoreProductsPage'
@@ -49,6 +50,7 @@ export const routes: RouteObject[] = [
           { index: true, element: <CustomerHomePage /> },
           { path: 'stores/:storeId', element: <StoreProductsPage /> },
           { path: 'stores/:storeId/products/:productId', element: <StoreProductDetailPage /> },
+          { path: 'orders', element: <OrderHistoryPage /> },
           { path: 'orders/:id', element: <OrderDetailPage /> },
         ],
       },

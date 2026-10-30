@@ -78,6 +78,30 @@ export function customerMessage(
   }
 }
 
+/** 주문 내역(A3)·점주 목록(A6)에 쓰는 짧은 상태 이름 */
+export function orderStatusLabel(status: OrderStatus, failureReason: FailureReason | null): string {
+  switch (status) {
+    case 'RESERVING':
+      return '주문 확인 중'
+    case 'PAYMENT_WAITING':
+      return '결제 대기'
+    case 'PAYMENT_APPROVING':
+      return '결제 확인 중'
+    case 'PAID':
+      return '픽업 대기'
+    case 'PICKED_UP':
+      return '픽업 완료'
+    case 'PICKUP_EXPIRED':
+      return '픽업 기한 지남'
+    case 'EXPIRED':
+      return failureReason === 'PICKUP_DEADLINE' ? '픽업 기한 지나 취소' : '결제 시간 지나 취소'
+    case 'OUT_OF_STOCK':
+      return '재고 부족 취소'
+    case 'PAYMENT_FAILED':
+      return '결제 실패'
+  }
+}
+
 /** 결제창을 닫거나 결제에 실패하고 돌아왔는데 아직 결제할 수 있을 때 (명세 7장) */
 export function paymentInterruptedMessage(expiresAtHHmm: string): string {
   return `결제가 완료되지 않았어요. 이 주문은 ${expiresAtHHmm}에 자동 취소됩니다.`

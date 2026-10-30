@@ -1,9 +1,12 @@
-import { Home, LogOut } from 'lucide-react'
+import { Home, LogOut, ReceiptText } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
 import { useAuthStore } from '@/shared/auth'
 import { cn } from '@/shared/ui/cn'
 
-const TABS = [{ to: '/customer', label: '홈', icon: Home, end: true }]
+const TABS = [
+  { to: '/customer', label: '홈', icon: Home, end: true },
+  { to: '/customer/orders', label: '주문 내역', icon: ReceiptText, end: false },
+]
 
 /** 고객 화면: 핸드폰(세로 화면)용 상단 바 + 하단 탭 */
 export function CustomerLayout() {

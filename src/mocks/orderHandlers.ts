@@ -4,24 +4,44 @@ import type {
   ConfirmPaymentResponse,
   CreateOrderRequest,
   CreateOrderResponse,
+  CustomerOrderSummary,
+  CustomerOrderTab,
   Order,
+  OrderPage,
 } from '@/customer/order/api'
-import type { OwnerOrder, PickupResponse } from '@/owner/orders/api'
+import type { OrderStatus } from '@/customer/order/orderStatus'
+import type { OwnerOrder, OwnerOrderTab, PickupResponse } from '@/owner/orders/api'
 
-/** order-service 가짜 API (김경우): OR-01~03 고객 주문·결제, OR-04 점주 신규 주문, OR-05 픽업 확인 */
+/**
+ * order-service 가짜 API (김경우): OR-01~03 고객 주문·결제, OR-04 점주 주문 목록(A6 구분), OR-05 픽업 확인, OR-06 고객 주문 내역(A3).
+ * 가짜 로그인은 고객·점주가 한 명씩이라 고객·점포를 가리지 않고 모든 주문을 내린다
+ */
 // 상품 999 는 재고 부족으로 끝나는 주문을 흉내 낸다
 const products: Record<number, { name: string; price: number }> = {
   1: { name: '삼각김밥 참치마요', price: 1500 },
   2: { name: '바나나우유', price: 1700 },
   3: { name: '샌드위치 햄치즈', price: 3200 },
 }
-const orders = new Map<number, Order & { createdMs: number; paymentKey?: string }>()
+type MockOrder = Order & { createdMs: number; paymentKey?: string }
+const orders = new Map<number, MockOrder>()
 const orderIdByKey = new Map<string, number>()
 let nextOrderId = 1
 
-function orderNo(id: number) {
-  const day = new Date().toISOString().slice(0, 10).replaceAll('-', '')
-  return `FL-${day}-${String(id).padStart(6, '0')}`
+const HOUR = 3_600_000
+const DAY = 24 * HOUR
+
+/** 시각(ms)을 서버처럼 +09:00 문자열로 */
+function kstIso(ms: number) {
+  return `${new Date(ms + 9 * HOUR).toISOString().slice(0, 19)}+09:00`
+}
+
+/** 시각(ms)의 KST 날짜 yyyy-MM-dd */
+function kstDate(ms: number) {
+  return new Date(ms + 9 * HOUR).toISOString().slice(0, 10)
+}
+
+function orderNo(id: number, ms = Date.now()) {
+  return `FL-${kstDate(ms).replaceAll('-', '')}-${String(id).padStart(6, '0')}`
 }
 
 /** 픽업 기한: 오늘부터 days 일 뒤 그날 23:59:59 KST (진짜는 lot 유통기한 중 가장 빠른 날) */
@@ -55,6 +75,224 @@ function publicOrder({
   ...order
 }: Order & { createdMs: number; paymentKey?: string }): Order {
   return order
+}
+
+/**
+ * 구분마다 줄이 있고 10개씩 보면 페이지가 넘어가도록 미리 넣어 두는 주문.
+ * [몇 시간 전 주문, 상태, 상품, 수량]. 픽업 대기는 기한이 남아 있고, 기한 경과는 기한이 지났다
+ */
+const SEED: [hoursAgo: number, status: OrderStatus, productId: number, quantity: number][] = [
+  [1, 'PAID', 1, 2],
+  [3, 'PAID', 2, 1],
+  [5, 'PAID', 3, 1],
+  [8, 'PAID', 1, 1],
+  [20, 'PAID', 2, 3],
+  [22, 'PAID', 3, 2],
+  [26, 'PAID', 1, 4],
+  [30, 'PAID', 2, 2],
+  [44, 'PAID', 3, 1],
+  [48, 'PAID', 1, 2],
+  [52, 'PAID', 2, 1],
+  [70, 'PAID', 3, 3],
+  [28, 'EXPIRED', 1, 1],
+  [34, 'PICKED_UP', 2, 2],
+  [50, 'PICKED_UP', 1, 1],
+  [75, 'PICKED_UP', 3, 2],
+  [80, 'OUT_OF_STOCK', 2, 5],
+  [96, 'PICKED_UP', 2, 1],
+  [100, 'EXPIRED', 3, 1],
+  [120, 'PICKUP_EXPIRED', 1, 2],
+  [125, 'PICKED_UP', 1, 3],
+  [140, 'PAYMENT_FAILED', 3, 1],
+  [150, 'PICKED_UP', 3, 1],
+  [170, 'PICKUP_EXPIRED', 2, 1],
+  [190, 'PICKED_UP', 2, 4],
+  [200, 'EXPIRED', 2, 2],
+  [220, 'PICKED_UP', 1, 1],
+  [250, 'PICKUP_EXPIRED', 3, 2],
+  [280, 'PICKED_UP', 3, 1],
+  [300, 'PICKUP_EXPIRED', 1, 1],
+]
+
+function seedOrder(hoursAgo: number, status: OrderStatus, productId: number, quantity: number) {
+  const id = nextOrderId++
+  const product = products[productId]
+  const createdMs = Date.now() - hoursAgo * HOUR
+  const paid = status === 'PAID' || status === 'PICKED_UP' || status === 'PICKUP_EXPIRED'
+  const paidAt = paid ? kstIso(createdMs + 2 * 60_000) : null
+  // 픽업 대기는 앞으로 1~3일, 나머지는 주문일 다음 날 (기한 경과는 이미 지났다)
+  const deadline =
+    status === 'PAID' ? pickupDeadline(1 + (id % 3)) : `${kstDate(createdMs + DAY)}T23:59:59+09:00`
+  const failureReason =
+    status === 'OUT_OF_STOCK'
+      ? 'OUT_OF_STOCK'
+      : status === 'PAYMENT_FAILED'
+        ? 'PAYMENT_FAILED'
+        : status === 'EXPIRED'
+          ? id % 2 === 0
+            ? 'PICKUP_DEADLINE'
+            : 'EXPIRED'
+          : null
+  const stocked = status !== 'OUT_OF_STOCK'
+  orders.set(id, {
+    orderId: id,
+    orderNo: orderNo(id, createdMs),
+    status,
+    failureReason,
+    storeId: 1,
+    storeName: '프레시 강남점',
+    productId,
+    productName: stocked ? product.name : null,
+    quantity,
+    unitPrice: stocked ? product.price : null,
+    amount: stocked ? product.price * quantity : null,
+    paymentExpiresAt: stocked ? kstIso(createdMs + 10 * 60_000) : null,
+    paidAt,
+    createdAt: kstIso(createdMs),
+    pickupDeadline: stocked ? deadline : null,
+    pickedUpAt: status === 'PICKED_UP' ? kstIso(createdMs + 3 * HOUR) : null,
+    // 짝수 주문은 영수증 주소가 없는 경우를 흉내 낸다 (결제 승인과 같은 규칙)
+    payment: paid
+      ? {
+          method: id % 3 === 0 ? '간편결제' : '카드',
+          approvedAt: paidAt,
+          status: 'DONE',
+          receiptUrl:
+            id % 2 === 0
+              ? null
+              : `https://dashboard.tosspayments.com/receipt/redirection?transactionId=mock-${id}`,
+        }
+      : null,
+    serverTime: kstIso(Date.now()),
+    createdMs,
+  })
+}
+
+/** 가짜 주문을 처음 상태로 되돌린다 (테스트용) */
+export function resetOrders() {
+  orders.clear()
+  orderIdByKey.clear()
+  nextOrderId = 1
+  for (const [hoursAgo, status, productId, quantity] of SEED) {
+    seedOrder(hoursAgo, status, productId, quantity)
+  }
+}
+resetOrders()
+
+/** A3 구분별 상태 (order-service CustomerOrderTab 과 같다). OUT_OF_STOCK·PAYMENT_FAILED 는 어디에도 없다 */
+const CUSTOMER_TABS: Record<CustomerOrderTab, readonly OrderStatus[]> = {
+  PICKUP_WAITING: ['PAID'],
+  PICKED_UP: ['PICKED_UP'],
+  CANCELED: ['EXPIRED'],
+  ALL: [
+    'RESERVING',
+    'PAYMENT_WAITING',
+    'PAYMENT_APPROVING',
+    'PAID',
+    'PICKED_UP',
+    'EXPIRED',
+    'PICKUP_EXPIRED',
+  ],
+}
+
+/** A6 구분별 상태와 정렬 기준 (order-service OwnerOrderTab 과 같다). 취소·환불은 환불(A7~A9) 전이라 비어 있다 */
+const OWNER_TABS: Record<
+  OwnerOrderTab,
+  { statuses: readonly OrderStatus[]; sortBy: (o: MockOrder) => string }
+> = {
+  PICKUP_WAITING: { statuses: ['PAID'], sortBy: (o) => o.paidAt ?? '' },
+  PICKED_UP: { statuses: ['PICKED_UP'], sortBy: (o) => o.pickedUpAt ?? '' },
+  CANCELED: { statuses: [], sortBy: (o) => o.createdAt },
+  PICKUP_EXPIRED: { statuses: ['PICKUP_EXPIRED'], sortBy: (o) => o.pickupDeadline ?? '' },
+}
+
+const PAGE_SIZES = [10, 20, 50]
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+function validationError(message: string) {
+  return HttpResponse.json({ code: 'VALIDATION_ERROR', message }, { status: 400 })
+}
+
+interface ListParams<T extends string> {
+  tab: T
+  page: number
+  size: number
+  /** 주문일(KST) 이 범위 안인지 */
+  inPeriod(o: MockOrder): boolean
+}
+
+/** OR-06·OR-04 tab 쿼리를 서버처럼 읽는다. 틀리면 400 응답을 돌려준다 */
+function readListParams<T extends string>(
+  url: URL,
+  tabs: readonly T[],
+  defaultTab: T | null,
+): ListParams<T> | Response {
+  const rawTab = url.searchParams.get('tab') ?? defaultTab
+  const tab = tabs.find((t) => t === rawTab)
+  if (!tab) return validationError('tab: 알 수 없는 구분입니다')
+  const page = Number(url.searchParams.get('page') ?? '0')
+  if (!Number.isInteger(page) || page < 0) return validationError('page: 0 이상이어야 합니다')
+  const size = Number(url.searchParams.get('size') ?? '20')
+  if (!PAGE_SIZES.includes(size)) return validationError('size: 10, 20, 50 중 하나여야 합니다')
+  const from = url.searchParams.get('from') ?? ''
+  const to = url.searchParams.get('to') ?? ''
+  if (from && !DATE_PATTERN.test(from)) return validationError('from: yyyy-MM-dd 형식이어야 합니다')
+  if (to && !DATE_PATTERN.test(to)) return validationError('to: yyyy-MM-dd 형식이어야 합니다')
+  if (from && to && from > to) return validationError('from: to보다 늦을 수 없습니다')
+  return {
+    tab,
+    page,
+    size,
+    inPeriod: (o) => {
+      const day = kstDate(Date.parse(o.createdAt))
+      return (!from || day >= from) && (!to || day <= to)
+    },
+  }
+}
+
+function toPage<T>(items: T[], page: number, size: number): OrderPage<T> {
+  return {
+    content: items.slice(page * size, (page + 1) * size),
+    page,
+    size,
+    totalElements: items.length,
+    totalPages: Math.ceil(items.length / size),
+  }
+}
+
+/** 최신순, 같으면 주문 ID 큰 순 */
+function newestFirst(key: (o: MockOrder) => string) {
+  return (a: MockOrder, b: MockOrder) => key(b).localeCompare(key(a)) || b.orderId - a.orderId
+}
+
+function ownerOrder(o: MockOrder): OwnerOrder {
+  return {
+    orderId: o.orderId,
+    orderNo: o.orderNo,
+    status: o.status,
+    productName: o.productName ?? '',
+    quantity: o.quantity,
+    amount: o.amount ?? 0,
+    paidAt: o.paidAt ?? '',
+    pickupDeadline: o.pickupDeadline,
+    pickedUpAt: o.pickedUpAt,
+    payment: o.payment,
+  }
+}
+
+function customerOrder(o: MockOrder): CustomerOrderSummary {
+  return {
+    orderId: o.orderId,
+    orderNo: o.orderNo,
+    status: o.status,
+    failureReason: o.failureReason,
+    storeName: o.storeName,
+    productName: o.productName,
+    quantity: o.quantity,
+    amount: o.amount,
+    createdAt: o.createdAt,
+    pickupDeadline: o.pickupDeadline,
+  }
 }
 
 export const orderHandlers = [
@@ -96,7 +334,7 @@ export const orderHandlers = [
       amount: null,
       paymentExpiresAt: null,
       paidAt: null,
-      createdAt: now.toISOString(),
+      createdAt: kstIso(now.getTime()),
       pickupDeadline: null,
       pickedUpAt: null,
       payment: null,
@@ -106,6 +344,22 @@ export const orderHandlers = [
     orderIdByKey.set(key, id)
     const body: CreateOrderResponse = { orderId: id, orderNo: orderNo(id), status: 'RESERVING' }
     return HttpResponse.json(body, { status: 201 })
+  }),
+  // OR-06 고객 주문 내역 (A3): 구분·기간으로 거르고 주문일시 최신순
+  http.get('/api/orders', ({ request }) => {
+    const q = readListParams(
+      new URL(request.url),
+      Object.keys(CUSTOMER_TABS) as CustomerOrderTab[],
+      'ALL',
+    )
+    if (q instanceof Response) return q
+    const statuses = CUSTOMER_TABS[q.tab]
+    for (const o of orders.values()) advance(o)
+    const rows = [...orders.values()]
+      .filter((o) => statuses.includes(o.status) && q.inPeriod(o))
+      .sort(newestFirst((o) => o.createdAt))
+      .map(customerOrder)
+    return HttpResponse.json(toPage(rows, q.page, q.size))
   }),
   http.get('/api/orders/:orderId', ({ params }) => {
     const o = orders.get(Number(params.orderId))
@@ -143,7 +397,7 @@ export const orderHandlers = [
     }
     if (o.status === 'PAYMENT_WAITING') {
       o.status = 'PAID'
-      o.paidAt = new Date().toISOString()
+      o.paidAt = kstIso(Date.now())
       o.paymentKey = req.paymentKey
       // 짝수 주문은 영수증 주소가 없는 경우를 흉내 낸다 (결제는 그대로 완료)
       o.payment = {
@@ -170,21 +424,24 @@ export const orderHandlers = [
     }
     return HttpResponse.json(body)
   }),
-  http.get('/api/owner/orders', () => {
-    const paid: OwnerOrder[] = [...orders.values()]
-      .filter((o) => o.status === 'PAID' && o.paidAt && o.productName && o.amount !== null)
-      .sort((a, b) => (b.paidAt ?? '').localeCompare(a.paidAt ?? ''))
-      .map((o) => ({
-        orderId: o.orderId,
-        orderNo: o.orderNo,
-        productName: o.productName ?? '',
-        quantity: o.quantity,
-        amount: o.amount ?? 0,
-        paidAt: o.paidAt ?? '',
-        pickupDeadline: o.pickupDeadline,
-        payment: o.payment,
-      }))
-    return HttpResponse.json(paid)
+  // OR-04 점주 주문 목록: tab 이 없으면 MVP 그대로 결제 완료 주문 배열, 있으면 A6 구분별 페이지
+  http.get('/api/owner/orders', ({ request }) => {
+    const url = new URL(request.url)
+    if (!url.searchParams.has('tab')) {
+      const paid = [...orders.values()]
+        .filter((o) => o.status === 'PAID')
+        .sort(newestFirst((o) => o.paidAt ?? ''))
+        .map(ownerOrder)
+      return HttpResponse.json(paid)
+    }
+    const q = readListParams(url, Object.keys(OWNER_TABS) as OwnerOrderTab[], null)
+    if (q instanceof Response) return q
+    const { statuses, sortBy } = OWNER_TABS[q.tab]
+    const rows = [...orders.values()]
+      .filter((o) => statuses.includes(o.status) && q.inPeriod(o))
+      .sort(newestFirst(sortBy))
+      .map(ownerOrder)
+    return HttpResponse.json(toPage(rows, q.page, q.size))
   }),
   // OR-05 픽업 확인 (가짜 로그인 점주는 점포 확인을 하지 않는다)
   http.post('/api/owner/orders/:orderId/pickup', ({ params }) => {
@@ -207,7 +464,7 @@ export const orderHandlers = [
       )
     }
     o.status = 'PICKED_UP'
-    o.pickedUpAt = new Date().toISOString()
+    o.pickedUpAt = kstIso(Date.now())
     const body: PickupResponse = {
       orderId: o.orderId,
       orderNo: o.orderNo,
