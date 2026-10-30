@@ -425,6 +425,79 @@ export function useUpdateSafetyStock() {
   })
 }
 
+/** 점주 추천상품 설정 한 줄. 상품 전체가 오고 recommended 면 고객 목록에 '추천'으로 보인다 */
+export interface RecommendationItem {
+  productId: number
+  productCode: string
+  name: string
+  category: string
+  recommended: boolean
+}
+
+/** 점주 선착순 설정 한 줄. 상품 전체가 오고, firstCome 이 false 면 limit·used·remaining 은 null */
+export interface FirstComeSetting {
+  productId: number
+  productCode: string
+  name: string
+  category: string
+  firstCome: boolean
+  /** 판매 한도(1~999) */
+  limit: number | null
+  /** 선착순을 켠 뒤 잡혀 있거나 팔린 수량 */
+  used: number | null
+  /** 지금 더 팔 수 있는 수량 = min(한도 − used, 구매 가능 수량) */
+  remaining: number | null
+}
+
+/** 점주 추천상품 설정 목록 (상품 전체, 이름순). 탭을 열 때 읽는다 */
+export function useRecommendations() {
+  return useQuery({
+    queryKey: ['owner', 'recommendations'],
+    queryFn: async () =>
+      (await api.get<RecommendationItem[]>('/owner/inventory/recommendations')).data,
+  })
+}
+
+/** 추천상품으로 정하거나 뺀다. 같은 요청을 다시 보내도 결과가 같다 */
+export function useSetRecommendation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ productId, recommended }: { productId: number; recommended: boolean }) => {
+      const url = `/owner/inventory/recommendations/${productId}`
+      return (
+        recommended
+          ? await api.put<RecommendationItem>(url)
+          : await api.delete<RecommendationItem>(url)
+      ).data
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['owner', 'recommendations'] }),
+  })
+}
+
+/** 점주 선착순 설정 목록 (상품 전체, 이름순). 탭을 열 때 읽는다 */
+export function useFirstComeSettings() {
+  return useQuery({
+    queryKey: ['owner', 'firstCome'],
+    queryFn: async () => (await api.get<FirstComeSetting[]>('/owner/inventory/first-come')).data,
+  })
+}
+
+/** 선착순 켜기·한도 바꾸기(limit 1~999), 또는 끄기(limit null). 한도를 바꿔도 이미 판 수량은 이어서 센다 */
+export function useSetFirstCome() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ productId, limit }: { productId: number; limit: number | null }) => {
+      const url = `/owner/inventory/first-come/${productId}`
+      return (
+        limit === null
+          ? await api.delete<FirstComeSetting>(url)
+          : await api.put<FirstComeSetting>(url, { limit })
+      ).data
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['owner', 'firstCome'] }),
+  })
+}
+
 /** S-42 기간별 판매·폐기 통계. 원장을 서버가 더해서 내려 준다. 탭을 열 때·기간을 바꿀 때 읽는다 */
 export function useInventoryStats(period: StatsPeriod) {
   return useQuery({
