@@ -8,6 +8,8 @@ import { type DatePeriod, EMPTY_PERIOD, isReversedPeriod } from '@/shared/api/pe
 import { cn } from '@/shared/ui/cn'
 import { PageNav } from '@/shared/ui/PageNav'
 import { PeriodFilter } from '@/shared/ui/PeriodFilter'
+import { SalesRankingPanel } from '@/owner/inventory/components/SalesRankingPanel'
+import { TabButton } from '@/owner/inventory/components/TabButton'
 import { type OwnerOrder, type OwnerOrderTab, useOwnerOrders } from '../api'
 import { PickupConfirmModal } from '../components/PickupConfirmModal'
 
@@ -51,7 +53,53 @@ const TABS: TabInfo[] = [
  * 진입·구분·기간 변경·[새로 고침] 때만 조회한다 (폴링 없음).
  * 픽업 대기에서만 A5 [픽업 확인] → 확인 모달 → 픽업 완료하면 픽업 완료 구분으로 옮겨 간다
  */
+type View = 'orders' | 'ranking'
+
+/**
+ * 점주 '주문' 메뉴. 주문 목록과 상품별 판매 순위(이태우, 10/30에 변동 이력에서 옮김)를 위 탭으로 나눈다.
+ * 탭을 떠나면 그쪽 조회도 멈춘다
+ */
 export function OwnerOrdersPage() {
+  const [view, setView] = useState<View>('orders')
+
+  return (
+    <section className="space-y-4">
+      <div
+        role="tablist"
+        aria-label="주문·판매 순위"
+        className="flex gap-1 border-b border-slate-200"
+      >
+        <TabButton
+          label="주문 목록"
+          selected={view === 'orders'}
+          onSelect={() => setView('orders')}
+        />
+        <TabButton
+          label="상품별 판매 순위"
+          selected={view === 'ranking'}
+          onSelect={() => setView('ranking')}
+        />
+      </div>
+      {view === 'orders' ? <OwnerOrderList /> : <SalesRanking />}
+    </section>
+  )
+}
+
+function SalesRanking() {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-bold text-slate-900">상품별 판매 순위</h1>
+        <p className="text-sm text-slate-500">
+          결제가 끝나 실제로 팔린 수량(환불로 되돌린 수량은 뺌)을 많이 판 순서로 보여 줘요.
+        </p>
+      </div>
+      <SalesRankingPanel />
+    </div>
+  )
+}
+
+function OwnerOrderList() {
   const [tab, setTab] = useState<OwnerOrderTab>('PICKUP_WAITING')
   const [page, setPage] = useState(0)
   const [size, setSize] = useState<OrderPageSize>(DEFAULT_ORDER_PAGE_SIZE)
@@ -61,7 +109,7 @@ export function OwnerOrdersPage() {
   const info = TABS.find((t) => t.tab === tab) ?? TABS[0]
 
   return (
-    <section className="space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900">주문 목록</h1>
@@ -137,7 +185,7 @@ export function OwnerOrdersPage() {
           />
         </>
       )}
-    </section>
+    </div>
   )
 }
 

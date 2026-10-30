@@ -19,12 +19,13 @@ import {
 import { LotDetailPanel } from '../components/LotDetailPanel'
 import { MemoDialog } from '../components/MemoDialog'
 import { MemoList } from '../components/MemoList'
+import { ProductExposureSettings } from '../components/ProductExposureSettings'
 import { SafetyStockSettings } from '../components/SafetyStockSettings'
 import { TabButton } from '../components/TabButton'
 import { formatExpiry, formatWon } from '../format'
 import { useInventoryChanges } from '../useInventoryChanges'
 
-type Tab = 'stock' | 'safetyStock' | 'memo'
+type Tab = 'stock' | 'safetyStock' | 'exposure' | 'memo'
 
 interface MemoTarget {
   productId: number
@@ -99,7 +100,7 @@ export function InventoryPage() {
 
       <div
         role="tablist"
-        aria-label="재고·안전재고·메모"
+        aria-label="재고·안전재고·추천·선착순·메모"
         className="flex gap-1 border-b border-slate-200"
       >
         <TabButton label="재고 목록" selected={tab === 'stock'} onSelect={() => setTab('stock')} />
@@ -108,10 +109,16 @@ export function InventoryPage() {
           selected={tab === 'safetyStock'}
           onSelect={() => openTab('safetyStock')}
         />
+        <TabButton
+          label="추천·선착순"
+          selected={tab === 'exposure'}
+          onSelect={() => openTab('exposure')}
+        />
         <TabButton label="메모" selected={tab === 'memo'} onSelect={() => openTab('memo')} />
       </div>
 
       {tab === 'safetyStock' && <SafetyStockSettings />}
+      {tab === 'exposure' && <ProductExposureSettings />}
       {tab === 'memo' && <MemoList />}
       {tab === 'stock' && (
         <>

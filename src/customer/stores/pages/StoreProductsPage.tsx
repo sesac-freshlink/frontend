@@ -4,12 +4,20 @@ import { Link, useParams } from 'react-router'
 import { formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
-import { PRODUCT_KEYWORD_MAX, useStoreProducts, type StoreProduct } from '../api'
+import {
+  PRODUCT_KEYWORD_MAX,
+  useStoreCategories,
+  useStoreProducts,
+  type StoreProduct,
+  type StoreProductSort,
+} from '../api'
+import { ProductBadges } from '../components/ProductBadges'
 import { useStoreName } from '../useStoreName'
 
 /**
  * U-10 점포 상품 목록 (/customer/stores/:storeId). 상품을 전부 보여 주고 품절은 흐리게 둔다.
- * 위 검색창에 상품명을 넣고 검색을 누르면 서버가 거른 목록을 보여 준다.
+ * 위 검색창에 상품명을 넣고 검색을 누르면 서버가 거른 목록을 보여 준다. 카테고리 칩, 추천상품·신상품만 보기,
+ * 이름순·추천순(최근 7일 많이 팔린 순) 정렬도 서버가 처리한다. 상품마다 추천·신상품·선착순 배지가 붙는다.
  * 상품을 누르면 상품 상세로 가고, 거기서 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때·검색할 때·새로고침 때만 읽는다
  */
 export function StoreProductsPage() {
@@ -23,7 +31,13 @@ function StoreProducts({ storeId }: { storeId: number }) {
   const storeName = useStoreName(storeId)
   const [draft, setDraft] = useState('')
   const [keyword, setKeyword] = useState('')
-  const products = useStoreProducts(storeId, keyword)
+  const [category, setCategory] = useState('')
+  const [sort, setSort] = useState<StoreProductSort>('NAME')
+  const [recommendedOnly, setRecommendedOnly] = useState(false)
+  const [newOnly, setNewOnly] = useState(false)
+  const categories = useStoreCategories(storeId)
+  const products = useStoreProducts(storeId, { keyword, category, sort, recommendedOnly, newOnly })
+  const filtered = category !== '' || recommendedOnly || newOnly
 
   const onSearch = (e: FormEvent) => {
     e.preventDefault()
@@ -32,6 +46,9 @@ function StoreProducts({ storeId }: { storeId: number }) {
   const clearSearch = () => {
     setDraft('')
     setKeyword('')
+    setCategory('')
+    setRecommendedOnly(false)
+    setNewOnly(false)
   }
 
   return (
@@ -81,11 +98,43 @@ function StoreProducts({ storeId }: { storeId: number }) {
           검색
         </button>
       </form>
+      <div
+        role="group"
+        aria-label="카테고리"
+        className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 text-sm"
+      >
+        <Chip label="전체" pressed={category === ''} onClick={() => setCategory('')} />
+        {(categories.data ?? []).map((c) => (
+          <Chip key={c} label={c} pressed={category === c} onClick={() => setCategory(c)} />
+        ))}
+      </div>
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <div className="flex gap-2">
+          <Chip
+            label="추천상품"
+            pressed={recommendedOnly}
+            onClick={() => setRecommendedOnly((v) => !v)}
+          />
+          <Chip label="신상품" pressed={newOnly} onClick={() => setNewOnly((v) => !v)} />
+        </div>
+        <label className="flex items-center gap-1 text-slate-500">
+          <span className="sr-only">정렬</span>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as StoreProductSort)}
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700"
+          >
+            <option value="NAME">이름순</option>
+            <option value="POPULAR">추천순</option>
+          </select>
+        </label>
+      </div>
       <ProductList
         products={products}
         storeId={storeId}
         storeName={storeName}
         keyword={keyword.trim()}
+        filtered={filtered}
         onClearSearch={clearSearch}
       />
     </section>
@@ -98,10 +147,19 @@ interface ListProps {
   storeName: string | undefined
   /** 지금 걸려 있는 검색어(앞뒤 공백 뺀 것). 없으면 빈 문자열 */
   keyword: string
+  /** 카테고리·추천상품·신상품 조건이 하나라도 걸려 있는지 */
+  filtered: boolean
   onClearSearch: () => void
 }
 
-function ProductList({ products, storeId, storeName, keyword, onClearSearch }: ListProps) {
+function ProductList({
+  products,
+  storeId,
+  storeName,
+  keyword,
+  filtered,
+  onClearSearch,
+}: ListProps) {
   if (products.isPending) {
     return (
       <div className="flex justify-center py-10 text-slate-400">
@@ -124,10 +182,12 @@ function ProductList({ products, storeId, storeName, keyword, onClearSearch }: L
     )
   }
   if (products.data.length === 0) {
-    if (keyword) {
+    if (keyword || filtered) {
       return (
         <div className="space-y-2 py-10 text-center">
-          <p className="text-sm text-slate-500">‘{keyword}’ 상품이 없어요.</p>
+          <p className="text-sm text-slate-500">
+            {keyword ? `‘${keyword}’ 상품이 없어요.` : '조건에 맞는 상품이 없어요.'}
+          </p>
           <button
             type="button"
             onClick={onClearSearch}
@@ -175,6 +235,7 @@ function ProductRow({ product, to }: { product: StoreProduct; to?: string }) {
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{product.name}</span>
         <span className="block text-xs text-slate-400">{product.category}</span>
+        <ProductBadges product={product} className="mt-1" />
       </span>
       <span className="shrink-0 text-right">
         <span className="block font-semibold tabular-nums">{formatWon(product.price)}</span>
@@ -217,5 +278,30 @@ function BackToHome({ message }: { message: string }) {
         점포 찾기로
       </Link>
     </section>
+  )
+}
+
+/** 누르면 켜지고 꺼지는 칩. 켜지면 브랜드 색 */
+function Chip({
+  label,
+  pressed,
+  onClick,
+}: {
+  label: string
+  pressed: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={cn(
+        'shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-slate-600',
+        pressed && 'border-emerald-600 bg-emerald-600 text-white',
+      )}
+    >
+      {label}
+    </button>
   )
 }

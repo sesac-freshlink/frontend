@@ -6,6 +6,7 @@ import { formatDateTime, formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
 import { useStoreProduct, type StoreProductDetail } from '../api'
+import { ProductBadges } from '../components/ProductBadges'
 import { useRestockSubscription, useToggleRestock } from '../restock'
 import { useStoreName } from '../useStoreName'
 
@@ -101,6 +102,7 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
       <div className="space-y-1">
         <p className="text-xs text-slate-400">{product.category}</p>
         <h1 className="text-xl font-bold text-slate-900">{product.name}</h1>
+        <ProductBadges product={product} />
         <p className="text-lg font-semibold text-slate-900 tabular-nums">
           {formatWon(product.price)}
         </p>

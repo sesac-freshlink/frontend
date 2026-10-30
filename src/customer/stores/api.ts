@@ -65,6 +65,12 @@ export interface StoreProduct {
   imageUrl: string | null
   availableQuantity: number
   soldOut: boolean
+  /** 점주가 고른 추천상품 */
+  recommended: boolean
+  /** 그 점포에 처음 입고된 지 7일 안인 신상품 */
+  newArrival: boolean
+  /** 점주가 정한 선착순 상품. 구매는 대기열을 거친다 */
+  firstCome: boolean
 }
 
 /** U-10 상품 상세. inventory-service StoreProductDetailResponse 와 같은 모양 */
@@ -85,22 +91,58 @@ export function useStoreProduct(storeId: number, productId: number) {
 /** 상품 검색어 최대 길이 (inventory-service U-10: 앞뒤 공백을 빼고 50자) */
 export const PRODUCT_KEYWORD_MAX = 50
 
+/** U-10 목록 정렬. NAME = 상품명 순(기본), POPULAR = 추천순(최근 7일 순판매 많은 순) */
+export type StoreProductSort = 'NAME' | 'POPULAR'
+
+/** U-10 목록 조건. 모두 선택이다 */
+export interface StoreProductFilter {
+  /** 상품명 검색어. 검색을 누를 때만 바뀐다 */
+  keyword?: string
+  /** 이 카테고리만. 빈 값이면 전체 */
+  category?: string
+  sort?: StoreProductSort
+  /** 점주 추천상품만 */
+  recommendedOnly?: boolean
+  /** 신상품만 */
+  newOnly?: boolean
+}
+
+/** 서버로 보낼 쿼리. 기본값인 조건은 넣지 않는다 */
+export function storeProductParams(filter: StoreProductFilter): Record<string, string | boolean> {
+  const params: Record<string, string | boolean> = {}
+  const q = (filter.keyword ?? '').trim()
+  if (q) params.q = q
+  if (filter.category) params.category = filter.category
+  if (filter.sort && filter.sort !== 'NAME') params.sort = filter.sort
+  if (filter.recommendedOnly) params.recommended = true
+  if (filter.newOnly) params.newOnly = true
+  return params
+}
+
 /**
- * U-10 점포 상품 목록 (inventory-service, 로그인 없이도 된다). 상품 전부, 상품명순.
- * keyword 가 있으면 상품명에 들어간 것만 서버가 거른다(q). 검색을 누를 때만 keyword 가 바뀐다.
- * 폴링하지 않고 화면에 들어올 때·검색할 때·새로고침 때만 읽는다. 살 수 있는지는 주문 때 서버가 최종 판정한다
+ * U-10 점포 상품 목록 (inventory-service, 로그인 없이도 된다). 기본은 상품 전부, 상품명순.
+ * 검색어(q)·카테고리·추천상품만·신상품만·추천순 정렬은 서버가 처리한다.
+ * 폴링하지 않고 화면에 들어올 때·조건을 바꿀 때·새로고침 때만 읽는다. 살 수 있는지는 주문 때 서버가 최종 판정한다
  */
-export function useStoreProducts(storeId: number, keyword = '') {
-  const trimmed = keyword.trim()
+export function useStoreProducts(storeId: number, filter: StoreProductFilter = {}) {
+  const params = storeProductParams(filter)
   const url = `/stores/${storeId}/products`
   return useQuery({
-    queryKey: ['customer', 'stores', storeId, 'products', trimmed],
+    queryKey: ['customer', 'stores', storeId, 'products', params],
     queryFn: async () =>
-      (trimmed
-        ? await api.get<StoreProduct[]>(url, { params: { q: trimmed } })
+      (Object.keys(params).length > 0
+        ? await api.get<StoreProduct[]>(url, { params })
         : await api.get<StoreProduct[]>(url)
       ).data,
     // 검색어를 바꾸는 동안 이전 결과를 그대로 둬서 목록이 깜빡이지 않게 한다
     placeholderData: keepPreviousData,
+  })
+}
+
+/** U-10 카테고리 칩. 상품 전체의 카테고리(가나다순). 들어올 때 한 번 읽는다 */
+export function useStoreCategories(storeId: number) {
+  return useQuery({
+    queryKey: ['customer', 'stores', storeId, 'categories'],
+    queryFn: async () => (await api.get<string[]>(`/stores/${storeId}/products/categories`)).data,
   })
 }
