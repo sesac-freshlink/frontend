@@ -9,7 +9,7 @@
 | 문서 | 내용 |
 |------|------|
 | `README.md` | 화면 목록(3장, 기능 ID·담당), 폴더 구조(4장), 로컬 실행(5장), 브랜치(6장) |
-| `docs/tech-stack.md` | 라이브러리별 이유, 넣지 않은 것, 실시간 재고 폴링, Cognito 로그인 흐름 |
+| `docs/tech-stack.md` | 라이브러리별 이유, 넣지 않은 것, 실시간 재고 폴링, BFF 로그인 흐름 |
 | `.github/CODEOWNERS` | 폴더별 담당자 |
 | `docs/ai-agents.md` | 메모리(기억시키는 법), 서브에이전트 사용법 (사람용) |
 | `.github` 레포 `docs/주문-결제-흐름과-재고-예약.md` | **고객 주문·결제 화면(U-21, U-22, U-31) 작업 전에 먼저 읽는다.** 주문 상태별 고객 화면 문구 |
@@ -35,7 +35,7 @@ Respond like a caveman. No articles, no filler words, no pleasantries, no yappin
 | Styling | Tailwind CSS v4 (`@tailwindcss/vite`) + `cn()` (clsx + tailwind-merge) |
 | State | Zustand (로그인 사용자만) + TanStack Query v5 (서버) |
 | HTTP | axios (`@/shared/api/client`의 `api` 인스턴스, baseURL `/api`) |
-| Auth | Amazon Cognito (aws-amplify v6), 개발용 가짜 로그인 |
+| Auth | gateway BFF(`/api/auth/*`, 토큰은 HttpOnly 쿠키), 개발용 가짜 로그인(MSW) |
 | Form | react-hook-form + zod |
 | UI | lucide-react 아이콘, sonner 토스트, dayjs 날짜 |
 | Routing | **react-router v8** (`react-router`에서 import. `react-router-dom` 아님) |
@@ -54,7 +54,7 @@ Respond like a caveman. No articles, no filler words, no pleasantries, no yappin
 ✅ 폴링 주기: POLL_MS(@/shared/api/queryClient)에서만. 숫자 하드코딩 금지
 ⛔ 고객 화면(src/customer/**)에 "예약" 문구 금지. 주문 상태 RESERVING은 "주문 확인 중" 로딩으로만 보여 준다 (재고 예약은 백엔드 내부 단계. "예약 수량"은 점주 재고 화면에서만 쓴다)
 ✅ 변경(useMutation) 후 관련 queryKey invalidateQueries
-✅ 로그인 정보: useAuthStore만. Cognito 코드는 src/shared/auth/cognitoClient.ts 한 파일에만
+✅ 로그인 정보: useAuthStore만. 로그인 API 호출은 src/shared/auth/bffClient.ts 한 파일에만, 401 갱신은 src/shared/api/client.ts만. 화면은 토큰을 다루지 않는다
 ✅ 역할 차단: RequireRole(라우트 단위). 화면 안에서 role 분기로 막지 않는다 (진짜 권한 확인은 gateway)
 ✅ 조건부 클래스: cn() 사용. 템플릿 문자열·삼항 나열 금지
 ✅ import는 @/ 별칭 (같은 화면 폴더 안은 상대 경로 허용)
@@ -88,7 +88,7 @@ Respond like a caveman. No articles, no filler words, no pleasantries, no yappin
 
 - 라우트 정의: `src/app/routes.tsx` 한 곳. **화면 추가 시 `routes.tsx`와 README 3장 화면 목록을 함께 고친다.**
 - 점주 메뉴 추가 시 `OwnerLayout.tsx`의 `MENU`, 관리자 메뉴 추가 시 `AdminLayout.tsx`의 `MENU`도 고친다.
-- 역할은 Cognito ID 토큰 `cognito:groups`, 점포는 `custom:storeId` (`src/shared/auth/claims.ts`).
+- 역할·점포는 `/api/auth/me` 응답(gateway가 토큰의 `cognito:groups`·`custom:storeId`에서 꺼낸다).
 
 ---
 
@@ -99,7 +99,7 @@ src/
 ├── app/            # routes.tsx, layouts/, RequireRole (공통: 김진아)
 ├── shared/
 │   ├── api/        # client.ts(axios api), queryClient.ts(QueryClient, POLL_MS)
-│   ├── auth/       # useAuthStore, cognitoClient, mockClient, claims
+│   ├── auth/       # useAuthStore, bffClient, claims
 │   └── ui/         # 공통 컴포넌트, cn()
 ├── mocks/          # handlers.ts (MSW 가짜 API)
 ├── test/           # setup.ts
