@@ -224,7 +224,8 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+    // relative: 표 머리의 sr-only(absolute) 글자가 이 스크롤 상자 밖으로 계산돼 페이지 폭을 넓히지 않게 한다
+    <div className="relative overflow-x-auto rounded-lg border border-slate-200 bg-white">
       {pickupOrder && (
         <PickupConfirmModal order={pickupOrder} onClose={() => setPickupOrderId(null)} />
       )}
