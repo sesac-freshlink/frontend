@@ -296,6 +296,8 @@ let disposals: DisposalHistoryItem[] = [
 ]
 
 /** U-10 점포 상품. 점포마다 같은 목록을 준다. 상품 1~3 은 orderHandlers 의 상품과 같아 가짜 주문까지 이어진다 */
+/** 가짜 최근 7일 순판매. 추천순(POPULAR) 정렬에 쓴다 */
+const storeProductSold: Record<number, number> = { 1: 12, 2: 7, 3: 3 }
 const storeProducts: StoreProduct[] = [
   {
     productId: 2,
@@ -305,6 +307,9 @@ const storeProducts: StoreProduct[] = [
     imageUrl: 'https://tqklhszfkvzk6518638.edge.naverncp.com/product/0000088002798.png',
     availableQuantity: 10,
     soldOut: false,
+    recommended: true,
+    newArrival: false,
+    firstCome: false,
   },
   {
     productId: 1,
@@ -314,6 +319,9 @@ const storeProducts: StoreProduct[] = [
     imageUrl: 'https://tqklhszfkvzk6518638.edge.naverncp.com/product/8800279675761_2.png',
     availableQuantity: 19,
     soldOut: false,
+    recommended: false,
+    newArrival: true,
+    firstCome: false,
   },
   {
     productId: 3,
@@ -323,6 +331,9 @@ const storeProducts: StoreProduct[] = [
     imageUrl: 'https://tqklhszfkvzk6518638.edge.naverncp.com/product/8800271905354_1.png',
     availableQuantity: 3,
     soldOut: false,
+    recommended: false,
+    newArrival: false,
+    firstCome: true,
   },
   {
     productId: 4,
@@ -332,6 +343,9 @@ const storeProducts: StoreProduct[] = [
     imageUrl: null,
     availableQuantity: 0,
     soldOut: true,
+    recommended: false,
+    newArrival: false,
+    firstCome: false,
   },
   {
     productId: 5,
@@ -341,6 +355,9 @@ const storeProducts: StoreProduct[] = [
     imageUrl: null,
     availableQuantity: 0,
     soldOut: true,
+    recommended: true,
+    newArrival: true,
+    firstCome: false,
   },
 ]
 
@@ -529,6 +546,12 @@ export const handlers = [
   // CSRF 헤더 검사는 맨 앞 (실서버 gateway 와 같게). 통과하면 다음 핸들러로 넘어간다
   csrfGuard,
   ...authHandlers,
+  // U-10 카테고리 칩. :productId 보다 먼저 둬야 categories 가 상품 번호로 잡히지 않는다
+  http.get('/api/stores/:storeId/products/categories', () =>
+    HttpResponse.json(
+      [...new Set(storeProducts.map((p) => p.category))].sort((a, b) => a.localeCompare(b, 'ko')),
+    ),
+  ),
   // U-10 상품 상세. 남은 재고가 있으면 먼저 받게 될 상품의 유통기한(가짜: 모레 23:59)
   http.get('/api/stores/:storeId/products/:productId', ({ params }) => {
     const product = storeProducts.find((p) => p.productId === Number(params.productId))
@@ -544,10 +567,22 @@ export const handlers = [
       nearestExpiry: product.soldOut ? null : `${expiry}T23:59:59+09:00`,
     })
   }),
-  // 서버처럼 q 가 있으면 상품명에 들어간 것만
+  // 서버처럼 검색어(q)·카테고리·추천상품만·신상품만으로 거르고, 추천순이면 많이 팔린 순(같으면 이름순)
   http.get('/api/stores/:storeId/products', ({ request }) => {
-    const q = (new URL(request.url).searchParams.get('q') ?? '').trim()
-    return HttpResponse.json(q ? storeProducts.filter((p) => p.name.includes(q)) : storeProducts)
+    const params = new URL(request.url).searchParams
+    const q = (params.get('q') ?? '').trim()
+    const category = params.get('category') ?? ''
+    let list = [...storeProducts].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+    if (q) list = list.filter((p) => p.name.includes(q))
+    if (category) list = list.filter((p) => p.category === category)
+    if (params.get('recommended') === 'true') list = list.filter((p) => p.recommended)
+    if (params.get('newOnly') === 'true') list = list.filter((p) => p.newArrival)
+    if (params.get('sort') === 'POPULAR') {
+      list.sort(
+        (a, b) => (storeProductSold[b.productId] ?? 0) - (storeProductSold[a.productId] ?? 0),
+      )
+    }
+    return HttpResponse.json(list)
   }),
   // 서버처럼 검색(q)·상태(status, 쉼표로 여러 개는 모두 만족)·메모·페이지를 처리한다
   http.get('/api/owner/inventory', ({ request }) => {
