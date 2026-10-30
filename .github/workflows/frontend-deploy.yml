@@ -24,8 +24,10 @@ permissions:
 # 토스 결제위젯 클라이언트 키(test_gck_...). 공개돼도 되는 값이라 레포 Variables에 둔다(DEV_TOSS_CLIENT_KEY, PROD_TOSS_CLIENT_KEY).
 # infra scripts/set-toss-key.ps1이 Secrets Manager에 키를 넣으면서 같이 넣는다. 시크릿 키(gsk)는 여기 두지 않는다(order-service만 쓴다)
 # 없어도 빌드·배포는 된다(결제 화면만 동작하지 않는다). main 배포만 PROD_ 값을 쓴다
+# 카카오맵 JavaScript 키(10/30)도 같은 방식이다(DEV_KAKAO_MAP_KEY, PROD_KAKAO_MAP_KEY). 브라우저에 보이는 키라 카카오 콘솔 도메인 제한으로 막는다(infra README 4-20)
 env:
   VITE_TOSS_CLIENT_KEY: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_TOSS_CLIENT_KEY || vars.DEV_TOSS_CLIENT_KEY }}
+  VITE_KAKAO_MAP_KEY: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_KAKAO_MAP_KEY || vars.DEV_KAKAO_MAP_KEY }}
 
 jobs:
   build-deploy:
@@ -84,9 +86,10 @@ jobs:
           BUCKET: ${{ env.FRONTEND_BUCKET }}
         run: |
           # 이름에 해시가 붙은 파일(assets/)은 1년 캐시, 나머지(index.html 등)는 매번 새로 확인
+          # images/는 member-service가 올린 점포 이미지라 지우지 않는다(infra README 4-20)
           aws s3 sync dist/assets "s3://$BUCKET/assets" --delete \
             --cache-control "public, max-age=31536000, immutable"
-          aws s3 sync dist "s3://$BUCKET" --delete --exclude "assets/*" \
+          aws s3 sync dist "s3://$BUCKET" --delete --exclude "assets/*" --exclude "images/*" \
             --cache-control "no-cache"
 
       - name: CloudFront 무효화
