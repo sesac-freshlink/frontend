@@ -361,6 +361,26 @@ const storeProducts: StoreProduct[] = [
   },
 ]
 
+/** 점주가 추천으로 정한 상품 (가짜) */
+const recommendedIds = new Set<number>([2, 5])
+/** 점주가 정한 선착순 한도 (가짜) */
+const firstComeLimits = new Map<number, number>([[3, 2]])
+
+function firstComeSettingOf(productId: number) {
+  const item = inventory.find((i) => i.productId === productId)
+  const limit = firstComeLimits.get(productId)
+  return {
+    productId,
+    productCode: item?.productCode ?? '',
+    name: item?.name ?? '',
+    category: item?.category ?? '',
+    firstCome: limit !== undefined,
+    limit: limit ?? null,
+    used: limit !== undefined ? 0 : null,
+    remaining: limit !== undefined ? Math.min(limit, item?.availableQuantity ?? 0) : null,
+  }
+}
+
 /** S-42 서버처럼 가짜 원장(ledger)을 기간 안에서 상품별로 더한다. 날짜는 createdAt(+09:00)의 앞 10자리 */
 function statsOf(from: string, to: string): InventoryStats {
   const byProduct = new Map<number, ProductStats>()
@@ -711,6 +731,39 @@ export const handlers = [
     if (existing && version !== null && Number(version) !== existing.version) return memoConflict()
     memos.delete(productId)
     return new HttpResponse(null, { status: 204 })
+  }),
+  // 점주 추천상품 설정. 상품 전체, 추천은 고객 가짜 목록(storeProducts)의 recommended 와 같게 시작한다
+  http.get('/api/owner/inventory/recommendations', () =>
+    HttpResponse.json(
+      inventory.map((item) => ({
+        productId: item.productId,
+        productCode: item.productCode,
+        name: item.name,
+        category: item.category,
+        recommended: recommendedIds.has(item.productId),
+      })),
+    ),
+  ),
+  http.put('/api/owner/inventory/recommendations/:productId', ({ params }) => {
+    recommendedIds.add(Number(params.productId))
+    return HttpResponse.json({ productId: Number(params.productId), recommended: true })
+  }),
+  http.delete('/api/owner/inventory/recommendations/:productId', ({ params }) => {
+    recommendedIds.delete(Number(params.productId))
+    return HttpResponse.json({ productId: Number(params.productId), recommended: false })
+  }),
+  // 점주 선착순 설정. 한도만 기억하고, 센 수량은 0, 남은 수량은 min(한도, 구매 가능 수량)
+  http.get('/api/owner/inventory/first-come', () =>
+    HttpResponse.json(inventory.map((item) => firstComeSettingOf(item.productId))),
+  ),
+  http.put('/api/owner/inventory/first-come/:productId', async ({ params, request }) => {
+    const { limit } = (await request.json()) as { limit: number }
+    firstComeLimits.set(Number(params.productId), limit)
+    return HttpResponse.json(firstComeSettingOf(Number(params.productId)))
+  }),
+  http.delete('/api/owner/inventory/first-come/:productId', ({ params }) => {
+    firstComeLimits.delete(Number(params.productId))
+    return HttpResponse.json(firstComeSettingOf(Number(params.productId)))
   }),
   http.get('/api/owner/inventory/safety-stocks', () =>
     HttpResponse.json<SafetyStockItem[]>(
