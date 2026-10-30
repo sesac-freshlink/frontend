@@ -1,15 +1,18 @@
-import { CalendarClock, ChevronLeft, LoaderCircle, Store } from 'lucide-react'
+import { BellRing, CalendarClock, ChevronLeft, LoaderCircle, Store } from 'lucide-react'
 import { Link, useParams } from 'react-router'
+import { toast } from 'sonner'
 import { checkoutPath } from '@/customer/order/checkout'
 import { formatDateTime, formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
 import { useStoreProduct, type StoreProductDetail } from '../api'
+import { useRestockSubscription, useToggleRestock } from '../restock'
 import { useStoreName } from '../useStoreName'
 
 /**
  * U-10 고객 상품 상세 (/customer/stores/:storeId/products/:productId). 가격·남은 수량·먼저 받게 될 상품의 유통기한·점포를
- * 보여 주고, 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때만 읽는다
+ * 보여 주고, 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때만 읽는다.
+ * 품절이면 "재입고 알림 받기"로 notification-service 에 신청한다(다시 입고되면 화면 알림이 한 번 온다)
  */
 export function StoreProductDetailPage() {
   const { storeId: rawStore, productId: rawProduct } = useParams()
@@ -157,6 +160,7 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
           >
             {product.soldOut ? '품절' : '구매하기'}
           </button>
+          {product.soldOut && <RestockButton storeId={storeId} productId={product.productId} />}
           {!product.soldOut && (
             <p className="text-sm text-slate-500">
               점포 찾기에서 점포를 다시 골라 주세요.{' '}
@@ -168,5 +172,39 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
         </div>
       )}
     </div>
+  )
+}
+
+/** 품절 상품의 재입고 알림 신청·취소 버튼 */
+function RestockButton({ storeId, productId }: { storeId: number; productId: number }) {
+  const status = useRestockSubscription(storeId, productId, true)
+  const toggle = useToggleRestock(storeId, productId)
+  const subscribed = status.data?.subscribed === true
+
+  const onClick = () =>
+    toggle.mutate(!subscribed, {
+      onSuccess: (on) =>
+        toast.success(on ? '다시 들어오면 알려 드릴게요' : '재입고 알림을 취소했어요', {
+          id: 'restock',
+        }),
+      onError: () => toast.error('잠시 뒤 다시 시도해 주세요', { id: 'restock' }),
+    })
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={status.isPending || toggle.isPending}
+      aria-pressed={subscribed}
+      className={cn(
+        'flex w-full items-center justify-center gap-1.5 rounded-lg border py-3 text-sm font-medium disabled:opacity-50',
+        subscribed
+          ? 'border-slate-200 bg-white text-slate-600'
+          : 'border-emerald-600 bg-white text-emerald-700',
+      )}
+    >
+      <BellRing className="size-4" aria-hidden />
+      {subscribed ? '재입고 알림 신청됨 · 취소' : '재입고 알림 받기'}
+    </button>
   )
 }
