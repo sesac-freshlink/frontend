@@ -1,5 +1,5 @@
 # 프론트 빌드·배포 (I-11, 할 일 15). PR에서는 검사·빌드만, dev 브랜치에 합치면 dev 버킷, main에 합치면 prod 버킷에 올린다.
-# 흐름: lint → test → build → S3 sync → CloudFront 무효화 → https://<id>.cloudfront.net
+# 흐름: lint → test → build → S3 sync → CloudFront 무효화 → 화면 주소(도메인, 없으면 https://<id>.cloudfront.net)
 # 로그인은 gateway BFF(/api/auth/*)가 쿠키로 하므로 빌드에 Cognito 값을 넣지 않는다(10/30 dev·prod 모두 지움. prod는 이 변경이 main에 릴리스될 때부터).
 # 값은 레포 Variables에 둔다(비밀이 아니다). 환경마다 앞에 DEV_·PROD_가 붙는다.
 #   <ENV>_FRONTEND_BUCKET, <ENV>_FRONTEND_DISTRIBUTION_ID, <ENV>_FRONTEND_DEPLOY_ROLE_ARN
@@ -100,7 +100,9 @@ jobs:
           id=$(aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/index.html" "/" \
             --query Invalidation.Id --output text)
           echo "무효화 ${id}"
-          url=$(aws cloudfront get-distribution --id "$DIST" --query Distribution.DomainName --output text 2>/dev/null || true)
+          # 도메인(별칭, infra README 4-21)이 있으면 그 주소, 없으면 CloudFront 기본 주소
+          url=$(aws cloudfront get-distribution --id "$DIST" \
+            --query "Distribution.DistributionConfig.Aliases.Items[0] || Distribution.DomainName" --output text 2>/dev/null || true)
           echo "### ${TARGET,,} 배포: https://${url:-<CloudFront 주소>} (커밋 ${GITHUB_SHA::7})" >> "$GITHUB_STEP_SUMMARY"
 
       # 배포(dev·main push, 수동 실행)일 때만 성공·실패를 알린다. PR 검사는 알리지 않는다.
