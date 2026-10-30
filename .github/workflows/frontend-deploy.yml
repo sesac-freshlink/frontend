@@ -1,11 +1,9 @@
 # 프론트 빌드·배포 (I-11, 할 일 15). PR에서는 검사·빌드만, dev 브랜치에 합치면 dev 버킷, main에 합치면 prod 버킷에 올린다.
-# 흐름: lint → test → build(main만 VITE_COGNITO_* 주입) → S3 sync → CloudFront 무효화 → https://<id>.cloudfront.net
-# BFF(10/29): dev는 gateway가 로그인을 맡아 Cognito 값을 넣지 않는다(DEV_COGNITO_* 변수 지움). Amplify 코드가 남아 있는 동안 dev 화면은 가짜(mock) 로그인이다.
-# main(prod)은 경우님 BFF 프론트가 릴리스될 때까지 PROD_COGNITO_*를 그대로 넣는다. 그때 아래 COGNITO 줄을 모두 지운다.
-# 값은 레포 Variables에 둔다(비밀이 아니다. User Pool ID·Client ID는 어차피 빌드 결과에 들어간다). 환경마다 앞에 DEV_·PROD_가 붙는다.
-#   <ENV>_COGNITO_USER_POOL_ID, <ENV>_COGNITO_CLIENT_ID, <ENV>_FRONTEND_BUCKET, <ENV>_FRONTEND_DISTRIBUTION_ID, <ENV>_FRONTEND_DEPLOY_ROLE_ARN
+# 흐름: lint → test → build → S3 sync → CloudFront 무효화 → https://<id>.cloudfront.net
+# 로그인은 gateway BFF(/api/auth/*)가 쿠키로 하므로 빌드에 Cognito 값을 넣지 않는다(10/30 dev·prod 모두 지움. prod는 이 변경이 main에 릴리스될 때부터).
+# 값은 레포 Variables에 둔다(비밀이 아니다). 환경마다 앞에 DEV_·PROD_가 붙는다.
+#   <ENV>_FRONTEND_BUCKET, <ENV>_FRONTEND_DISTRIBUTION_ID, <ENV>_FRONTEND_DEPLOY_ROLE_ARN
 #   (infra envs/<env>/persistent output. infra scripts/set-github-values.ps1 -Env <env>이 넣는다. infra README 4-8·4-12)
-# prod는 Cognito가 dev와 달라 빌드 결과도 다르다(같은 코드를 prod 값으로 다시 빌드한다).
 name: frontend-deploy
 
 on:
@@ -37,8 +35,6 @@ jobs:
       DEPLOY: ${{ (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') && github.event_name != 'pull_request' }}
       # main → prod, 그 밖(dev, PR) → dev 값. main으로 가는 PR도 dev 값으로 검사 빌드만 한다
       TARGET: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'PROD' || 'DEV' }}
-      COGNITO_USER_POOL_ID: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_COGNITO_USER_POOL_ID || '' }}
-      COGNITO_CLIENT_ID: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_COGNITO_CLIENT_ID || '' }}
       FRONTEND_BUCKET: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_FRONTEND_BUCKET || vars.DEV_FRONTEND_BUCKET }}
       FRONTEND_DISTRIBUTION_ID: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_FRONTEND_DISTRIBUTION_ID || vars.DEV_FRONTEND_DISTRIBUTION_ID }}
       FRONTEND_DEPLOY_ROLE_ARN: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_FRONTEND_DEPLOY_ROLE_ARN || vars.DEV_FRONTEND_DEPLOY_ROLE_ARN }}
@@ -58,9 +54,6 @@ jobs:
 
       - name: build
         run: npm run build
-        env:
-          VITE_COGNITO_USER_POOL_ID: ${{ env.COGNITO_USER_POOL_ID }}
-          VITE_COGNITO_CLIENT_ID: ${{ env.COGNITO_CLIENT_ID }}
 
       # main 배포인데 PROD_ 값이 없으면 위 식이 DEV_ 값으로 넘어간다. dev 값으로 만든 화면이 prod 버킷에 올라가지 않게
       # 그 환경 이름이 붙은 Variables를 직접 다시 확인한다.
@@ -71,12 +64,10 @@ jobs:
         run: |
           missing=""
           keys="FRONTEND_BUCKET FRONTEND_DISTRIBUTION_ID FRONTEND_DEPLOY_ROLE_ARN"
-          [ "$TARGET" = "PROD" ] && keys="COGNITO_USER_POOL_ID COGNITO_CLIENT_ID $keys"   # dev는 BFF라 Cognito 값이 없다
           for k in $keys; do
             [ -n "$(echo "$VARS" | jq -r --arg k "${TARGET}_${k}" '.[$k] // empty')" ] || missing="$missing ${TARGET}_${k}"
           done
           if [ -n "$missing" ]; then
-            # Cognito 값 없이 빌드하면 가짜 로그인 화면이 올라간다. 올리지 않는다
             echo "::error::레포 Variables가 비어 있다:$missing (infra README 4-8·4-12)"
             exit 1
           fi
