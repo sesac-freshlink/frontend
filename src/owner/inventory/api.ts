@@ -66,8 +66,11 @@ export interface InventoryLotItem {
   status: InventoryLotStatus
 }
 
-/** 재고 변동 종류. 예약·해제는 실물이 바뀌지 않아 이력에 남지 않는다. ADJUST 는 점주 수동 조정(S-14) */
-export type LedgerType = 'INBOUND' | 'SALE' | 'DISPOSE' | 'ADJUST'
+/**
+ * 재고 변동 종류. 예약·해제는 실물이 바뀌지 않아 이력에 남지 않는다. ADJUST 는 점주 수동 조정(S-14),
+ * RETURN 은 환불 뒤 판매 재고 복원(+, A10)
+ */
+export type LedgerType = 'INBOUND' | 'SALE' | 'DISPOSE' | 'ADJUST' | 'RETURN'
 
 /** S-13 응답 한 줄. inventory-service LedgerResponse 와 같은 모양 */
 export interface LedgerItem {

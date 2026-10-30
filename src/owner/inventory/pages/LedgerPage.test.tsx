@@ -185,24 +185,39 @@ describe('재고 변동 이력 (S-13)', () => {
     expect(get).toHaveBeenCalledWith('/owner/inventory/adjustments')
   })
 
-  it('판매 순위 탭으로 바꾸면 이력 대신 판매 순위를 부른다', async () => {
-    get.mockImplementation((url: string) =>
-      Promise.resolve({
-        data:
-          url === '/owner/inventory/sales-ranking'
-            ? { from: '2026-10-23', to: '2026-10-29', totalSoldQuantity: 0, items: [] }
-            : items,
-      }),
+  it('환불 복원(RETURN)은 + 수량과 환불 복원 배지로 보이고 종류로 거를 수 있다 (A10)', async () => {
+    const returned: LedgerItem = {
+      ledgerId: 9004,
+      type: 'RETURN',
+      productId: 15,
+      productName: '매운 컵라면 115g',
+      lotId: 301,
+      expiryDate: '2026-10-20T23:59:59+09:00',
+      quantity: 1,
+      refId: '1024',
+      createdAt: '2026-10-21T10:00:00+09:00',
+    }
+    get.mockResolvedValue({ data: [returned, ...items] })
+    renderPage()
+
+    const row = (await screen.findAllByText('1024'))
+      .map((cell) => cell.closest('tr'))
+      .find((tr) => tr && within(tr).queryByText('환불 복원'))
+    expect(row).toBeTruthy()
+    expect(within(row!).getByText('+1')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '환불 복원' }))
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/owner/inventory/ledger', { params: { type: 'RETURN' } }),
     )
+  })
+
+  it('판매 순위 탭은 주문 메뉴로 옮겨서 여기에는 없다', async () => {
+    get.mockResolvedValue({ data: items })
     renderPage()
     await rowOf('SHP-20261020-001')
 
-    await userEvent.click(screen.getByRole('tab', { name: '판매 순위' }))
-
-    expect(await screen.findByText('이 기간에 판매된 상품이 없어요.')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: '판매 순위' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.queryByText('SHP-20261020-001')).not.toBeInTheDocument()
-    expect(get).toHaveBeenCalledWith('/owner/inventory/sales-ranking', expect.anything())
+    expect(screen.queryByRole('tab', { name: '판매 순위' })).not.toBeInTheDocument()
   })
 
   it('통계 탭으로 바꾸면 이력 대신 기간 통계를 부른다 (S-42)', async () => {
