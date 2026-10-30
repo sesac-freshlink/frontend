@@ -1,7 +1,7 @@
 /**
  * 주문 상태 → 고객 화면 문구를 바꾸는 곳은 여기 한 곳이다.
  * 상태 이름은 기획안 7장 그대로 쓰고, 고객 문구에는 "예약"을 쓰지 않는다
- * (.github docs/주문-결제-흐름과-재고-예약.md 3장, order-service API 명세 7장).
+ * (.github docs/기능이해/주문-결제-흐름과-재고-예약.md 3장, order-service API 명세 7장).
  */
 export const ORDER_STATUSES = [
   'RESERVING',
