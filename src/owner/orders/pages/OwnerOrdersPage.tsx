@@ -332,16 +332,19 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
               픽업 확인
             </button>
           ) : (
-            <ReadyButton order={o} />
+            <>
+              <ReadyButton order={o} />
+              {/* 결제 완료 주문만 취소할 수 있다. 준비 완료는 order-service가 취소를 받지 않는다(409) */}
+              <button
+                type="button"
+                onClick={() => setCancelOrderId(o.orderId)}
+                aria-label={`${o.orderNo} 주문 취소`}
+                className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+              >
+                취소
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            onClick={() => setCancelOrderId(o.orderId)}
-            aria-label={`${o.orderNo} 주문 취소`}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
-          >
-            취소
-          </button>
         </div>
       ),
     })

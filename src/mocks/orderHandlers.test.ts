@@ -42,9 +42,7 @@ describe('주문 목록 가짜 API (OR-06·OR-04 tab)', () => {
       new Set((await customer(`tab=${tab}&size=50`)).content.map((o) => o.status))
     expect(await only('PICKUP_WAITING')).toEqual(new Set(['PAID', 'READY_FOR_PICKUP']))
     expect(await only('PICKED_UP')).toEqual(new Set(['PICKED_UP']))
-    expect(await only('CANCELED')).toEqual(
-      new Set(['EXPIRED', 'CANCELED', 'REFUNDED', 'PAID', 'READY_FOR_PICKUP']),
-    )
+    expect(await only('CANCELED')).toEqual(new Set(['EXPIRED', 'CANCELED', 'REFUNDED', 'PAID']))
   })
 
   it('결제 완료·준비 완료는 환불 상태로 나뉜다: 환불 없음은 픽업 대기, 환불 처리·실패는 취소·환불', async () => {

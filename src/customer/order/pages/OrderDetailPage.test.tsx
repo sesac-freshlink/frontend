@@ -208,6 +208,20 @@ describe('주문 상세 (U-22·U-31)', () => {
     expect(screen.getByText('픽업 기한이 지나면 취소·환불할 수 없어요')).toBeInTheDocument()
   })
 
+  it('준비 완료 화면은 취소 안내 대신 기한이 지나면 받아 갈 수 없고 환불도 안 된다고 알린다', async () => {
+    orderReturns({
+      status: 'READY_FOR_PICKUP',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: paidPayment,
+      pickupDeadline: '2026-10-22T23:59:59+09:00',
+    })
+    renderAt('/customer/orders/123')
+    expect(
+      await screen.findByText('픽업 기한이 지나면 받아 갈 수 없고 환불도 되지 않아요'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('픽업 기한이 지나면 취소·환불할 수 없어요')).not.toBeInTheDocument()
+  })
+
   it('픽업 완료면 픽업 시각을 보여 주고 폴링하지 않는다 (A5)', async () => {
     orderReturns({
       status: 'PICKED_UP',
