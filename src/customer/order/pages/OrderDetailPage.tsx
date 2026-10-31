@@ -113,10 +113,19 @@ function pickupRows(order: Order): SummaryRow[] {
     : []
 }
 
-/** 결제 전·완료 화면의 픽업 기한 안내 (추가 명세 A4) */
+/**
+ * 결제 전·완료 화면의 픽업 기한 안내 (추가 명세 A4).
+ * 준비 완료 주문은 기한 안이어도 취소를 받지 않으므로(order-service) 기한이 지났을 때 일만 알린다
+ */
 function PickupNotice({ order }: { order: Order }) {
   if (!order.pickupDeadline) return null
-  return <p className="text-sm text-slate-500">픽업 기한이 지나면 취소·환불할 수 없어요</p>
+  return (
+    <p className="text-sm text-slate-500">
+      {order.status === 'READY_FOR_PICKUP'
+        ? '픽업 기한이 지나면 받아 갈 수 없고 환불도 되지 않아요'
+        : '픽업 기한이 지나면 취소·환불할 수 없어요'}
+    </p>
+  )
 }
 
 /** 결제 완료 화면의 결제 내역. 승인 시각이 없으면 결제 완료 시각(paidAt)을 쓴다 */
