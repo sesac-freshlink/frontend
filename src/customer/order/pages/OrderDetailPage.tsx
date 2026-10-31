@@ -246,14 +246,16 @@ function refundRows(order: Order): SummaryRow[] {
 
 /**
  * A8 결제 후 취소·A9 환불 상태. 결제 완료·준비 완료 화면 아래에 둔다.
- * 환불 없음·기한 이내면 [주문 취소], 처리·확인 중이면 안내(2초마다 다시 읽음), 실패면 [환불 다시 신청](사유를 새로 받는다)
+ * 결제 완료·환불 없음·기한 이내면 [주문 취소] (준비 완료는 order-service가 취소를 받지 않아 버튼이 없다), 처리·확인 중이면 안내(2초마다 다시 읽음), 실패면 [환불 다시 신청](사유를 새로 받는다)
  */
 function RefundSection({ order }: { order: Order }) {
   const cancel = useCancelOrder(order.orderId)
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const status = order.refundStatus
-  const canStart = status === 'FAILED' || (status === 'NONE' && !deadlinePassed(order))
+  const canStart =
+    order.status === 'PAID' &&
+    (status === 'FAILED' || (status === 'NONE' && !deadlinePassed(order)))
   const retry = status === 'FAILED'
 
   const onSubmit = async (body: Parameters<typeof cancel.mutateAsync>[0]) => {

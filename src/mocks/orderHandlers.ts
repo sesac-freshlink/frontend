@@ -121,7 +121,7 @@ const SEED: Seed[] = [
   [70, 'PAID', 3, 3],
   // 취소·환불 구분 예시: [몇 시간 전, 상태, 상품, 수량, 환불 상태, 요청자]
   [6, 'PAID', 2, 2, 'FAILED', 'CUSTOMER'],
-  [12, 'READY_FOR_PICKUP', 1, 1, 'CHECKING', 'OWNER'],
+  [12, 'PAID', 1, 1, 'CHECKING', 'OWNER'],
   [40, 'REFUNDED', 3, 1, 'COMPLETED', 'CUSTOMER'],
   [60, 'CANCELED', 1, 2],
   [28, 'EXPIRED', 1, 1],
@@ -260,7 +260,7 @@ function inTab(o: MockOrder, statuses: readonly OrderStatus[], canceledTab: bool
 const CUSTOMER_TABS: Record<CustomerOrderTab, readonly OrderStatus[]> = {
   PICKUP_WAITING: AWAITING_PICKUP,
   PICKED_UP: ['PICKED_UP'],
-  CANCELED: ['EXPIRED', 'CANCELED', 'REFUNDED', ...AWAITING_PICKUP],
+  CANCELED: ['EXPIRED', 'CANCELED', 'REFUNDED', 'PAID'],
   ALL: [
     'RESERVING',
     'PAYMENT_WAITING',
@@ -283,7 +283,7 @@ const OWNER_TABS: Record<
   PICKUP_WAITING: { statuses: ['PAID', 'READY_FOR_PICKUP'], sortBy: (o) => o.paidAt ?? '' },
   PICKED_UP: { statuses: ['PICKED_UP'], sortBy: (o) => o.pickedUpAt ?? '' },
   CANCELED: {
-    statuses: [...AWAITING_PICKUP, 'REFUNDED'],
+    statuses: ['PAID', 'REFUNDED'],
     sortBy: (o) => o.cancelRequestedAt ?? '',
   },
   PICKUP_EXPIRED: { statuses: ['PICKUP_EXPIRED'], sortBy: (o) => o.pickupDeadline ?? '' },
@@ -644,8 +644,9 @@ function cancelPaid(orderId: number, requester: CancelRequester, req: CancelOrde
   if (o.refundStatus === 'REQUESTED' || o.refundStatus === 'CHECKING') {
     return conflict('REFUND_IN_PROGRESS', '환불을 처리하고 있습니다')
   }
+  // 준비 완료 주문은 취소를 받지 않는다 (order-service Order.canStartRefund: 결제 완료만)
   const startable =
-    AWAITING_PICKUP.includes(o.status) && (o.refundStatus === 'NONE' || o.refundStatus === 'FAILED')
+    o.status === 'PAID' && (o.refundStatus === 'NONE' || o.refundStatus === 'FAILED')
   if (!startable) return conflict('ORDER_NOT_CANCELABLE', '취소할 수 없는 주문입니다')
   if (o.refundStatus === 'NONE' && o.pickupDeadline && Date.now() > Date.parse(o.pickupDeadline)) {
     return conflict('PICKUP_DEADLINE_PASSED', '픽업 기한이 지난 주문입니다')

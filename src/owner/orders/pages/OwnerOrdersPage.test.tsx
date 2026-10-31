@@ -450,6 +450,19 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     )
   })
 
+  it('픽업 준비 완료 줄에는 [취소]가 없고 결제 완료 줄에만 있다', async () => {
+    get.mockResolvedValue(
+      pageOf([paidOrder, { ...readyOrder, orderId: 124, orderNo: 'FL-20261020-000124' }]),
+    )
+    renderPage()
+    expect(
+      await screen.findByRole('button', { name: 'FL-20261020-000123 주문 취소' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'FL-20261020-000124 주문 취소' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('A9 취소·환불 구분: 처리 상태·사유·요청자를 보여 주고 환불 실패에만 [환불 재시도]가 있다', async () => {
     const refund = {
       requestedBy: 'CUSTOMER' as const,

@@ -151,6 +151,12 @@ describe('주문 취소·환불 (A7·A8·A9)', () => {
     )
   })
 
+  it('픽업 준비 완료 주문은 주문 취소 버튼이 없다 (order-service가 받지 않는다)', async () => {
+    renderAt({ status: 'READY_FOR_PICKUP' })
+    expect(await screen.findByText('픽업 준비 완료')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '주문 취소' })).not.toBeInTheDocument()
+  })
+
   it('픽업 기한이 지나면 주문 취소 버튼이 없다', async () => {
     renderAt({ serverTime: '2026-10-23T00:00:01+09:00' })
     expect(await screen.findByText('결제 완료')).toBeInTheDocument()
