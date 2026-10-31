@@ -52,6 +52,9 @@ const paidOrder: OwnerOrder = {
   payment: null,
 }
 
+/** 점주가 [준비 완료]를 누른 주문 (N-02). [픽업 확인]은 이 상태에서만 보인다 */
+const readyOrder: OwnerOrder = { ...paidOrder, status: 'READY_FOR_PICKUP' }
+
 /** A6 페이지 응답 한 장 */
 function pageOf(content: Partial<OwnerOrder>[], extra: { totalPages?: number } = {}) {
   return {
@@ -177,7 +180,7 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
   })
 
   it('[픽업 확인] → 확인 창 [픽업 완료] → OR-05 를 부르고 목록을 다시 읽는다 (A5)', async () => {
-    get.mockResolvedValueOnce(pageOf([paidOrder])).mockResolvedValue(pageOf([]))
+    get.mockResolvedValueOnce(pageOf([readyOrder])).mockResolvedValue(pageOf([]))
     post.mockResolvedValue({
       data: {
         orderId: 123,
@@ -205,7 +208,7 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
   })
 
   it('확인 창에서 [취소]하면 아무 요청도 보내지 않는다', async () => {
-    get.mockResolvedValue(pageOf([paidOrder]))
+    get.mockResolvedValue(pageOf([readyOrder]))
     renderPage()
     await userEvent.click(
       await screen.findByRole('button', { name: 'FL-20261020-000123 픽업 확인' }),
@@ -216,7 +219,7 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
   })
 
   it('이미 처리된 주문(409)이면 알림을 띄우고 목록을 다시 읽는다', async () => {
-    get.mockResolvedValue(pageOf([paidOrder]))
+    get.mockResolvedValue(pageOf([readyOrder]))
     post.mockRejectedValue(axiosError(409, 'ORDER_NOT_PICKABLE'))
     renderPage()
     await userEvent.click(
@@ -224,14 +227,14 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: '픽업 완료' }))
     await waitFor(() =>
-      expect(error).toHaveBeenCalledWith('이미 픽업했거나 처리할 수 없는 주문이에요'),
+      expect(error).toHaveBeenCalledWith('픽업 준비 완료를 먼저 누르거나, 이미 픽업한 주문이에요'),
     )
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2))
     expect(success).not.toHaveBeenCalled()
   })
 
   it('픽업 기한이 지났으면(409) 기한 문구를 띄운다', async () => {
-    get.mockResolvedValue(pageOf([paidOrder]))
+    get.mockResolvedValue(pageOf([readyOrder]))
     post.mockRejectedValue(axiosError(409, 'PICKUP_DEADLINE_PASSED'))
     renderPage()
     await userEvent.click(
@@ -262,7 +265,7 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
   })
 
   it('구분을 바꾸면 그 구분으로 다시 읽고, [픽업 확인]은 픽업 대기에서만 보인다 (A6)', async () => {
-    get.mockResolvedValue(pageOf([paidOrder]))
+    get.mockResolvedValue(pageOf([readyOrder]))
     renderPage()
     expect(
       await screen.findByRole('button', { name: 'FL-20261020-000123 픽업 확인' }),
@@ -370,5 +373,46 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     expect(screen.queryByText('FL-20261020-000123')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '새로 고침' })).toBeDisabled()
     expect(get).toHaveBeenCalledTimes(calls)
+  })
+
+  it('결제 완료 주문은 [준비 완료]만 보이고, 누르면 N-02 API 를 부르고 알린 뒤 목록을 다시 읽는다', async () => {
+    get.mockResolvedValueOnce(pageOf([paidOrder])).mockResolvedValue(pageOf([readyOrder]))
+    post.mockResolvedValue({
+      data: {
+        orderId: 123,
+        orderNo: paidOrder.orderNo,
+        status: 'READY_FOR_PICKUP',
+        pickedUpAt: null,
+      },
+    })
+    renderPage()
+
+    const ready = await screen.findByRole('button', { name: 'FL-20261020-000123 픽업 준비 완료' })
+    expect(
+      screen.queryByRole('button', { name: 'FL-20261020-000123 픽업 확인' }),
+    ).not.toBeInTheDocument()
+    await userEvent.click(ready)
+
+    expect(post).toHaveBeenCalledWith('/owner/orders/123/ready')
+    await waitFor(() =>
+      expect(success).toHaveBeenCalledWith('FL-20261020-000123 픽업 준비 완료. 고객에게 알렸어요'),
+    )
+    // 다시 읽은 목록에서는 같은 줄이 [픽업 확인]으로 바뀐다
+    expect(
+      await screen.findByRole('button', { name: 'FL-20261020-000123 픽업 확인' }),
+    ).toBeInTheDocument()
+    expect(get).toHaveBeenCalledTimes(2)
+  })
+
+  it('[준비 완료]가 409 면 서버 code 에 맞는 문구를 띄운다', async () => {
+    get.mockResolvedValue(pageOf([paidOrder]))
+    post.mockRejectedValue(axiosError(409, 'PICKUP_DEADLINE_PASSED'))
+    renderPage()
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'FL-20261020-000123 픽업 준비 완료' }),
+    )
+
+    await waitFor(() => expect(error).toHaveBeenCalledWith('픽업 기한이 지난 주문이에요'))
+    expect(success).not.toHaveBeenCalled()
   })
 })
