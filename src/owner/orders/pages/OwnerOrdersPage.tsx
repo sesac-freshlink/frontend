@@ -2,9 +2,16 @@ import { LoaderCircle, RefreshCw } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { DEFAULT_ORDER_PAGE_SIZE, ORDER_PAGE_SIZES, type OrderPageSize } from '@/customer/order/api'
+import { CancelReasonDialog } from '@/customer/order/components/CancelReasonDialog'
 import { ReceiptLink } from '@/customer/order/components/ReceiptLink'
 import { formatDateTime, formatShortPickupDate, formatWon } from '@/customer/order/format'
 import { orderStatusLabel } from '@/customer/order/orderStatus'
+import {
+  type CancelOrderRequest,
+  cancelErrorMessage,
+  hasRefundStarted,
+  refundStatusLabel,
+} from '@/customer/order/refund'
 import { type DatePeriod, EMPTY_PERIOD, isReversedPeriod } from '@/shared/api/period'
 import { cn } from '@/shared/ui/cn'
 import { PageNav } from '@/shared/ui/PageNav'
@@ -16,6 +23,7 @@ import {
   type OwnerOrderTab,
   readyErrorMessage,
   useMarkReadyForPickup,
+  useOwnerCancelOrder,
   useOwnerOrders,
 } from '../api'
 import { PickupConfirmModal } from '../components/PickupConfirmModal'
@@ -44,7 +52,8 @@ const TABS: TabInfo[] = [
   {
     tab: 'CANCELED',
     label: '취소·환불',
-    description: '취소·환불 요청이 들어온 주문이에요.',
+    description:
+      '취소·환불 요청이 들어온 주문이에요. 취소 요청 최신순이에요. 환불에 실패하면 [환불 재시도]를 눌러 주세요.',
     empty: '취소·환불된 주문이 없어요.',
   },
   {
@@ -251,7 +260,49 @@ const EXTRA_COLUMNS: Record<OwnerOrderTab, Column[]> = {
       cell: (o) => (o.pickedUpAt ? formatDateTime(o.pickedUpAt) : '-'),
     },
   ],
-  CANCELED: [{ label: '상태', cell: (o) => orderStatusLabel(o.status, null) }],
+  CANCELED: [
+    {
+      label: '처리 상태',
+      cell: (o) => (
+        <span className={cn(o.refundStatus === 'FAILED' && 'font-medium text-red-600')}>
+          {hasRefundStarted(o.refundStatus) || o.status === 'REFUNDED'
+            ? refundStatusLabel(o.refundStatus)
+            : orderStatusLabel(o.status, null)}
+        </span>
+      ),
+    },
+    {
+      // 요청자와 사유를 한 칸에 두 줄로 둔다 (1024px 포스기 화면 폭)
+      label: '취소 사유',
+      className: 'min-w-24 break-keep whitespace-normal',
+      cell: (o) =>
+        o.refund ? (
+          <div className="leading-tight">
+            <p>
+              {o.refund.reasonDetail
+                ? `${o.refund.reasonLabel}: ${o.refund.reasonDetail}`
+                : o.refund.reasonLabel}
+            </p>
+            <p className="text-xs text-slate-500">
+              {o.refund.requestedBy === 'CUSTOMER' ? '고객 요청' : '점주 요청'}
+            </p>
+          </div>
+        ) : (
+          '-'
+        ),
+    },
+    {
+      label: '요청·완료 시각',
+      cell: (o) => (
+        <div className="leading-tight">
+          <p>{o.refund ? formatDateTime(o.refund.requestedAt) : '-'}</p>
+          {o.refund?.canceledAt && (
+            <p className="text-xs text-slate-500">{formatDateTime(o.refund.canceledAt)} 완료</p>
+          )}
+        </div>
+      ),
+    },
+  ],
   PICKUP_EXPIRED: [PICKUP_DEADLINE_COLUMN],
 }
 
@@ -259,6 +310,9 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
   // 확인 모달을 연 주문. 주문 내용은 목록(서버 상태)에서 찾는다
   const [pickupOrderId, setPickupOrderId] = useState<number | null>(null)
   const pickupOrder = orders.find((o) => o.orderId === pickupOrderId)
+  // 취소 사유 모달을 연 주문 (픽업 대기 [취소], 취소·환불 [환불 재시도])
+  const [cancelOrderId, setCancelOrderId] = useState<number | null>(null)
+  const cancelOrder = orders.find((o) => o.orderId === cancelOrderId)
 
   const columns = [...BASE_COLUMNS, ...EXTRA_COLUMNS[tab]]
   if (tab === 'PICKUP_WAITING') {
@@ -266,19 +320,49 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
       label: '픽업',
       srOnly: true,
       right: true,
-      cell: (o) =>
-        o.status === 'READY_FOR_PICKUP' ? (
+      cell: (o) => (
+        <div className="flex justify-end gap-1">
+          {o.status === 'READY_FOR_PICKUP' ? (
+            <button
+              type="button"
+              onClick={() => setPickupOrderId(o.orderId)}
+              aria-label={`${o.orderNo} 픽업 확인`}
+              className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              픽업 확인
+            </button>
+          ) : (
+            <ReadyButton order={o} />
+          )}
           <button
             type="button"
-            onClick={() => setPickupOrderId(o.orderId)}
-            aria-label={`${o.orderNo} 픽업 확인`}
+            onClick={() => setCancelOrderId(o.orderId)}
+            aria-label={`${o.orderNo} 주문 취소`}
+            className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+          >
+            취소
+          </button>
+        </div>
+      ),
+    })
+  }
+  if (tab === 'CANCELED') {
+    // A9 환불 실패면 사유를 새로 받아 다시 시도한다. 해결 전까지 픽업 대기에 나오지 않아 픽업할 수 없다
+    columns.push({
+      label: '환불 재시도',
+      srOnly: true,
+      right: true,
+      cell: (o) =>
+        o.refundStatus === 'FAILED' ? (
+          <button
+            type="button"
+            onClick={() => setCancelOrderId(o.orderId)}
+            aria-label={`${o.orderNo} 환불 재시도`}
             className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
           >
-            픽업 확인
+            환불 재시도
           </button>
-        ) : (
-          <ReadyButton order={o} />
-        ),
+        ) : null,
     })
   }
 
@@ -287,6 +371,9 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
     <div className="relative overflow-x-auto rounded-lg border border-slate-200 bg-white">
       {pickupOrder && (
         <PickupConfirmModal order={pickupOrder} onClose={() => setPickupOrderId(null)} />
+      )}
+      {cancelOrder && (
+        <OwnerCancelDialog order={cancelOrder} onClose={() => setCancelOrderId(null)} />
       )}
       <table className="w-full text-sm">
         <thead className="bg-slate-50 text-left whitespace-nowrap text-slate-500">
@@ -335,5 +422,43 @@ function ReadyButton({ order }: { order: OwnerOrder }) {
     >
       준비 완료
     </button>
+  )
+}
+
+/**
+ * A8 점주 결제 후 취소·A9 환불 재시도. 사유(실제 재고 부족·상품 상태 불량·매장 사정·기타)를 고르고 한 번 더 묻는다.
+ * 결과는 토스트로 알리고 목록을 다시 읽는다
+ */
+function OwnerCancelDialog({ order, onClose }: { order: OwnerOrder; onClose(): void }) {
+  const cancel = useOwnerCancelOrder()
+  const [error, setError] = useState<string | null>(null)
+  const retry = order.refundStatus === 'FAILED'
+
+  const onSubmit = async (body: CancelOrderRequest) => {
+    setError(null)
+    try {
+      const res = await cancel.mutateAsync({ orderId: order.orderId, body })
+      onClose()
+      if (res.refundStatus === 'COMPLETED') toast.success(`${order.orderNo} 취소·환불을 마쳤어요`)
+      else if (res.refundStatus === 'FAILED')
+        toast.error(`${order.orderNo} 환불에 실패했어요. 취소·환불 구분에서 다시 시도해 주세요`)
+      else toast(`${order.orderNo} 환불 결과를 확인하고 있어요`)
+    } catch (e) {
+      setError(cancelErrorMessage(e))
+    }
+  }
+
+  return (
+    <CancelReasonDialog
+      requester="OWNER"
+      orderNo={order.orderNo}
+      itemText={`${order.productName} ${order.quantity}개`}
+      refundAmount={order.amount}
+      retry={retry}
+      pending={cancel.isPending}
+      error={error}
+      onSubmit={(body) => void onSubmit(body)}
+      onClose={onClose}
+    />
   )
 }

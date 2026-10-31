@@ -10,6 +10,18 @@ import type {
   OrderPage,
 } from '@/customer/order/api'
 import type { OrderStatus } from '@/customer/order/orderStatus'
+import type {
+  CancelOrderRequest,
+  CancelOrderResponse,
+  CancelReasonCode,
+  CancelRequester,
+  RefundStatus,
+} from '@/customer/order/refund'
+import {
+  CUSTOMER_CANCEL_REASONS,
+  OWNER_CANCEL_REASONS,
+  hasRefundStarted,
+} from '@/customer/order/refund'
 import type { OwnerOrder, OwnerOrderTab, PickupResponse, ReadyResponse } from '@/owner/orders/api'
 
 /**
@@ -22,7 +34,11 @@ const products: Record<number, { name: string; price: number }> = {
   2: { name: '바나나우유', price: 1700 },
   3: { name: '샌드위치 햄치즈', price: 3200 },
 }
-type MockOrder = Order & { createdMs: number; paymentKey?: string }
+type MockOrder = Order & {
+  createdMs: number
+  paymentKey?: string
+  cancelRequestedAt?: string | null
+}
 const orders = new Map<number, MockOrder>()
 const orderIdByKey = new Map<string, number>()
 let nextOrderId = 1
@@ -72,8 +88,9 @@ function advance(order: Order & { createdMs: number }) {
 function publicOrder({
   createdMs: _c,
   paymentKey: _p,
+  cancelRequestedAt: _r,
   ...order
-}: Order & { createdMs: number; paymentKey?: string }): Order {
+}: MockOrder): Order {
   return order
 }
 
@@ -81,7 +98,15 @@ function publicOrder({
  * 구분마다 줄이 있고 10개씩 보면 페이지가 넘어가도록 미리 넣어 두는 주문.
  * [몇 시간 전 주문, 상태, 상품, 수량]. 픽업 대기는 기한이 남아 있고, 기한 경과는 기한이 지났다
  */
-const SEED: [hoursAgo: number, status: OrderStatus, productId: number, quantity: number][] = [
+type Seed = [
+  hoursAgo: number,
+  status: OrderStatus,
+  productId: number,
+  quantity: number,
+  refundStatus?: RefundStatus,
+  requestedBy?: CancelRequester,
+]
+const SEED: Seed[] = [
   [1, 'PAID', 1, 2],
   [3, 'READY_FOR_PICKUP', 2, 1],
   [5, 'PAID', 3, 1],
@@ -94,6 +119,11 @@ const SEED: [hoursAgo: number, status: OrderStatus, productId: number, quantity:
   [48, 'PAID', 1, 2],
   [52, 'PAID', 2, 1],
   [70, 'PAID', 3, 3],
+  // 취소·환불 구분 예시: [몇 시간 전, 상태, 상품, 수량, 환불 상태, 요청자]
+  [6, 'PAID', 2, 2, 'FAILED', 'CUSTOMER'],
+  [12, 'READY_FOR_PICKUP', 1, 1, 'CHECKING', 'OWNER'],
+  [40, 'REFUNDED', 3, 1, 'COMPLETED', 'CUSTOMER'],
+  [60, 'CANCELED', 1, 2],
   [28, 'EXPIRED', 1, 1],
   [34, 'PICKED_UP', 2, 2],
   [50, 'PICKED_UP', 1, 1],
@@ -114,7 +144,14 @@ const SEED: [hoursAgo: number, status: OrderStatus, productId: number, quantity:
   [300, 'PICKUP_EXPIRED', 1, 1],
 ]
 
-function seedOrder(hoursAgo: number, status: OrderStatus, productId: number, quantity: number) {
+function seedOrder(
+  hoursAgo: number,
+  status: OrderStatus,
+  productId: number,
+  quantity: number,
+  refundStatus: RefundStatus = 'NONE',
+  requestedBy: CancelRequester = 'CUSTOMER',
+) {
   const id = nextOrderId++
   const product = products[productId]
   const createdMs = Date.now() - hoursAgo * HOUR
@@ -122,7 +159,8 @@ function seedOrder(hoursAgo: number, status: OrderStatus, productId: number, qua
     status === 'PAID' ||
     status === 'READY_FOR_PICKUP' ||
     status === 'PICKED_UP' ||
-    status === 'PICKUP_EXPIRED'
+    status === 'PICKUP_EXPIRED' ||
+    status === 'REFUNDED'
   const paidAt = paid ? kstIso(createdMs + 2 * 60_000) : null
   // 픽업 대기는 앞으로 1~3일, 나머지는 주문일 다음 날 (기한 경과는 이미 지났다)
   const deadline =
@@ -140,6 +178,21 @@ function seedOrder(hoursAgo: number, status: OrderStatus, productId: number, qua
             : 'EXPIRED'
           : null
   const stocked = status !== 'OUT_OF_STOCK'
+  const requestedMs = createdMs + HOUR
+  const reason: CancelReasonCode = requestedBy === 'CUSTOMER' ? 'CHANGE_OF_MIND' : 'OUT_OF_STOCK'
+  const refund =
+    refundStatus === 'NONE'
+      ? null
+      : {
+          requestedBy,
+          reason,
+          reasonLabel: reasonLabel(requestedBy, reason),
+          reasonDetail: null,
+          refundAmount: product.price * quantity,
+          status: refundStatus,
+          requestedAt: kstIso(requestedMs),
+          canceledAt: refundStatus === 'COMPLETED' ? kstIso(requestedMs + 5_000) : null,
+        }
   orders.set(id, {
     orderId: id,
     orderNo: orderNo(id, createdMs),
@@ -169,9 +222,17 @@ function seedOrder(hoursAgo: number, status: OrderStatus, productId: number, qua
               : `https://dashboard.tosspayments.com/receipt/redirection?transactionId=mock-${id}`,
         }
       : null,
+    refundStatus,
+    refund,
     serverTime: kstIso(Date.now()),
     createdMs,
+    cancelRequestedAt: refund ? refund.requestedAt : null,
   })
+}
+
+function reasonLabel(requester: CancelRequester, reason: CancelReasonCode) {
+  const list = requester === 'CUSTOMER' ? CUSTOMER_CANCEL_REASONS : OWNER_CANCEL_REASONS
+  return list.find((r) => r.code === reason)?.label ?? reason
 }
 
 /** 가짜 주문을 처음 상태로 되돌린다 (테스트용) */
@@ -179,17 +240,27 @@ export function resetOrders() {
   orders.clear()
   orderIdByKey.clear()
   nextOrderId = 1
-  for (const [hoursAgo, status, productId, quantity] of SEED) {
-    seedOrder(hoursAgo, status, productId, quantity)
-  }
+  for (const seed of SEED) seedOrder(...seed)
 }
 resetOrders()
 
+const AWAITING_PICKUP: readonly OrderStatus[] = ['PAID', 'READY_FOR_PICKUP']
+
+/**
+ * 결제 완료·준비 완료 주문은 환불 상태로 나눈다 (order-service CustomerOrderTab·OwnerOrderTab 과 같다).
+ * 환불 없음은 픽업 대기, 환불 처리·확인·실패는 취소·환불 구분이다
+ */
+function inTab(o: MockOrder, statuses: readonly OrderStatus[], canceledTab: boolean) {
+  if (!statuses.includes(o.status)) return false
+  if (!AWAITING_PICKUP.includes(o.status)) return true
+  return canceledTab ? hasRefundStarted(o.refundStatus) : o.refundStatus === 'NONE'
+}
+
 /** A3 구분별 상태 (order-service CustomerOrderTab 과 같다). OUT_OF_STOCK·PAYMENT_FAILED 는 어디에도 없다 */
 const CUSTOMER_TABS: Record<CustomerOrderTab, readonly OrderStatus[]> = {
-  PICKUP_WAITING: ['PAID', 'READY_FOR_PICKUP'],
+  PICKUP_WAITING: AWAITING_PICKUP,
   PICKED_UP: ['PICKED_UP'],
-  CANCELED: ['EXPIRED'],
+  CANCELED: ['EXPIRED', 'CANCELED', 'REFUNDED', ...AWAITING_PICKUP],
   ALL: [
     'RESERVING',
     'PAYMENT_WAITING',
@@ -199,17 +270,22 @@ const CUSTOMER_TABS: Record<CustomerOrderTab, readonly OrderStatus[]> = {
     'PICKED_UP',
     'EXPIRED',
     'PICKUP_EXPIRED',
+    'CANCELED',
+    'REFUNDED',
   ],
 }
 
-/** A6 구분별 상태와 정렬 기준 (order-service OwnerOrderTab 과 같다). 취소·환불은 환불(A7~A9) 전이라 비어 있다 */
+/** A6 구분별 상태와 정렬 기준 (order-service OwnerOrderTab 과 같다) */
 const OWNER_TABS: Record<
   OwnerOrderTab,
   { statuses: readonly OrderStatus[]; sortBy: (o: MockOrder) => string }
 > = {
   PICKUP_WAITING: { statuses: ['PAID', 'READY_FOR_PICKUP'], sortBy: (o) => o.paidAt ?? '' },
   PICKED_UP: { statuses: ['PICKED_UP'], sortBy: (o) => o.pickedUpAt ?? '' },
-  CANCELED: { statuses: [], sortBy: (o) => o.createdAt },
+  CANCELED: {
+    statuses: [...AWAITING_PICKUP, 'REFUNDED'],
+    sortBy: (o) => o.cancelRequestedAt ?? '',
+  },
   PICKUP_EXPIRED: { statuses: ['PICKUP_EXPIRED'], sortBy: (o) => o.pickupDeadline ?? '' },
 }
 
@@ -284,6 +360,9 @@ function ownerOrder(o: MockOrder): OwnerOrder {
     pickupDeadline: o.pickupDeadline,
     pickedUpAt: o.pickedUpAt,
     payment: o.payment,
+    refundStatus: o.refundStatus,
+    cancelRequestedAt: o.cancelRequestedAt ?? null,
+    refund: o.refund,
   }
 }
 
@@ -299,6 +378,7 @@ function customerOrder(o: MockOrder): CustomerOrderSummary {
     amount: o.amount,
     createdAt: o.createdAt,
     pickupDeadline: o.pickupDeadline,
+    refundStatus: o.refundStatus,
   }
 }
 
@@ -345,6 +425,8 @@ export const orderHandlers = [
       pickupDeadline: null,
       pickedUpAt: null,
       payment: null,
+      refundStatus: 'NONE',
+      refund: null,
       serverTime: now.toISOString(),
       createdMs: now.getTime(),
     })
@@ -363,7 +445,12 @@ export const orderHandlers = [
     const statuses = CUSTOMER_TABS[q.tab]
     for (const o of orders.values()) advance(o)
     const rows = [...orders.values()]
-      .filter((o) => statuses.includes(o.status) && q.inPeriod(o))
+      .filter(
+        (o) =>
+          (q.tab === 'ALL'
+            ? statuses.includes(o.status)
+            : inTab(o, statuses, q.tab === 'CANCELED')) && q.inPeriod(o),
+      )
       .sort(newestFirst((o) => o.createdAt))
       .map(customerOrder)
     return HttpResponse.json(toPage(rows, q.page, q.size))
@@ -436,7 +523,7 @@ export const orderHandlers = [
     const url = new URL(request.url)
     if (!url.searchParams.has('tab')) {
       const paid = [...orders.values()]
-        .filter((o) => o.status === 'PAID' || o.status === 'READY_FOR_PICKUP')
+        .filter((o) => inTab(o, AWAITING_PICKUP, false))
         .sort(newestFirst((o) => o.paidAt ?? ''))
         .map(ownerOrder)
       return HttpResponse.json(paid)
@@ -445,7 +532,7 @@ export const orderHandlers = [
     if (q instanceof Response) return q
     const { statuses, sortBy } = OWNER_TABS[q.tab]
     const rows = [...orders.values()]
-      .filter((o) => statuses.includes(o.status) && q.inPeriod(o))
+      .filter((o) => inTab(o, statuses, q.tab === 'CANCELED') && q.inPeriod(o))
       .sort(newestFirst(sortBy))
       .map(ownerOrder)
     return HttpResponse.json(toPage(rows, q.page, q.size))
@@ -509,4 +596,82 @@ export const orderHandlers = [
     }
     return HttpResponse.json(body)
   }),
+  // A7 결제 전 취소: 결제 대기 주문만, 사유 없이. 환불금액 0원
+  http.post('/api/orders/:orderId/payment/cancel', ({ params }) => {
+    const o = orders.get(Number(params.orderId))
+    if (!o) return notFound()
+    advance(o)
+    if (o.status === 'CANCELED') return HttpResponse.json(publicOrder(o))
+    if (o.status === 'EXPIRED') return conflict('ORDER_EXPIRED', '결제 시간이 지난 주문입니다')
+    if (o.status !== 'PAYMENT_WAITING') {
+      return conflict('ORDER_NOT_CANCELABLE', '취소할 수 없는 주문입니다')
+    }
+    o.status = 'CANCELED'
+    return HttpResponse.json({ ...publicOrder(o), serverTime: new Date().toISOString() })
+  }),
+  // A8 고객 결제 후 취소·환불 다시 신청
+  http.post('/api/orders/:orderId/cancel', async ({ params, request }) =>
+    cancelPaid(Number(params.orderId), 'CUSTOMER', (await request.json()) as CancelOrderRequest),
+  ),
+  // A8 점주 결제 후 취소·환불 재시도 (가짜 로그인 점주는 점포 확인을 하지 않는다)
+  http.post('/api/owner/orders/:orderId/cancel', async ({ params, request }) =>
+    cancelPaid(Number(params.orderId), 'OWNER', (await request.json()) as CancelOrderRequest),
+  ),
 ]
+
+function notFound() {
+  return HttpResponse.json({ code: 'ORDER_NOT_FOUND', message: '주문이 없습니다' }, { status: 404 })
+}
+
+function conflict(code: string, message: string) {
+  return HttpResponse.json({ code, message }, { status: 409 })
+}
+
+/**
+ * A8 결제 후 취소를 흉내 낸다. 수량 4개 이상 주문은 토스 환불 실패(FAILED)로 끝나 [환불 다시 신청]을 볼 수 있다.
+ * 나머지는 바로 환불 완료(REFUNDED)다 (진짜는 토스 전액 취소 + 재고 RETURN)
+ */
+function cancelPaid(orderId: number, requester: CancelRequester, req: CancelOrderRequest) {
+  const o = orders.get(orderId)
+  if (!o) return notFound()
+  const reasons = requester === 'CUSTOMER' ? CUSTOMER_CANCEL_REASONS : OWNER_CANCEL_REASONS
+  if (!reasons.some((r) => r.code === req.reason)) {
+    return validationError('reason: 고를 수 있는 취소 사유가 아닙니다')
+  }
+  const detail = req.reasonDetail?.trim() ?? ''
+  if (req.reason === 'ETC' && !detail)
+    return validationError('reasonDetail: 기타 사유를 입력해 주세요')
+  if (o.refundStatus === 'REQUESTED' || o.refundStatus === 'CHECKING') {
+    return conflict('REFUND_IN_PROGRESS', '환불을 처리하고 있습니다')
+  }
+  const startable =
+    AWAITING_PICKUP.includes(o.status) && (o.refundStatus === 'NONE' || o.refundStatus === 'FAILED')
+  if (!startable) return conflict('ORDER_NOT_CANCELABLE', '취소할 수 없는 주문입니다')
+  if (o.refundStatus === 'NONE' && o.pickupDeadline && Date.now() > Date.parse(o.pickupDeadline)) {
+    return conflict('PICKUP_DEADLINE_PASSED', '픽업 기한이 지난 주문입니다')
+  }
+  const now = Date.now()
+  const failed = o.quantity >= 4 && o.refundStatus === 'NONE'
+  const status: RefundStatus = failed ? 'FAILED' : 'COMPLETED'
+  o.refundStatus = status
+  o.cancelRequestedAt = kstIso(now)
+  o.refund = {
+    requestedBy: requester,
+    reason: req.reason,
+    reasonLabel: reasonLabel(requester, req.reason),
+    reasonDetail: req.reason === 'ETC' ? detail : null,
+    refundAmount: o.amount ?? 0,
+    status,
+    requestedAt: kstIso(now),
+    canceledAt: failed ? null : kstIso(now + 1_000),
+  }
+  if (!failed) o.status = 'REFUNDED'
+  const body: CancelOrderResponse = {
+    orderId: o.orderId,
+    orderNo: o.orderNo,
+    status: o.status,
+    refundStatus: o.refundStatus,
+    refund: o.refund,
+  }
+  return HttpResponse.json(body)
+}

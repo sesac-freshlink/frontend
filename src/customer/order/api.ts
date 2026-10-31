@@ -3,6 +3,7 @@ import { api } from '@/shared/api/client'
 import { type DatePeriod, isReversedPeriod, periodParams } from '@/shared/api/period'
 import { POLL_MS } from '@/shared/api/queryClient'
 import { isPollingStatus, type FailureReason, type OrderStatus } from './orderStatus'
+import { isRefundInProgress, type RefundInfo, type RefundStatus } from './refund'
 
 /** OR-01 요청 */
 export interface CreateOrderRequest {
@@ -52,6 +53,9 @@ export interface Order {
   pickupDeadline: string | null
   pickedUpAt: string | null
   payment: OrderPayment | null
+  /** 결제 후 취소·환불 (A8·A9). 요청이 없으면 NONE, refund 는 마지막 시도(없으면 null) */
+  refundStatus: RefundStatus
+  refund: RefundInfo | null
   serverTime: string
 }
 
@@ -103,6 +107,8 @@ export interface CustomerOrderSummary {
   amount: number | null
   createdAt: string
   pickupDeadline: string | null
+  /** 결제 후 취소·환불 상태 (A8·A9) */
+  refundStatus: RefundStatus
 }
 
 const orderKey = (orderId: number) => ['customer', 'order', orderId]
@@ -136,14 +142,17 @@ export function useCustomerOrders({ tab, page, size, period }: CustomerOrdersQue
   })
 }
 
-/** U-22·U-31 주문 조회 (OR-02). 진행 중 상태에서만 2초 폴링 */
+/** U-22·U-31 주문 조회 (OR-02). 진행 중 상태와 환불 처리·확인 중에만 2초 폴링 */
 export function useOrder(orderId: number | undefined) {
   return useQuery({
     queryKey: orderKey(orderId ?? 0),
     queryFn: async () => (await api.get<Order>(`/orders/${orderId}`)).data,
     enabled: orderId !== undefined,
     refetchInterval: (query) =>
-      isPollingStatus(query.state.data?.status) ? POLL_MS.orderDetail : false,
+      isPollingStatus(query.state.data?.status) ||
+      isRefundInProgress(query.state.data?.refundStatus)
+        ? POLL_MS.orderDetail
+        : false,
   })
 }
 

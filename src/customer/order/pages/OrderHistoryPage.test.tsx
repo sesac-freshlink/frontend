@@ -21,6 +21,7 @@ const paid: CustomerOrderSummary = {
   amount: 3400,
   createdAt: '2026-10-20T15:30:00+09:00',
   pickupDeadline: '2026-10-22T23:59:59+09:00',
+  refundStatus: 'NONE',
 }
 
 /** A3 페이지 응답 한 장 */

@@ -50,6 +50,9 @@ const paidOrder: OwnerOrder = {
   pickupDeadline: '2026-10-22T23:59:59+09:00',
   pickedUpAt: null,
   payment: null,
+  refundStatus: 'NONE',
+  cancelRequestedAt: null,
+  refund: null,
 }
 
 /** 점주가 [준비 완료]를 누른 주문 (N-02). [픽업 확인]은 이 상태에서만 보인다 */
@@ -414,5 +417,77 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
 
     await waitFor(() => expect(error).toHaveBeenCalledWith('픽업 기한이 지난 주문이에요'))
     expect(success).not.toHaveBeenCalled()
+  })
+
+  it('A8 픽업 대기 [취소]: 점주 사유를 고르고 확인하면 점주 취소를 부른다', async () => {
+    get.mockResolvedValue(pageOf([paidOrder]))
+    post.mockResolvedValue({
+      data: {
+        orderId: 123,
+        orderNo: paidOrder.orderNo,
+        status: 'REFUNDED',
+        refundStatus: 'COMPLETED',
+        refund: null,
+      },
+    })
+    renderPage()
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'FL-20261020-000123 주문 취소' }),
+    )
+    const dialog = screen.getByRole('dialog')
+    // 점주 사유만 보인다
+    expect(within(dialog).queryByRole('radio', { name: '단순 변심' })).not.toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('radio', { name: '실제 재고 부족' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: '다음' }))
+    expect(
+      within(dialog).getByText('주문 전체를 취소하고 전액 환불하시겠습니까?'),
+    ).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: '취소하고 환불' }))
+
+    expect(post).toHaveBeenCalledWith('/owner/orders/123/cancel', { reason: 'OUT_OF_STOCK' })
+    await waitFor(() =>
+      expect(success).toHaveBeenCalledWith('FL-20261020-000123 취소·환불을 마쳤어요'),
+    )
+  })
+
+  it('A9 취소·환불 구분: 처리 상태·사유·요청자를 보여 주고 환불 실패에만 [환불 재시도]가 있다', async () => {
+    const refund = {
+      requestedBy: 'CUSTOMER' as const,
+      reason: 'CHANGE_OF_MIND' as const,
+      reasonLabel: '단순 변심',
+      reasonDetail: null,
+      refundAmount: 3400,
+      status: 'FAILED' as const,
+      requestedAt: '2026-10-20T16:01:00+09:00',
+      canceledAt: null,
+    }
+    get.mockResolvedValue(
+      pageOf([
+        { ...paidOrder, refundStatus: 'FAILED', refund },
+        {
+          ...paidOrder,
+          orderId: 124,
+          orderNo: 'FL-20261020-000124',
+          status: 'REFUNDED',
+          refundStatus: 'COMPLETED',
+          refund: { ...refund, status: 'COMPLETED', canceledAt: '2026-10-20T16:01:05+09:00' },
+        },
+      ]),
+    )
+    renderPage()
+    await userEvent.click(await screen.findByRole('tab', { name: '취소·환불' }))
+
+    expect(await screen.findByText('환불 실패')).toBeInTheDocument()
+    expect(screen.getByText('환불 완료')).toBeInTheDocument()
+    expect(screen.getAllByText('고객 요청')).toHaveLength(2)
+    expect(
+      screen.getByRole('button', { name: 'FL-20261020-000123 환불 재시도' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'FL-20261020-000124 환불 재시도' }),
+    ).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'FL-20261020-000123 환불 재시도' }))
+    expect(within(screen.getByRole('dialog')).getByRole('heading')).toHaveTextContent('환불 재시도')
   })
 })
