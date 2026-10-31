@@ -36,6 +36,25 @@ export function useStores({ region, keyword }: StoreSearchParams) {
   })
 }
 
+/**
+ * 점포 상세 (member-service GET /stores/{storeId}, 로그인 없이도 된다). 운영 중인 점포만 온다.
+ * 지도 좌표·설명·이미지는 관리자가 아직 넣지 않았으면 null 이다. imageUrl 은 같은 주소의 /images/... 경로다
+ */
+export interface StoreDetail extends StoreSummary {
+  latitude: number | null
+  longitude: number | null
+  description: string | null
+  imageUrl: string | null
+}
+
+/** 점포 상세. 들어올 때만 읽는다 */
+export function useStoreDetail(storeId: number) {
+  return useQuery({
+    queryKey: ['customer', 'stores', storeId, 'detail'],
+    queryFn: async () => (await api.get<StoreDetail>(`/stores/${storeId}`)).data,
+  })
+}
+
 /** U-10 응답 한 줄. 고객용이라 "예약" 관련 필드는 없고 구매 가능 수량만 온다 */
 export interface StoreProduct {
   productId: number

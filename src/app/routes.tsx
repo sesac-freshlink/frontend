@@ -6,6 +6,7 @@ import { SignupPage } from '@/auth/pages/SignupPage'
 import { OrderDetailPage } from '@/customer/order/pages/OrderDetailPage'
 import { OrderHistoryPage } from '@/customer/order/pages/OrderHistoryPage'
 import { CustomerHomePage } from '@/customer/stores/pages/CustomerHomePage'
+import { StoreDetailPage } from '@/customer/stores/pages/StoreDetailPage'
 import { StoreProductDetailPage } from '@/customer/stores/pages/StoreProductDetailPage'
 import { StoreProductsPage } from '@/customer/stores/pages/StoreProductsPage'
 import { ExpiringPage } from '@/owner/inventory/pages/ExpiringPage'
@@ -51,6 +52,7 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <CustomerHomePage /> },
           { path: 'stores/:storeId', element: <StoreProductsPage /> },
+          { path: 'stores/:storeId/info', element: <StoreDetailPage /> },
           { path: 'stores/:storeId/products/:productId', element: <StoreProductDetailPage /> },
           { path: 'orders', element: <OrderHistoryPage /> },
           { path: 'orders/:id', element: <OrderDetailPage /> },

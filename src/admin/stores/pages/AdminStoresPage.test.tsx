@@ -1,17 +1,18 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { toast } from 'sonner'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
-import type { AdminStore, PageResponse } from '../api'
+import type { AdminStore, PageResponse, StoreImageUploadUrl } from '../api'
 import { AdminStoresPage } from './AdminStoresPage'
 
 vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn() } }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 const get = vi.mocked(api.get)
 const patch = vi.mocked(api.patch)
+const post = vi.mocked(api.post)
 const success = vi.mocked(toast.success)
 
 // jsdom 에는 HTMLDialogElement 의 showModal/close 가 없다. 브라우저 동작을 필요한 만큼만 흉내 낸다.
@@ -65,6 +66,10 @@ function store(id: number, overrides: Partial<AdminStore> = {}): AdminStore {
     status: 'ACTIVE',
     ownerEmail: `owner${id}@test.com`,
     createdAt: '2026-10-01T10:00:00+09:00',
+    latitude: null,
+    longitude: null,
+    description: null,
+    imageUrl: null,
     ...overrides,
   }
 }
@@ -127,6 +132,7 @@ async function openEdit(name: string) {
 beforeEach(() => {
   get.mockReset()
   patch.mockReset()
+  post.mockReset()
   success.mockReset()
 })
 
@@ -367,5 +373,117 @@ describe('관리자 점포 수정 모달 (A-02)', () => {
     expect(await dialog.findByRole('alert')).toHaveTextContent('점포가 없습니다')
     expect(screen.getByRole('dialog')).toHaveAttribute('open')
     expect(success).not.toHaveBeenCalled()
+  })
+})
+
+describe('점포 상세 값·이미지 (A-02 수정 모달)', () => {
+  const issued: StoreImageUploadUrl = {
+    uploadUrl:
+      'https://bucket.s3.ap-northeast-2.amazonaws.com/images/stores/1/abc.jpg?X-Amz-Expires=300',
+    imageKey: 'images/stores/1/abc.jpg',
+    imageUrl: '/images/stores/1/abc.jpg',
+    contentType: 'image/jpeg',
+    expiresAt: '2026-10-30T22:05:00+09:00',
+  }
+
+  beforeAll(() => {
+    // jsdom 에는 미리보기 임시 주소가 없다
+    URL.createObjectURL = vi.fn(() => 'blob:preview')
+    URL.revokeObjectURL = vi.fn()
+  })
+
+  it('좌표·설명을 넣으면 숫자·앞뒤 공백 뺀 글자로 보낸다', async () => {
+    get.mockResolvedValue(pageOf([gangnam]))
+    patch.mockResolvedValue({ data: gangnam })
+    renderPage()
+    const dialog = await openEdit('프레시 강남점')
+    await userEvent.type(dialog.getByLabelText('위도'), '37.498095')
+    await userEvent.type(dialog.getByLabelText('경도'), '127.02761')
+    await userEvent.type(dialog.getByLabelText('점포 설명'), ' 강남역 11번 출구 ')
+    await userEvent.click(dialog.getByRole('button', { name: '저장' }))
+
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith('/admin/stores/1', {
+        latitude: 37.498095,
+        longitude: 127.02761,
+        description: '강남역 11번 출구',
+      }),
+    )
+  })
+
+  it('좌표가 범위를 넘으면 칸 아래에 안내하고 보내지 않는다', async () => {
+    get.mockResolvedValue(pageOf([gangnam]))
+    renderPage()
+    const dialog = await openEdit('프레시 강남점')
+    await userEvent.type(dialog.getByLabelText('위도'), '91')
+    await userEvent.click(dialog.getByRole('button', { name: '저장' }))
+
+    expect(
+      await dialog.findByText('-90~90 사이 숫자(소수 6자리까지)로 입력하세요'),
+    ).toBeInTheDocument()
+    expect(patch).not.toHaveBeenCalled()
+  })
+
+  it('JPG 를 고르면 업로드 주소를 받아 그 주소로 바로 올리고, 저장 때 imageKey 를 보낸다', async () => {
+    get.mockResolvedValue(pageOf([gangnam]))
+    post.mockResolvedValue({ data: issued })
+    patch.mockResolvedValue({ data: gangnam })
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    const dialog = await openEdit('프레시 강남점')
+    const file = new File(['jpg'], 'store.jpg', { type: 'image/jpeg' })
+    await userEvent.upload(dialog.getByLabelText('이미지 올리기'), file)
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/admin/stores/1/image-upload-url'))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(issued.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/jpeg' },
+        body: file,
+      }),
+    )
+    expect(await dialog.findByRole('img', { name: '프레시 강남점 점포' })).toHaveAttribute(
+      'src',
+      'blob:preview',
+    )
+    await userEvent.click(dialog.getByRole('button', { name: '저장' }))
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith('/admin/stores/1', {
+        imageKey: 'images/stores/1/abc.jpg',
+      }),
+    )
+    vi.unstubAllGlobals()
+  })
+
+  it('JPG 가 아니면 올리지 않고 안내한다', async () => {
+    get.mockResolvedValue(pageOf([gangnam]))
+    renderPage()
+    const dialog = await openEdit('프레시 강남점')
+    fireEvent.change(dialog.getByLabelText('이미지 올리기'), {
+      target: { files: [new File(['png'], 'store.png', { type: 'image/png' })] },
+    })
+
+    expect(await dialog.findByRole('alert')).toHaveTextContent('JPG 이미지만 올릴 수 있어요')
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('S3 에 올리지 못하면 안내하고 저장 버튼은 그대로 비활성', async () => {
+    get.mockResolvedValue(pageOf([gangnam]))
+    post.mockResolvedValue({ data: issued })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 403 })),
+    )
+    renderPage()
+    const dialog = await openEdit('프레시 강남점')
+    await userEvent.upload(
+      dialog.getByLabelText('이미지 올리기'),
+      new File(['jpg'], 'store.jpg', { type: 'image/jpeg' }),
+    )
+
+    expect(await dialog.findByRole('alert')).toHaveTextContent('이미지를 올리지 못했어요')
+    expect(dialog.getByRole('button', { name: '저장' })).toBeDisabled()
+    vi.unstubAllGlobals()
   })
 })

@@ -5,10 +5,11 @@ import type {
   ProfileResponse,
   RegisterProfileRequest,
 } from '@/auth/api'
-import type { StoreSummary } from '@/customer/stores/api'
+import type { StoreDetail, StoreSummary } from '@/customer/stores/api'
+import { findActiveStore } from './adminHandlers'
 import { mockSessionUser } from './authHandlers'
 
-/** member-service 가짜 API (김경우): MB-01~03 회원, ST-01 점포 검색 */
+/** member-service 가짜 API (김경우): MB-01~03 회원, ST-01 점포 검색, 점포 상세 */
 // 프로필은 가짜 세션 사용자(userId)마다 따로 둔다. 처음 고객으로 들어오면 프로필 등록부터 한다
 const profiles = new Map<string, CustomerMe>()
 const sessionUserId = () => mockSessionUser()?.userId ?? 'mock-customer'
@@ -94,5 +95,26 @@ export const memberHandlers = [
           (!keyword || s.name.includes(keyword) || s.address.includes(keyword)),
       ),
     )
+  }),
+  http.get('/api/stores/:storeId', ({ params }) => {
+    const found = findActiveStore(Number(params.storeId))
+    if (!found) {
+      return HttpResponse.json(
+        { code: 'STORE_NOT_FOUND', message: '점포가 없습니다', traceId: 'mock' },
+        { status: 404 },
+      )
+    }
+    const body: StoreDetail = {
+      storeId: found.storeId,
+      storeCode: found.storeCode,
+      name: found.name,
+      address: found.address,
+      region: found.region,
+      latitude: found.latitude,
+      longitude: found.longitude,
+      description: found.description,
+      imageUrl: found.imageUrl,
+    }
+    return HttpResponse.json(body)
   }),
 ]
