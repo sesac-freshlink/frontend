@@ -1,13 +1,24 @@
 import axios from 'axios'
-import { CircleCheck, CircleX, LoaderCircle, PackageCheck } from 'lucide-react'
+import { CircleCheck, CircleX, LoaderCircle, PackageCheck, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { toast } from 'sonner'
 import { cn } from '@/shared/ui/cn'
 import { useOrder, type Order } from '../api'
+import { CancelReasonDialog } from '../components/CancelReasonDialog'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { OrderSummary, type SummaryRow } from '../components/OrderSummary'
 import { ReceiptLink } from '../components/ReceiptLink'
 import { formatRemaining } from '../countdown'
 import { formatDateTime, formatHHmm, formatPickupDate, formatWon } from '../format'
 import { customerMessage, paymentInterruptedMessage } from '../orderStatus'
+import {
+  cancelErrorMessage,
+  isRefundInProgress,
+  refundStatusLabel,
+  useCancelBeforePayment,
+  useCancelOrder,
+} from '../refund'
 import { TossPaymentWidget } from '../TossPaymentWidget'
 import { useCountdown } from '../useCountdown'
 import { useTossReturn } from '../useTossReturn'
@@ -70,6 +81,8 @@ function OrderView({ orderId }: { orderId: number }) {
       return <Paid order={data} />
     case 'pickedUp':
       return <PickedUp order={data} />
+    case 'refunded':
+      return <Refunded order={data} />
     case 'failed':
       return <Failed order={data} title={message.title} />
   }
@@ -166,16 +179,181 @@ function Payable({
           onInterrupted={onInterrupted}
         />
       )}
+      {!timeUp && <CancelBeforePayment orderId={order.orderId} />}
+    </section>
+  )
+}
+
+/** A7 결제 전 취소: "주문을 취소하시겠습니까?"만 묻고 사유는 받지 않는다. 환불금액은 0원이다 */
+function CancelBeforePayment({ orderId }: { orderId: number }) {
+  const cancel = useCancelBeforePayment(orderId)
+  const [open, setOpen] = useState(false)
+  const onConfirm = async () => {
+    try {
+      await cancel.mutateAsync()
+      toast.success('주문을 취소했어요')
+    } catch (e) {
+      toast.error(cancelErrorMessage(e))
+    }
+    setOpen(false)
+  }
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="block w-full rounded-lg border border-slate-300 py-3 text-center text-sm font-medium text-slate-600"
+      >
+        주문 취소
+      </button>
+      {open && (
+        <ConfirmDialog
+          title="주문을 취소하시겠습니까?"
+          confirmLabel="주문 취소"
+          pending={cancel.isPending}
+          onConfirm={() => void onConfirm()}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  )
+}
+
+/** 픽업 기한이 지났는지 (서버 시각 기준). 서버도 요청 때 다시 확인한다 */
+function deadlinePassed(order: Order): boolean {
+  return (
+    order.pickupDeadline !== null && Date.parse(order.serverTime) > Date.parse(order.pickupDeadline)
+  )
+}
+
+/** 취소·환불 표시 (추가 명세 A8): 요청자·사유·환불금액·처리 상태·취소 요청 시각·취소 완료 시각 */
+function refundRows(order: Order): SummaryRow[] {
+  const r = order.refund
+  if (!r) return []
+  const rows: SummaryRow[] = [
+    { label: '요청자', value: r.requestedBy === 'CUSTOMER' ? '고객' : '점주' },
+    {
+      label: '취소 사유',
+      value: r.reasonDetail ? `${r.reasonLabel}: ${r.reasonDetail}` : r.reasonLabel,
+    },
+    { label: '환불금액', value: formatWon(r.refundAmount) },
+    { label: '처리 상태', value: refundStatusLabel(order.refundStatus) },
+    { label: '취소 요청 시각', value: formatDateTime(r.requestedAt) },
+  ]
+  if (r.canceledAt) rows.push({ label: '취소 완료 시각', value: formatDateTime(r.canceledAt) })
+  return rows
+}
+
+/**
+ * A8 결제 후 취소·A9 환불 상태. 결제 완료·준비 완료 화면 아래에 둔다.
+ * 환불 없음·기한 이내면 [주문 취소], 처리·확인 중이면 안내(2초마다 다시 읽음), 실패면 [환불 다시 신청](사유를 새로 받는다)
+ */
+function RefundSection({ order }: { order: Order }) {
+  const cancel = useCancelOrder(order.orderId)
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const status = order.refundStatus
+  const canStart = status === 'FAILED' || (status === 'NONE' && !deadlinePassed(order))
+  const retry = status === 'FAILED'
+
+  const onSubmit = async (body: Parameters<typeof cancel.mutateAsync>[0]) => {
+    setError(null)
+    try {
+      const res = await cancel.mutateAsync(body)
+      setOpen(false)
+      if (res.refundStatus === 'COMPLETED') toast.success('취소·환불이 끝났어요')
+      else if (res.refundStatus === 'FAILED')
+        toast.error('환불에 실패했어요. 다시 신청할 수 있어요')
+      else toast('환불 결과를 확인하고 있어요')
+    } catch (e) {
+      setError(cancelErrorMessage(e))
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {order.refund && <OrderSummary rows={refundRows(order)} />}
+      {isRefundInProgress(status) && (
+        <p className="flex items-center justify-center gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+          <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+          환불 결과를 확인하고 있어요
+        </p>
+      )}
+      {retry && (
+        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+          환불에 실패했어요. 다시 신청해 주세요.
+        </p>
+      )}
+      {canStart && order.amount !== null && (
+        <button
+          type="button"
+          onClick={() => {
+            setError(null)
+            setOpen(true)
+          }}
+          className={cn(
+            'flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-medium',
+            retry ? 'bg-emerald-600 text-white' : 'border border-slate-300 text-slate-600',
+          )}
+        >
+          {retry && <RotateCcw className="size-4" aria-hidden="true" />}
+          {retry ? '환불 다시 신청' : '주문 취소'}
+        </button>
+      )}
+      {open && order.amount !== null && (
+        <CancelReasonDialog
+          requester="CUSTOMER"
+          orderNo={order.orderNo}
+          itemText={`${order.productName ?? ''} ${order.quantity}개`}
+          refundAmount={order.amount}
+          retry={retry}
+          pending={cancel.isPending}
+          error={error}
+          onSubmit={(body) => void onSubmit(body)}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+/** A9 취소·환불 완료 화면: 주문번호·상품명·수량·환불금액·취소 완료 시각, [주문 내역으로] (추가 명세 A8) */
+function Refunded({ order }: { order: Order }) {
+  const r = order.refund
+  const rows: SummaryRow[] = [
+    { label: '주문번호', value: order.orderNo },
+    { label: '상품', value: order.productName ?? '-' },
+    { label: '수량', value: `${order.quantity}개` },
+    { label: '환불금액', value: formatWon(r?.refundAmount ?? order.amount ?? 0) },
+  ]
+  if (r?.canceledAt) rows.push({ label: '취소 완료 시각', value: formatDateTime(r.canceledAt) })
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col items-center gap-2 py-6">
+        <CircleCheck className="size-12 text-emerald-600" />
+        <h1 className="text-xl font-bold text-slate-900">취소·환불이 끝났어요</h1>
+        <p className="text-sm text-slate-500">결제한 금액 전액을 환불했어요</p>
+      </div>
+      <OrderSummary rows={rows} />
+      <Link
+        to="/customer/orders"
+        className="block rounded-lg bg-emerald-600 py-3 text-center font-medium text-white"
+      >
+        주문 내역으로
+      </Link>
     </section>
   )
 }
 
 function Paid({ order }: { order: Order }) {
+  const ready = order.status === 'READY_FOR_PICKUP'
   return (
     <section className="space-y-4">
       <div className="flex flex-col items-center gap-2 py-6">
         <CircleCheck className="size-12 text-emerald-600" />
-        <h1 className="text-xl font-bold text-slate-900">결제 완료</h1>
+        <h1 className="text-xl font-bold text-slate-900">
+          {ready ? '픽업 준비 완료' : '결제 완료'}
+        </h1>
         <p className="text-sm text-slate-500">
           주문번호 <span className="font-medium text-slate-900">{order.orderNo}</span>
         </p>
@@ -184,9 +362,14 @@ function Paid({ order }: { order: Order }) {
       <ReceiptLink url={order.payment?.receiptUrl ?? null} className="flex justify-center" />
       <div className="space-y-1 text-center">
         {/* 기한 날짜는 위 표의 "픽업 기한" 줄에 있다. 문장에 다시 넣으면 폰 폭에서 "까/지"로 끊긴다 */}
-        <p className="text-sm text-slate-500">매장에서 주문번호를 보여 주고 픽업하세요</p>
+        <p className="text-sm text-slate-500">
+          {ready
+            ? '준비가 끝났어요. 매장에서 주문번호를 보여 주고 받아 가세요'
+            : '매장에서 주문번호를 보여 주고 픽업하세요'}
+        </p>
         <PickupNotice order={order} />
       </div>
+      <RefundSection order={order} />
       <Link
         to="/customer"
         className="block rounded-lg border border-slate-300 py-3 text-center text-sm font-medium text-slate-600"
@@ -223,7 +406,9 @@ function PickedUp({ order }: { order: Order }) {
 
 function Failed({ order, title }: { order: Order; title: string }) {
   // 결제 뒤 픽업 기한이 지난 주문은 결제 금액을 그대로 두고 환불은 0원 (추가 명세 A4)
+  // 결제 전 직접 취소(A7)도 환불금액 0원으로 보여 준다 (추가 명세 A8 환불금액 표)
   const pickupExpired = order.status === 'PICKUP_EXPIRED'
+  const canceled = order.status === 'CANCELED'
   return (
     <section className="space-y-4">
       <div className="flex flex-col items-center gap-2 py-6">
@@ -231,12 +416,12 @@ function Failed({ order, title }: { order: Order; title: string }) {
         <h1 className="text-center text-lg font-bold text-slate-900">{title}</h1>
         <p className="text-sm text-slate-500">주문번호 {order.orderNo}</p>
       </div>
-      {pickupExpired && (
+      {(pickupExpired || canceled) && (
         <OrderSummary
           rows={[
             ...summaryRows(order),
-            ...pickupRows(order),
-            { label: '환불 금액', value: formatWon(0) },
+            ...(pickupExpired ? pickupRows(order) : []),
+            { label: '환불금액', value: formatWon(0) },
           ]}
         />
       )}

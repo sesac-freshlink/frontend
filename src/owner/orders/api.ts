@@ -2,6 +2,12 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { apiErrorCode } from '@/auth/api'
 import type { OrderPage, OrderPageSize, OrderPayment } from '@/customer/order/api'
 import type { OrderStatus } from '@/customer/order/orderStatus'
+import type {
+  CancelOrderRequest,
+  CancelOrderResponse,
+  RefundInfo,
+  RefundStatus,
+} from '@/customer/order/refund'
 import { api } from '@/shared/api/client'
 import { type DatePeriod, isReversedPeriod, periodParams } from '@/shared/api/period'
 
@@ -20,6 +26,12 @@ export interface OwnerOrder {
   pickupDeadline: string | null
   pickedUpAt: string | null
   payment: OrderPayment | null
+  /** A8·A9 환불 상태. 취소·환불 구분과 [환불 재시도]에서 쓴다 */
+  refundStatus: RefundStatus
+  /** 마지막 취소 요청 시각 (취소·환불 구분 정렬 기준). 요청이 없으면 null */
+  cancelRequestedAt: string | null
+  /** 마지막 환불 시도. 없으면 null */
+  refund: RefundInfo | null
 }
 
 /** A6 점주 주문 목록 구분 */
@@ -120,4 +132,17 @@ const PICKUP_ERROR_TEXT: Record<string, string> = {
 export function pickupErrorMessage(e: unknown): string {
   const code = apiErrorCode(e)
   return (code && PICKUP_ERROR_TEXT[code]) || '픽업 처리에 실패했어요. 잠시 뒤 다시 시도해 주세요.'
+}
+
+/**
+ * A8 점주 결제 후 취소 (order-service POST /owner/orders/{orderId}/cancel). 환불 실패 뒤 [환불 재시도]도 같은 주소다.
+ * 성공·실패 모두 목록을 다시 읽는다 (취소한 주문은 픽업 대기에서 취소·환불 구분으로 옮겨 간다)
+ */
+export function useOwnerCancelOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ orderId, body }: { orderId: number; body: CancelOrderRequest }) =>
+      (await api.post<CancelOrderResponse>(`/owner/orders/${orderId}/cancel`, body)).data,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ownerOrdersKey }),
+  })
 }

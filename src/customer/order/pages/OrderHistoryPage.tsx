@@ -15,6 +15,7 @@ import {
 } from '../api'
 import { formatDateTime, formatPickupDate, formatWon } from '../format'
 import { orderStatusLabel } from '../orderStatus'
+import { hasRefundStarted, refundStatusLabel } from '../refund'
 
 const TABS: { tab: CustomerOrderTab; label: string }[] = [
   { tab: 'ALL', label: '전체' },
@@ -124,8 +125,14 @@ export function OrderHistoryPage() {
 }
 
 function OrderRow({ order }: { order: CustomerOrderSummary }) {
-  const done = order.status === 'PICKED_UP'
-  const closed = order.status === 'EXPIRED' || order.status === 'PICKUP_EXPIRED'
+  // 결제 완료·준비 완료라도 환불이 시작됐으면 픽업 대신 환불 상태를 보여 준다 (A8·A9)
+  const refunding = hasRefundStarted(order.refundStatus)
+  const done = order.status === 'PICKED_UP' || order.status === 'REFUNDED'
+  const closed =
+    order.status === 'EXPIRED' ||
+    order.status === 'PICKUP_EXPIRED' ||
+    order.status === 'CANCELED' ||
+    order.refundStatus === 'FAILED'
   return (
     <li>
       <Link to={`/customer/orders/${order.orderId}`} className="flex items-center gap-3 px-4 py-3">
@@ -139,7 +146,9 @@ function OrderRow({ order }: { order: CustomerOrderSummary }) {
                 !done && !closed && 'bg-emerald-50 text-emerald-700',
               )}
             >
-              {orderStatusLabel(order.status, order.failureReason)}
+              {refunding
+                ? refundStatusLabel(order.refundStatus)
+                : orderStatusLabel(order.status, order.failureReason)}
             </span>
             <span className="truncate text-xs text-slate-400">{order.orderNo}</span>
           </div>
@@ -150,6 +159,7 @@ function OrderRow({ order }: { order: CustomerOrderSummary }) {
             {order.storeName} · {formatDateTime(order.createdAt)}
           </p>
           {(order.status === 'PAID' || order.status === 'READY_FOR_PICKUP') &&
+            !refunding &&
             order.pickupDeadline && (
               <p className="text-xs text-emerald-700">
                 {formatPickupDate(order.pickupDeadline)}까지 픽업

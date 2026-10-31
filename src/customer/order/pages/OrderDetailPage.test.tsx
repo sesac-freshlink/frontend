@@ -30,6 +30,8 @@ const base: Order = {
   pickupDeadline: null,
   pickedUpAt: null,
   payment: null,
+  refundStatus: 'NONE',
+  refund: null,
   // 결제 마감 15:42 의 7분 30초 전. 기기 시계와 상관없이 이 값 기준으로 센다
   serverTime: '2026-10-20T15:34:30+09:00',
 }
@@ -232,7 +234,7 @@ describe('주문 상세 (U-22·U-31)', () => {
     renderAt('/customer/orders/123')
     expect(await screen.findByText('픽업 기한이 지났어요')).toBeInTheDocument()
     expect(screen.getByText('3,400원')).toBeInTheDocument()
-    expect(screen.getByText('환불 금액')).toBeInTheDocument()
+    expect(screen.getByText('환불금액')).toBeInTheDocument()
     expect(screen.getByText('0원')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '상품으로 돌아가기' })).toBeInTheDocument()
   })

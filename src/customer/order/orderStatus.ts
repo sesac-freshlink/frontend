@@ -14,6 +14,8 @@ export const ORDER_STATUSES = [
   'PICKED_UP',
   'PICKUP_EXPIRED',
   'READY_FOR_PICKUP',
+  'CANCELED',
+  'REFUNDED',
 ] as const
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
@@ -31,9 +33,10 @@ export type FailureReason =
  * payable: 결제창을 띄운다
  * done: 결제 완료
  * pickedUp: 픽업 완료 (A5)
+ * refunded: 결제 후 취소·전액 환불 완료 (A9)
  * failed: 끝난 실패. [상품으로 돌아가기]를 둔다 (같은 주문을 다시 결제하지 않는다)
  */
-export type MessageTone = 'loading' | 'payable' | 'done' | 'pickedUp' | 'failed'
+export type MessageTone = 'loading' | 'payable' | 'done' | 'pickedUp' | 'refunded' | 'failed'
 
 export interface CustomerMessage {
   title: string
@@ -78,6 +81,10 @@ export function customerMessage(
       return { title: '픽업 완료', tone: 'pickedUp' }
     case 'PICKUP_EXPIRED':
       return { title: '픽업 기한이 지났어요', tone: 'failed' }
+    case 'CANCELED':
+      return { title: '주문을 취소했어요', tone: 'failed' }
+    case 'REFUNDED':
+      return { title: '취소·환불이 끝났어요', tone: 'refunded' }
   }
 }
 
@@ -104,6 +111,10 @@ export function orderStatusLabel(status: OrderStatus, failureReason: FailureReas
       return '재고 부족 취소'
     case 'PAYMENT_FAILED':
       return '결제 실패'
+    case 'CANCELED':
+      return '주문 취소'
+    case 'REFUNDED':
+      return '환불 완료'
   }
 }
 
