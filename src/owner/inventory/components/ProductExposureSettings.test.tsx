@@ -226,4 +226,17 @@ describe('추천·선착순 설정', () => {
     // 실패하면 선택을 그대로 둔다
     expect(screen.getByText('1개 선택')).toBeInTheDocument()
   })
+
+  it('재고 목록에 상품이 없으면 입고 뒤에 정할 수 있다고 안내한다', async () => {
+    get.mockImplementation((url: string) =>
+      Promise.resolve({ data: url === '/owner/inventory/recommendations' ? [] : firstCome }),
+    )
+    renderSettings()
+
+    expect(
+      await screen.findByText(
+        '재고 목록에 상품이 없어요. 입고되면 여기서 추천·선착순을 정할 수 있어요.',
+      ),
+    ).toBeInTheDocument()
+  })
 })

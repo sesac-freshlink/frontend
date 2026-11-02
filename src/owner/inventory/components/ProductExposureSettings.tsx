@@ -17,7 +17,7 @@ import { MAX_FIRST_COME_LIMIT, MIN_FIRST_COME_LIMIT, parseFirstComeLimit } from 
 /**
  * 고객 목록에 보이는 방식 설정: 점주 추천상품(고객 목록 '추천상품'과 배지)과 선착순 판매 한도.
  * 선착순 상품은 고객이 대기열을 거쳐 사고(경우님 대기열), 한도를 넘는 주문은 재고가 있어도 거절된다.
- * 입고 전 상품까지 전부 보여 주고 행마다 따로 저장한다. 추천은 여러 상품을 골라 한 번에 켜고 끌 수도 있다
+ * 그 점포 재고 목록에 있는(입고된 적 있는) 상품만 보여 주고 행마다 따로 저장한다. 추천은 여러 상품을 골라 한 번에 켜고 끌 수도 있다
  */
 export function ProductExposureSettings() {
   const recommendations = useRecommendations()
@@ -43,7 +43,11 @@ export function ProductExposureSettings() {
     )
   }
   if (recommendations.data.length === 0) {
-    return <p className="py-16 text-center text-sm text-slate-500">등록된 상품이 없어요.</p>
+    return (
+      <p className="py-16 text-center text-sm text-slate-500">
+        재고 목록에 상품이 없어요. 입고되면 여기서 추천·선착순을 정할 수 있어요.
+      </p>
+    )
   }
 
   const firstComeById = new Map(firstCome.data.map((item) => [item.productId, item]))
@@ -86,8 +90,9 @@ export function ProductExposureSettings() {
   return (
     <div className="space-y-2">
       <p className="text-sm text-slate-500">
-        추천으로 정한 상품은 고객 목록에 '추천'으로 보여요. 선착순은 한도({MIN_FIRST_COME_LIMIT}~
-        {MAX_FIRST_COME_LIMIT}개)까지만 팔고, 고객은 줄을 서서 차례대로 사요.
+        재고 목록에 있는 상품만 보여요. 추천으로 정한 상품은 고객 목록에 '추천'으로 보여요. 선착순은
+        한도({MIN_FIRST_COME_LIMIT}~{MAX_FIRST_COME_LIMIT}개)까지만 팔고, 고객은 줄을 서서 차례대로
+        사요.
       </p>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-slate-500 tabular-nums">{selectedIds.length}개 선택</span>
