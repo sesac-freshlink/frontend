@@ -183,3 +183,67 @@ export function useConfirmPayment(orderId: number) {
     onSettled: () => queryClient.invalidateQueries({ queryKey: orderKey(orderId) }),
   })
 }
+
+/**
+ * 선착순 대기열 (order-service, 오픈런 문서 2장).
+ * WAITING = 줄에서 기다림, ADMITTED = 입장권 있음(주문 화면으로), SOLD_OUT = 남은 수량 0,
+ * NOT_IN_QUEUE = 줄에 없음(그만 기다렸거나 순번 조회가 30초 끊겨 빠짐)
+ */
+export type QueueStatus = 'WAITING' | 'ADMITTED' | 'SOLD_OUT' | 'NOT_IN_QUEUE'
+
+/** 줄 서기·내 순번 응답. 시각은 +09:00 */
+export interface QueueStatusResponse {
+  storeId: number
+  productId: number
+  status: QueueStatus
+  /** 1부터 센 내 순번 (WAITING 일 때만) */
+  position: number | null
+  /** 내 앞에 남은 사람 수 (WAITING 일 때만) */
+  ahead: number | null
+  /** 지금 줄에 선 사람 수 */
+  waiting: number
+  /** 지금 더 살 수 있는 수량. 알 수 없으면 null */
+  remaining: number | null
+  /** 입장권 만료 시각 (ADMITTED 일 때만). 이때까지 [결제하기]를 눌러야 한다 */
+  ticketExpiresAt: string | null
+  serverTime: string
+}
+
+const queuePath = (productId: number) => `/orders/queue/${productId}`
+const queueKey = (storeId: number, productId: number) => ['customer', 'queue', storeId, productId]
+
+/** 줄 서기. 이미 서 있으면 원래 자리 그대로다 */
+export function useJoinQueue(storeId: number, productId: number) {
+  return useMutation({
+    mutationFn: async () =>
+      (await api.post<QueueStatusResponse>(queuePath(productId), null, { params: { storeId } }))
+        .data,
+  })
+}
+
+/** 내 순번 (선착순 대기). 기다리는 동안만 2.5초마다 다시 읽는다 (입장·품절·줄에서 빠지면 멈춘다) */
+export function useQueueStatus(storeId: number, productId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: queueKey(storeId, productId),
+    queryFn: async () =>
+      (
+        await api.get<QueueStatusResponse>(`${queuePath(productId)}/me`, {
+          params: { storeId },
+        })
+      ).data,
+    enabled,
+    refetchInterval: (query) =>
+      query.state.data?.status === 'WAITING' ? POLL_MS.firstComeQueue : false,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: false,
+  })
+}
+
+/** 그만 기다리기 */
+export function useLeaveQueue(storeId: number, productId: number) {
+  return useMutation({
+    mutationFn: async () => {
+      await api.delete(`${queuePath(productId)}/me`, { params: { storeId } })
+    },
+  })
+}
