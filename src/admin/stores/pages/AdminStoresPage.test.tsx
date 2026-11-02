@@ -435,7 +435,11 @@ describe('점포 상세 값·이미지 (A-02 수정 모달)', () => {
     const file = new File(['jpg'], 'store.jpg', { type: 'image/jpeg' })
     await userEvent.upload(dialog.getByLabelText('이미지 올리기'), file)
 
-    await waitFor(() => expect(post).toHaveBeenCalledWith('/admin/stores/1/image-upload-url'))
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith('/admin/stores/1/image-upload-url', {
+        contentType: 'image/jpeg',
+      }),
+    )
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(issued.uploadUrl, {
         method: 'PUT',
@@ -456,15 +460,63 @@ describe('점포 상세 값·이미지 (A-02 수정 모달)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('JPG 가 아니면 올리지 않고 안내한다', async () => {
+  it('PNG 를 고르면 image/png 로 업로드 주소를 받아 그 형식으로 올리고, 저장 때 png 키를 보낸다', async () => {
+    const pngIssued: StoreImageUploadUrl = {
+      ...issued,
+      uploadUrl:
+        'https://bucket.s3.ap-northeast-2.amazonaws.com/images/stores/1/abc.png?X-Amz-Expires=300',
+      imageKey: 'images/stores/1/abc.png',
+      imageUrl: '/images/stores/1/abc.png',
+      contentType: 'image/png',
+    }
+    get.mockResolvedValue(pageOf([gangnam]))
+    post.mockResolvedValue({ data: pngIssued })
+    patch.mockResolvedValue({ data: gangnam })
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    const dialog = await openEdit('프레시 강남점')
+    const file = new File(['png'], 'store.png', { type: 'image/png' })
+    await userEvent.upload(dialog.getByLabelText('이미지 올리기'), file)
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith('/admin/stores/1/image-upload-url', {
+        contentType: 'image/png',
+      }),
+    )
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(pngIssued.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/png' },
+        body: file,
+      }),
+    )
+    await userEvent.click(dialog.getByRole('button', { name: '저장' }))
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith('/admin/stores/1', {
+        imageKey: 'images/stores/1/abc.png',
+      }),
+    )
+    vi.unstubAllGlobals()
+  })
+
+  it('파일 고르는 창은 JPG·PNG 를 보여 준다', async () => {
+    get.mockResolvedValue(pageOf([gangnam]))
+    renderPage()
+    const dialog = await openEdit('프레시 강남점')
+
+    expect(dialog.getByLabelText('이미지 올리기')).toHaveAttribute('accept', 'image/jpeg,image/png')
+  })
+
+  it('JPG·PNG 가 아니면 올리지 않고 안내한다', async () => {
     get.mockResolvedValue(pageOf([gangnam]))
     renderPage()
     const dialog = await openEdit('프레시 강남점')
     fireEvent.change(dialog.getByLabelText('이미지 올리기'), {
-      target: { files: [new File(['png'], 'store.png', { type: 'image/png' })] },
+      target: { files: [new File(['gif'], 'store.gif', { type: 'image/gif' })] },
     })
 
-    expect(await dialog.findByRole('alert')).toHaveTextContent('JPG 이미지만 올릴 수 있어요')
+    expect(await dialog.findByRole('alert')).toHaveTextContent('JPG나 PNG 이미지만 올릴 수 있어요')
     expect(post).not.toHaveBeenCalled()
   })
 

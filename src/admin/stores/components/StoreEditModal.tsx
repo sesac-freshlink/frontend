@@ -15,7 +15,13 @@ import { describedBy, inputClass } from '@/auth/components/fieldStyles'
 import { REGIONS } from '@/auth/regions'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
-import { type AdminStore, STORE_IMAGE_TYPE, useUpdateAdminStore, useUploadStoreImage } from '../api'
+import {
+  type AdminStore,
+  STORE_IMAGE_TYPES,
+  isStoreImageType,
+  useUpdateAdminStore,
+  useUploadStoreImage,
+} from '../api'
 import {
   buildStorePatch,
   type StoreEditForm,
@@ -85,12 +91,13 @@ export function StoreEditModal({ store, onClose }: StoreEditModalProps) {
     e.target.value = ''
     if (!file) return
     setImageError(null)
-    if (file.type !== STORE_IMAGE_TYPE) {
-      setImageError('JPG 이미지만 올릴 수 있어요')
+    const contentType = file.type
+    if (!isStoreImageType(contentType)) {
+      setImageError('JPG나 PNG 이미지만 올릴 수 있어요')
       return
     }
     try {
-      const issued = await upload.mutateAsync({ storeId: store.storeId, file })
+      const issued = await upload.mutateAsync({ storeId: store.storeId, file, contentType })
       setImage({ imageKey: issued.imageKey, previewUrl: URL.createObjectURL(file) })
     } catch {
       setImageError('이미지를 올리지 못했어요. 다시 시도해 주세요')
@@ -257,7 +264,7 @@ export function StoreEditModal({ store, onClose }: StoreEditModalProps) {
               {image ? '다른 이미지 고르기' : '이미지 올리기'}
               <input
                 type="file"
-                accept={STORE_IMAGE_TYPE}
+                accept={STORE_IMAGE_TYPES.join(',')}
                 onChange={(e) => void onPickImage(e)}
                 disabled={upload.isPending}
                 className="sr-only"
@@ -265,7 +272,7 @@ export function StoreEditModal({ store, onClose }: StoreEditModalProps) {
             </label>
           </div>
           <p className="text-xs text-slate-400">
-            JPG만 올릴 수 있어요. 저장을 눌러야 점포에 반영돼요
+            JPG·PNG를 올릴 수 있어요. 저장을 눌러야 점포에 반영돼요
           </p>
           {imageError && (
             <p role="alert" className="text-sm text-red-600">
