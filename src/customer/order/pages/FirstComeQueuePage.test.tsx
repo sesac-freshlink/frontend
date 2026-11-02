@@ -105,6 +105,7 @@ describe('선착순 대기 화면', () => {
     const where = await screen.findByTestId('where')
     expect(where.textContent).toMatch(/^\/customer\/orders\/new\?/)
     expect(where.textContent).toContain('available=1')
+    expect(where.textContent).toContain('firstCome=1')
     expect(where.textContent).toContain('productId=3')
   })
 

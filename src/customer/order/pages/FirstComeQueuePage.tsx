@@ -31,7 +31,7 @@ export function FirstComeQueuePage() {
 
 /** 선착순 상품은 1개만 살 수 있어 주문 화면 수량을 1로 묶는다 */
 function firstComeCheckoutPath(item: CheckoutItem): string {
-  return checkoutPath({ ...item, available: 1 })
+  return checkoutPath({ ...item, available: 1, firstCome: true })
 }
 
 function QueueView({ item }: { item: CheckoutItem }) {
