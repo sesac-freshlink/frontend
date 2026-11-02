@@ -23,6 +23,8 @@ const products: StoreProduct[] = [
     recommended: true,
     newArrival: false,
     firstCome: false,
+    // 먼 기한이라 D-day 배지는 붙지 않는다
+    nearestExpiry: '2099-12-31T23:59:59+09:00',
   },
   {
     productId: 3,
@@ -35,6 +37,7 @@ const products: StoreProduct[] = [
     recommended: false,
     newArrival: true,
     firstCome: true,
+    nearestExpiry: null,
   },
 ]
 
@@ -269,5 +272,22 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     renderAt('/customer/stores/abc')
     expect(screen.getByText('점포 주소가 올바르지 않아요.')).toBeInTheDocument()
     expect(get).not.toHaveBeenCalled()
+  })
+
+  it('유통기한이 가까운 상품에는 D-day 배지를 붙인다', async () => {
+    // 한국 날짜로 오늘 끝나는 상품
+    const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    serve(() =>
+      Promise.resolve({
+        data: [{ ...products[0], nearestExpiry: `${today}T23:59:59+09:00` }, products[1]],
+      }),
+    )
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+
+    const noodle = (await screen.findByText('매운 컵라면 115g')).closest('li')!
+    expect(within(noodle).getByLabelText('유통기한 오늘까지')).toHaveTextContent('오늘까지')
+    // 품절 상품은 기한이 없어 배지가 없다
+    const sandwich = screen.getByText('샌드위치 햄치즈').closest('li')!
+    expect(within(sandwich).queryByLabelText(/유통기한/)).not.toBeInTheDocument()
   })
 })

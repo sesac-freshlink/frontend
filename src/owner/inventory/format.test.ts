@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatDateTime,
+  formatDaysOfStock,
   formatExpiry,
   formatRate,
   formatSignedQuantity,
@@ -56,5 +57,13 @@ describe('점주 재고 표시 함수', () => {
     expect(formatSignedQuantity(10)).toBe('+10')
     expect(formatSignedQuantity(-3)).toBe('−3')
     expect(formatSignedQuantity(0)).toBe('0')
+  })
+
+  it('재고 소진 예상은 품절이면 "-", 판매가 없으면 "판매 없음", 0일이면 "오늘 소진", 그 밖에는 "약 N일"', () => {
+    expect(formatDaysOfStock(4, 19)).toBe('약 4일')
+    expect(formatDaysOfStock(0, 1)).toBe('오늘 소진')
+    expect(formatDaysOfStock(null, 10)).toBe('판매 없음')
+    expect(formatDaysOfStock(null, 0)).toBe('-')
+    expect(formatDaysOfStock(3, 0)).toBe('-')
   })
 })

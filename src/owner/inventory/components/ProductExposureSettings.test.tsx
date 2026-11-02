@@ -184,4 +184,46 @@ describe('추천·선착순 설정', () => {
     await waitFor(() => expect(del).toHaveBeenCalledWith('/owner/inventory/first-come/15'))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('상품이 없습니다'))
   })
+
+  it('여러 상품을 골라 추천을 한 번에 켜고, 끝나면 선택이 풀린다', async () => {
+    serve()
+    put.mockResolvedValue({
+      data: recommendations.map((item) => ({ ...item, recommended: true })),
+    })
+    renderSettings()
+
+    const toggleOn = await screen.findByRole('button', { name: '선택 추천 켜기' })
+    expect(toggleOn).toBeDisabled()
+    await userEvent.click(screen.getByRole('checkbox', { name: '전체 선택' }))
+    expect(screen.getByText('2개 선택')).toBeInTheDocument()
+    await userEvent.click(toggleOn)
+
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith('/owner/inventory/recommendations', {
+        productIds: [15, 12],
+        recommended: true,
+      }),
+    )
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('2개 상품을 추천했어요'))
+    expect(screen.getByText('0개 선택')).toBeInTheDocument()
+  })
+
+  it('하나만 골라 추천을 끌 수 있고, 실패하면 서버 메시지를 띄운다', async () => {
+    serve()
+    put.mockRejectedValue(serverError(404, 'PRODUCT_NOT_FOUND', '상품이 없습니다'))
+    renderSettings()
+
+    await userEvent.click(await screen.findByRole('checkbox', { name: '매운 컵라면 115g 선택' }))
+    await userEvent.click(screen.getByRole('button', { name: '선택 추천 끄기' }))
+
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith('/owner/inventory/recommendations', {
+        productIds: [15],
+        recommended: false,
+      }),
+    )
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('상품이 없습니다'))
+    // 실패하면 선택을 그대로 둔다
+    expect(screen.getByText('1개 선택')).toBeInTheDocument()
+  })
 })

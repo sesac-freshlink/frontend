@@ -6,7 +6,10 @@ import { formatDateTime, formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
 import { useStoreProduct, type StoreProductDetail } from '../api'
+import { ExpiryBadge } from '../components/ExpiryBadge'
 import { ProductBadges } from '../components/ProductBadges'
+import { SimilarProducts } from '../components/SimilarProducts'
+import { queuePath } from '../firstComeQueue'
 import { useRestockSubscription, useToggleRestock } from '../restock'
 import { useStoreName } from '../useStoreName'
 
@@ -14,6 +17,7 @@ import { useStoreName } from '../useStoreName'
  * U-10 고객 상품 상세 (/customer/stores/:storeId/products/:productId). 가격·남은 수량·먼저 받게 될 상품의 유통기한·점포를
  * 보여 주고, 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때만 읽는다.
  * 품절이면 "재입고 알림 받기"로 notification-service 에 신청한다(다시 입고되면 화면 알림이 한 번 온다)
+ * 선착순 상품이면 구매하기가 주문 화면 대신 대기 화면(경우님)으로 간다. 같은 카테고리 상품을 아래에 보여 준다
  */
 export function StoreProductDetailPage() {
   const { storeId: rawStore, productId: rawProduct } = useParams()
@@ -79,10 +83,10 @@ interface BodyProps {
 
 function DetailBody({ product, storeId, storeName }: BodyProps) {
   // 점포 이름은 점포 검색에서 받아 온다. 주소로 바로 들어와 이름을 모르면 주문 화면에 넘길 수 없다
-  const buyPath =
+  const item =
     product.soldOut || storeName === undefined
       ? undefined
-      : checkoutPath({
+      : {
           storeId,
           storeName,
           productId: product.productId,
@@ -90,7 +94,9 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
           price: product.price,
           available: product.availableQuantity,
           ...(product.imageUrl !== null && { imageUrl: product.imageUrl }),
-        })
+        }
+  // 선착순 상품은 경우님 대기 화면에서 줄을 선 뒤 주문 화면으로 간다(값은 주문 화면과 같다)
+  const buyPath = item && (product.firstCome ? queuePath(item) : checkoutPath(item))
 
   return (
     <div className="space-y-5">
@@ -130,8 +136,11 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
               유통기한
             </dt>
             <dd className="text-right">
-              <span className="font-medium text-slate-900 tabular-nums">
-                {formatDateTime(product.nearestExpiry)}까지
+              <span className="flex items-center justify-end gap-1.5">
+                <ExpiryBadge nearestExpiry={product.nearestExpiry} />
+                <span className="font-medium text-slate-900 tabular-nums">
+                  {formatDateTime(product.nearestExpiry)}까지
+                </span>
               </span>
               <span className="block text-xs text-slate-400">유통기한이 빠른 상품부터 드려요</span>
             </dd>
@@ -147,12 +156,19 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
       </dl>
 
       {buyPath ? (
-        <Link
-          to={buyPath}
-          className="block rounded-lg bg-emerald-600 py-3 text-center text-sm font-medium text-white"
-        >
-          구매하기
-        </Link>
+        <div className="space-y-2">
+          <Link
+            to={buyPath}
+            className="block rounded-lg bg-emerald-600 py-3 text-center text-sm font-medium text-white"
+          >
+            구매하기
+          </Link>
+          {product.firstCome && (
+            <p className="text-center text-sm text-slate-500">
+              선착순 상품이라 줄을 선 뒤 차례대로 살 수 있어요.
+            </p>
+          )}
+        </div>
       ) : (
         <div className="space-y-2 text-center">
           <button
@@ -173,6 +189,13 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
           )}
         </div>
       )}
+
+      <SimilarProducts
+        storeId={storeId}
+        productId={product.productId}
+        category={product.category}
+        autoOpen={product.soldOut}
+      />
     </div>
   )
 }

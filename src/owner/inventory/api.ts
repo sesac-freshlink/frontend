@@ -25,6 +25,10 @@ export interface InventoryItem {
   lowStock: boolean
   /** 점주 상품 메모가 있으면 true */
   hasMemo: boolean
+  /** 재고 소진 예상: 최근 7일 순판매(판매 − 환불)의 하루 평균(소수 첫째 자리). 판매가 없으면 0 */
+  dailySales: number
+  /** 지금 구매 가능 수량이 그 속도로 며칠 버티는지(내림). 최근 7일 판매가 없으면 null */
+  daysOfStock: number | null
 }
 
 /** S-10 상태 필터. 여러 개면 모두 만족하는 상품만 */
@@ -387,6 +391,34 @@ export function useDisposeLot() {
   })
 }
 
+/** 경과 lot 한 번에 폐기 결과(202). inventory-service ExpiredDisposalResponse 와 같은 모양 */
+export interface ExpiredDisposalResult {
+  /** 요청한 lot 수 */
+  lotCount: number
+  /** 요청한 수량 합 */
+  quantity: number
+  items: DisposeResponse[]
+}
+
+/**
+ * S-32 경과 lot 한 번에 폐기 요청. 서버가 기한이 지난 lot 마다 폐기 가능 수량 전부를 요청하고,
+ * 이미 요청해 두고 처리 전인 수량은 뺀다. 수량은 쪽지 처리 뒤 바뀌므로 단건 폐기와 같은 목록을 다시 받는다
+ */
+export function useDisposeExpired() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () =>
+      (await api.post<ExpiredDisposalResult>('/owner/inventory/disposals/expired')).data,
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['owner', 'expiring'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'disposals'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'expiryCalendar'] }),
+      ]),
+  })
+}
+
 /**
  * S-33 폐기 요청 이력 (최신순, 최근 100건). 202 로 접수된 요청이 DONE·SKIPPED 로 끝나는 것을 보여 주기 위해
  * 임박 목록과 같은 주기로 다시 읽는다
@@ -470,6 +502,19 @@ export function useSetRecommendation() {
           : await api.delete<RecommendationItem>(url)
       ).data
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['owner', 'recommendations'] }),
+  })
+}
+
+/**
+ * 추천상품 여러 개를 한 번에 켜거나 끈다(1~100개). 없는 상품이 하나라도 섞이면 서버가 아무것도 바꾸지 않고 404 다.
+ * 같은 요청을 다시 보내도 결과가 같다
+ */
+export function useSetRecommendations() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { productIds: number[]; recommended: boolean }) =>
+      (await api.put<RecommendationItem[]>('/owner/inventory/recommendations', body)).data,
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['owner', 'recommendations'] }),
   })
 }

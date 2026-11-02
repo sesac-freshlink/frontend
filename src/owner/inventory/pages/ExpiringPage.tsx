@@ -4,6 +4,7 @@ import { cn } from '@/shared/ui/cn'
 import { apiErrorMessage, useExpiring, type ExpiringLot } from '../api'
 import { DisposalHistory } from '../components/DisposalHistory'
 import { DisposeConfirmDialog } from '../components/DisposeConfirmDialog'
+import { DisposeExpiredDialog } from '../components/DisposeExpiredDialog'
 import { ExpiryCalendar } from '../components/ExpiryCalendar'
 import { LotStatusBadge } from '../components/LotDetailPanel'
 import { TabButton } from '../components/TabButton'
@@ -14,7 +15,8 @@ type Tab = 'imminent' | 'expired' | 'calendar'
 /**
  * S-30·S-32 유통기한 관리. 임박(24시간 이내)·경과 lot 을 탭으로 나누고, 골라서 폐기 요청한다.
  * 폐기 수량은 lot 의 폐기 가능 수량 전량이다(부분 폐기는 미정).
- * 달력 탭은 달마다 기한이 끝나는 lot 을 날짜 칸에 보여 준다(날짜를 누르면 그날 lot 목록)
+ * 달력 탭은 달마다 기한이 끝나는 lot 을 날짜 칸에 보여 준다(날짜를 누르면 그날 lot 목록).
+ * 경과 탭에서는 고르지 않고 경과 lot 전부를 한 번에 폐기 요청할 수도 있다
  */
 export function ExpiringPage() {
   const expiring = useExpiring()
@@ -22,6 +24,7 @@ export function ExpiringPage() {
   const [tab, setTab] = useState<Tab | null>(null)
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set())
   const [confirming, setConfirming] = useState(false)
+  const [confirmingAll, setConfirmingAll] = useState(false)
 
   const lots = expiring.data ?? []
   const imminent = lots.filter((lot) => !lot.expired)
@@ -30,6 +33,7 @@ export function ExpiringPage() {
   const rows = activeTab === 'expired' ? expired : activeTab === 'imminent' ? imminent : []
   // 폴링으로 목록이 바뀌면 사라졌거나 폐기할 수 없게 된 lot 은 선택에서 빠진다
   const selectedLots = rows.filter((lot) => selected.has(lot.lotId) && lot.disposableQuantity > 0)
+  const disposableExpired = expired.filter((lot) => lot.disposableQuantity > 0)
 
   const changeTab = (next: Tab) => {
     setTab(next)
@@ -66,14 +70,26 @@ export function ExpiringPage() {
           </p>
         </div>
         {activeTab !== 'calendar' && (
-          <button
-            type="button"
-            disabled={selectedLots.length === 0}
-            onClick={() => setConfirming(true)}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:hover:bg-red-600"
-          >
-            선택 폐기 ({selectedLots.length})
-          </button>
+          <div className="flex gap-2">
+            {activeTab === 'expired' && (
+              <button
+                type="button"
+                disabled={disposableExpired.length === 0}
+                onClick={() => setConfirmingAll(true)}
+                className="rounded-lg border border-red-600 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:hover:bg-transparent"
+              >
+                경과 전부 폐기 ({disposableExpired.length})
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={selectedLots.length === 0}
+              onClick={() => setConfirming(true)}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:hover:bg-red-600"
+            >
+              선택 폐기 ({selectedLots.length})
+            </button>
+          </div>
         )}
       </div>
 
@@ -109,6 +125,15 @@ export function ExpiringPage() {
       )}
 
       {confirming && <DisposeConfirmDialog lots={selectedLots} onClose={closeDialog} />}
+      {confirmingAll && (
+        <DisposeExpiredDialog
+          lots={disposableExpired}
+          onClose={() => {
+            setConfirmingAll(false)
+            setSelected(new Set())
+          }}
+        />
+      )}
     </section>
   )
 }

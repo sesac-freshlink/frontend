@@ -11,6 +11,7 @@ import {
   type StoreProduct,
   type StoreProductSort,
 } from '../api'
+import { ExpiryBadge } from '../components/ExpiryBadge'
 import { ProductBadges } from '../components/ProductBadges'
 import { useStoreName } from '../useStoreName'
 
@@ -235,7 +236,10 @@ function ProductRow({ product, to }: { product: StoreProduct; to?: string }) {
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{product.name}</span>
         <span className="block text-xs text-slate-400">{product.category}</span>
-        <ProductBadges product={product} className="mt-1" />
+        <span className="mt-1 flex flex-wrap items-center gap-1">
+          <ExpiryBadge nearestExpiry={product.nearestExpiry} />
+          <ProductBadges product={product} />
+        </span>
       </span>
       <span className="shrink-0 text-right">
         <span className="block font-semibold tabular-nums">{formatWon(product.price)}</span>

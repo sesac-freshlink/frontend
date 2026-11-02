@@ -27,6 +27,8 @@ const items: InventoryItem[] = [
     safetyStock: 5,
     lowStock: false,
     hasMemo: true,
+    dailySales: 4.3,
+    daysOfStock: 4,
   },
   {
     productId: 12,
@@ -44,6 +46,8 @@ const items: InventoryItem[] = [
     safetyStock: 12,
     lowStock: true,
     hasMemo: false,
+    dailySales: 5,
+    daysOfStock: 2,
   },
   {
     productId: 3,
@@ -61,6 +65,8 @@ const items: InventoryItem[] = [
     safetyStock: 5,
     lowStock: true,
     hasMemo: false,
+    dailySales: 0,
+    daysOfStock: null,
   },
 ]
 
@@ -542,5 +548,22 @@ describe('검색·필터·페이지 (서버가 거르고 자른다)', () => {
 
     await waitFor(() => expect(shownNames()).toEqual(['매운 컵라면 115g']))
     expect(screen.getByRole('status')).toHaveTextContent('안전재고보다 적은 상품 2개')
+  })
+
+  it('소진 예상 칸에 최근 7일 판매 속도로 며칠 버티는지 보여 주고, 2일 이하면 강조한다', async () => {
+    get.mockImplementation(serveInventory(items))
+    renderPage()
+
+    const noodle = (await screen.findByText('매운 컵라면 115g')).closest('tr')!
+    const noodleCell = within(noodle).getByText('약 4일')
+    expect(noodleCell).toHaveAttribute('title', '최근 7일 하루 평균 4.3개 판매')
+    expect(noodleCell).not.toHaveClass('text-orange-700')
+
+    const milk = screen.getByText('흰 우유 500ml').closest('tr')!
+    expect(within(milk).getByText('약 2일')).toHaveClass('text-orange-700')
+
+    // 품절이면 남은 일수를 세지 않는다
+    const sandwich = screen.getByText('샌드위치 햄치즈').closest('tr')!
+    expect(within(sandwich).queryByText('판매 없음')).not.toBeInTheDocument()
   })
 })

@@ -8,6 +8,7 @@ import type {
   DisposalStatus,
   DisposeRequest,
   DisposeResponse,
+  ExpiredDisposalResult,
   ExpiringLot,
   ExpiryCalendar,
   ExpiryCalendarLot,
@@ -19,6 +20,7 @@ import type {
   LedgerType,
   ProductMemo,
   ProductStats,
+  RecommendationItem,
   SafetyStockItem,
   SalesRankItem,
   SalesRanking,
@@ -34,8 +36,14 @@ import { salesHandlers } from './salesHandlers'
  * 백엔드가 나오기 전까지 쓰는 가짜 API. 실제 API 명세(Swagger)가 나오면 응답 모양을 맞춘다.
  * 화면 담당자가 자기 API 핸들러를 여기에 추가한다.
  */
-/** 안전재고 두 값(safetyStock·lowStock)과 hasMemo 는 응답할 때 safetyStocks·memos 로 채운다 */
-const inventory: Omit<InventoryItem, 'safetyStock' | 'lowStock' | 'hasMemo'>[] = [
+/**
+ * 안전재고 두 값(safetyStock·lowStock)과 hasMemo 는 응답할 때 safetyStocks·memos 로 채운다.
+ * 재고 소진 예상(dailySales·daysOfStock)은 salesPace 로 채운다
+ */
+const inventory: Omit<
+  InventoryItem,
+  'safetyStock' | 'lowStock' | 'hasMemo' | 'dailySales' | 'daysOfStock'
+>[] = [
   {
     productId: 1,
     productCode: 'P001',
@@ -79,6 +87,12 @@ const inventory: Omit<InventoryItem, 'safetyStock' | 'lowStock' | 'hasMemo'>[] =
     expiredLotCount: 0,
   },
 ]
+
+/** 가짜 재고 소진 예상(최근 7일 하루 평균 순판매·남은 일수). 없는 상품은 판매 없음(0, null) */
+const salesPace: Record<number, Pick<InventoryItem, 'dailySales' | 'daysOfStock'>> = {
+  1: { dailySales: 4.3, daysOfStock: 4 },
+  2: { dailySales: 5.0, daysOfStock: 2 },
+}
 
 /** S-40 점포 안전재고. 정하지 않은 상품은 5. 바나나우유는 12로 정해 두어 처음부터 부족 배지가 보인다 */
 const DEFAULT_SAFETY_STOCK = 5
@@ -296,6 +310,12 @@ let disposals: DisposalHistoryItem[] = [
   },
 ]
 
+/** 오늘(한국 날짜)부터 days 일 뒤 23:59:59(+09:00). 가짜 유통기한이 화면의 D-day 배지로 보이게 지금 기준으로 만든다 */
+function kstEndOfDay(days: number): string {
+  const date = new Date(Date.now() + 9 * 60 * 60 * 1000 + days * 24 * 60 * 60 * 1000)
+  return `${date.toISOString().slice(0, 10)}T23:59:59+09:00`
+}
+
 /** U-10 점포 상품. 점포마다 같은 목록을 준다. 상품 1~3 은 orderHandlers 의 상품과 같아 가짜 주문까지 이어진다 */
 /** 가짜 최근 7일 순판매. 추천순(POPULAR) 정렬에 쓴다 */
 const storeProductSold: Record<number, number> = { 1: 12, 2: 7, 3: 3 }
@@ -311,6 +331,7 @@ const storeProducts: StoreProduct[] = [
     recommended: true,
     newArrival: false,
     firstCome: false,
+    nearestExpiry: kstEndOfDay(1),
   },
   {
     productId: 1,
@@ -323,6 +344,7 @@ const storeProducts: StoreProduct[] = [
     recommended: false,
     newArrival: true,
     firstCome: false,
+    nearestExpiry: kstEndOfDay(0),
   },
   {
     productId: 3,
@@ -335,6 +357,7 @@ const storeProducts: StoreProduct[] = [
     recommended: false,
     newArrival: false,
     firstCome: true,
+    nearestExpiry: kstEndOfDay(5),
   },
   {
     productId: 4,
@@ -347,6 +370,7 @@ const storeProducts: StoreProduct[] = [
     recommended: false,
     newArrival: false,
     firstCome: false,
+    nearestExpiry: null,
   },
   {
     productId: 5,
@@ -359,6 +383,7 @@ const storeProducts: StoreProduct[] = [
     recommended: true,
     newArrival: true,
     firstCome: false,
+    nearestExpiry: null,
   },
 ]
 
@@ -563,6 +588,52 @@ function toSafetyStockItem(productId: number): SafetyStockItem | undefined {
   }
 }
 
+/**
+ * S-32 가짜 폐기 접수: 이력에 REQUESTED 로 남기고 1초 뒤 DONE 으로 바꾸며 lot 수량을 줄인다
+ * (실서버의 DISPOSE 쪽지 처리 흉내). 단건 폐기와 경과 lot 한 번에 폐기가 같이 쓴다
+ */
+function mockDispose(lot: ExpiringLot, quantity: number): DisposeResponse {
+  const response: DisposeResponse = {
+    disposalId: nextDisposalId++,
+    lotId: lot.lotId,
+    quantity,
+  }
+  const createdAt = new Date().toISOString()
+  disposals = [
+    {
+      disposalId: response.disposalId,
+      lotId: lot.lotId,
+      productId: lot.productId,
+      productName: lot.productName,
+      expiryDate: lot.expiryDate,
+      quantity,
+      status: 'REQUESTED',
+      createdAt,
+      processedAt: null,
+    },
+    ...disposals,
+  ]
+  setTimeout(() => {
+    disposals = disposals.map((item) =>
+      item.disposalId === response.disposalId
+        ? { ...item, status: 'DONE', processedAt: new Date().toISOString() }
+        : item,
+    )
+    expiring = expiring
+      .map((item) =>
+        item.lotId === lot.lotId
+          ? {
+              ...item,
+              quantity: item.quantity - quantity,
+              disposableQuantity: item.disposableQuantity - quantity,
+            }
+          : item,
+      )
+      .filter((item) => item.quantity > 0)
+  }, 1000)
+  return response
+}
+
 export const handlers = [
   // CSRF 헤더 검사는 맨 앞 (실서버 gateway 와 같게). 통과하면 다음 핸들러로 넘어간다
   csrfGuard,
@@ -573,7 +644,7 @@ export const handlers = [
       [...new Set(storeProducts.map((p) => p.category))].sort((a, b) => a.localeCompare(b, 'ko')),
     ),
   ),
-  // U-10 상품 상세. 남은 재고가 있으면 먼저 받게 될 상품의 유통기한(가짜: 모레 23:59)
+  // U-10 상품 상세. 목록 한 줄과 같은 값(먼저 받게 될 상품의 유통기한 포함)
   http.get('/api/stores/:storeId/products/:productId', ({ params }) => {
     const product = storeProducts.find((p) => p.productId === Number(params.productId))
     if (!product) {
@@ -582,11 +653,7 @@ export const handlers = [
         { status: 404 },
       )
     }
-    const expiry = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    return HttpResponse.json({
-      ...product,
-      nearestExpiry: product.soldOut ? null : `${expiry}T23:59:59+09:00`,
-    })
+    return HttpResponse.json(product)
   }),
   // 서버처럼 검색어(q)·카테고리·추천상품만·신상품만으로 거르고, 추천순이면 많이 팔린 순(같으면 이름순)
   http.get('/api/stores/:storeId/products', ({ request }) => {
@@ -620,6 +687,7 @@ export const handlers = [
         safetyStock,
         lowStock: item.availableQuantity < safetyStock,
         hasMemo: memos.has(item.productId),
+        ...(salesPace[item.productId] ?? { dailySales: 0, daysOfStock: null }),
       }
     })
     const matches = (item: InventoryItem) =>
@@ -745,6 +813,31 @@ export const handlers = [
       })),
     ),
   ),
+  // 추천상품 여러 개 한 번에. 서버처럼 없는 상품이 하나라도 있으면 아무것도 바꾸지 않고 404
+  http.put('/api/owner/inventory/recommendations', async ({ request }) => {
+    const body = (await request.json()) as { productIds: number[]; recommended: boolean }
+    const items = inventory.filter((item) => body.productIds.includes(item.productId))
+    if (body.productIds.length === 0 || items.length !== new Set(body.productIds).size) {
+      return HttpResponse.json(
+        { code: 'PRODUCT_NOT_FOUND', message: '상품이 없습니다', traceId: '' },
+        { status: 404 },
+      )
+    }
+    items.forEach((item) =>
+      body.recommended ? recommendedIds.add(item.productId) : recommendedIds.delete(item.productId),
+    )
+    return HttpResponse.json<RecommendationItem[]>(
+      items
+        .map((item) => ({
+          productId: item.productId,
+          productCode: item.productCode,
+          name: item.name,
+          category: item.category,
+          recommended: body.recommended,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko')),
+    )
+  }),
   http.put('/api/owner/inventory/recommendations/:productId', ({ params }) => {
     recommendedIds.add(Number(params.productId))
     return HttpResponse.json({ productId: Number(params.productId), recommended: true })
@@ -846,45 +939,28 @@ export const handlers = [
         { status: 400 },
       )
     }
-    const response: DisposeResponse = {
-      disposalId: nextDisposalId++,
-      lotId: lot.lotId,
-      quantity: body.quantity,
-    }
-    const createdAt = new Date().toISOString()
-    disposals = [
-      {
-        disposalId: response.disposalId,
-        lotId: lot.lotId,
-        productId: lot.productId,
-        productName: lot.productName,
-        expiryDate: lot.expiryDate,
-        quantity: body.quantity,
-        status: 'REQUESTED',
-        createdAt,
-        processedAt: null,
-      },
-      ...disposals,
-    ]
-    setTimeout(() => {
-      disposals = disposals.map((item) =>
-        item.disposalId === response.disposalId
-          ? { ...item, status: 'DONE', processedAt: new Date().toISOString() }
-          : item,
-      )
-      expiring = expiring
-        .map((item) =>
-          item.lotId === body.lotId
-            ? {
-                ...item,
-                quantity: item.quantity - body.quantity,
-                disposableQuantity: item.disposableQuantity - body.quantity,
-              }
-            : item,
-        )
-        .filter((item) => item.quantity > 0)
-    }, 1000)
+    const response = mockDispose(lot, body.quantity)
     return HttpResponse.json(response, { status: 202 })
+  }),
+  // 경과 lot 한 번에 폐기: 서버처럼 경과 lot 마다 폐기 가능 수량에서 처리 전(REQUESTED) 수량을 뺀 만큼 요청한다
+  http.post('/api/owner/inventory/disposals/expired', () => {
+    const pending = new Map<number, number>()
+    disposals
+      .filter((item) => item.status === 'REQUESTED')
+      .forEach((item) => pending.set(item.lotId, (pending.get(item.lotId) ?? 0) + item.quantity))
+    const items = expiring
+      .filter((lot) => lot.expired)
+      .map((lot) => ({ lot, quantity: lot.disposableQuantity - (pending.get(lot.lotId) ?? 0) }))
+      .filter(({ quantity }) => quantity > 0)
+      .map(({ lot, quantity }) => mockDispose(lot, quantity))
+    return HttpResponse.json<ExpiredDisposalResult>(
+      {
+        lotCount: items.length,
+        quantity: items.reduce((sum, item) => sum + item.quantity, 0),
+        items,
+      },
+      { status: 202 },
+    )
   }),
   http.get('/api/owner/disposals', ({ request }) => {
     const status = new URL(request.url).searchParams.get('status') as DisposalStatus | null
