@@ -58,6 +58,8 @@ export function findActiveStore(storeId: number): AdminStore | undefined {
 
 /** 가짜 S3 업로드 주소 (MSW가 PUT 을 받는다) */
 const MOCK_S3 = 'https://freshlink-mock-frontend.s3.ap-northeast-2.amazonaws.com'
+/** 점포 이미지 형식 → 키 확장자 (member StoreImageUploads 와 같다) */
+const MOCK_IMAGE_EXTENSIONS: Record<string, string> = { 'image/jpeg': '.jpg', 'image/png': '.png' }
 
 function seedStores(): AdminStore[] {
   return Array.from({ length: 21 }, (_, i) => seedStore(21 - i))
@@ -203,26 +205,35 @@ export const adminHandlers = [
     stores = stores.map((s) => (s.storeId === storeId ? updated : s))
     return HttpResponse.json(updated)
   }),
-  http.post('/api/admin/stores/:storeId/image-upload-url', ({ params }) => {
+  http.post('/api/admin/stores/:storeId/image-upload-url', async ({ params, request }) => {
     const storeId = Number(params.storeId)
+    // 본문이 없거나 contentType 이 없으면 서버처럼 image/jpeg
+    const req = (await request.json().catch(() => null)) as { contentType?: string } | null
+    const contentType = req?.contentType || 'image/jpeg'
+    const extension = MOCK_IMAGE_EXTENSIONS[contentType]
     const found = stores.find((s) => s.storeId === storeId)
     if (!found) return error(404, 'STORE_NOT_FOUND', '점포가 없습니다')
     if (found.status === 'PENDING') {
       return error(409, 'STORE_NOT_EDITABLE', '등록 중인 점포는 수정할 수 없습니다')
     }
-    const imageKey = `images/stores/${storeId}/${crypto.randomUUID()}.jpg`
+    if (!extension) {
+      return error(400, 'STORE_IMAGE_TYPE_INVALID', '점포 이미지는 JPG나 PNG만 올릴 수 있습니다')
+    }
+    const imageKey = `images/stores/${storeId}/${crypto.randomUUID()}${extension}`
     const body: StoreImageUploadUrl = {
       uploadUrl: `${MOCK_S3}/${imageKey}?X-Amz-Expires=300`,
       imageKey,
       imageUrl: `/${imageKey}`,
-      contentType: 'image/jpeg',
+      contentType,
       expiresAt: nowKst(),
     }
     return HttpResponse.json(body)
   }),
-  http.put(`${MOCK_S3}/images/stores/*`, ({ request }) =>
-    request.headers.get('Content-Type') === 'image/jpeg'
+  // S3 처럼 서명한 형식(키 확장자)과 Content-Type 이 다르면 거절한다
+  http.put(`${MOCK_S3}/images/stores/*`, ({ request }) => {
+    const extension = MOCK_IMAGE_EXTENSIONS[request.headers.get('Content-Type') ?? '']
+    return extension && new URL(request.url).pathname.endsWith(extension)
       ? new HttpResponse(null, { status: 200 })
-      : new HttpResponse(null, { status: 403 }),
-  ),
+      : new HttpResponse(null, { status: 403 })
+  }),
 ]

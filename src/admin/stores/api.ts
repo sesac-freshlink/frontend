@@ -56,8 +56,13 @@ export interface StoreImageUploadUrl {
   expiresAt: string
 }
 
-/** 점포 이미지 형식 (서버가 키를 .jpg 로 정하고 Content-Type image/jpeg 로 서명한다) */
-export const STORE_IMAGE_TYPE = 'image/jpeg'
+/** 점포 이미지 형식. 고른 파일 형식을 업로드 주소 요청에 보내면 서버가 .jpg·.png 키로 그 Content-Type 을 서명한다 */
+export const STORE_IMAGE_TYPES = ['image/jpeg', 'image/png'] as const
+export type StoreImageType = (typeof STORE_IMAGE_TYPES)[number]
+
+export function isStoreImageType(type: string): type is StoreImageType {
+  return (STORE_IMAGE_TYPES as readonly string[]).includes(type)
+}
 
 /** 페이지 응답 형식 (member-service API 명세 0장) */
 export interface PageResponse<T> {
@@ -112,15 +117,25 @@ export function useUpdateAdminStore() {
 }
 
 /**
- * 점포 이미지 올리기: 업로드 주소를 받고(member) 그 주소로 파일을 바로 PUT 한다(S3). 키를 돌려준다.
+ * 점포 이미지 올리기: 파일 형식(JPG·PNG)을 보내 업로드 주소를 받고(member) 그 주소로 파일을 바로 PUT 한다(S3). 키를 돌려준다.
  * S3 주소는 우리 API 가 아니라 api 인스턴스(baseURL·쿠키·CSRF 헤더)를 쓰지 않고 fetch 로 보낸다.
  * 키는 점포 수정(AD-03)의 imageKey 로 저장해야 화면에 나온다
  */
 export function useUploadStoreImage() {
   return useMutation({
-    mutationFn: async ({ storeId, file }: { storeId: number; file: File }) => {
+    mutationFn: async ({
+      storeId,
+      file,
+      contentType,
+    }: {
+      storeId: number
+      file: File
+      contentType: StoreImageType
+    }) => {
       const issued = (
-        await api.post<StoreImageUploadUrl>(`/admin/stores/${storeId}/image-upload-url`)
+        await api.post<StoreImageUploadUrl>(`/admin/stores/${storeId}/image-upload-url`, {
+          contentType,
+        })
       ).data
       const res = await fetch(issued.uploadUrl, {
         method: 'PUT',
