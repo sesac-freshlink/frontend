@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/api/client'
+import { apiErrorCode } from '@/shared/api/errors'
 import { type DatePeriod, isReversedPeriod, periodParams } from '@/shared/api/period'
 import { POLL_MS } from '@/shared/api/queryClient'
 import { isPollingStatus, type FailureReason, type OrderStatus } from './orderStatus'
@@ -232,8 +233,11 @@ export function useQueueStatus(storeId: number, productId: number, enabled: bool
         })
       ).data,
     enabled,
+    // 점주가 선착순을 끄면(404 NOT_FIRST_COME) 더 묻지 않는다. 그 밖의 일시 오류는 계속 다시 묻는다
     refetchInterval: (query) =>
-      query.state.data?.status === 'WAITING' ? POLL_MS.firstComeQueue : false,
+      query.state.data?.status === 'WAITING' && apiErrorCode(query.state.error) !== 'NOT_FIRST_COME'
+        ? POLL_MS.firstComeQueue
+        : false,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: false,
   })

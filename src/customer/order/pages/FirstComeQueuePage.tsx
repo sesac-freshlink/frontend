@@ -31,7 +31,7 @@ export function FirstComeQueuePage() {
 
 /** 선착순 상품은 1개만 살 수 있어 주문 화면 수량을 1로 묶는다 */
 function firstComeCheckoutPath(item: CheckoutItem): string {
-  return checkoutPath({ ...item, available: 1 })
+  return checkoutPath({ ...item, available: 1, firstCome: true })
 }
 
 function QueueView({ item }: { item: CheckoutItem }) {
@@ -49,6 +49,8 @@ function QueueView({ item }: { item: CheckoutItem }) {
   }, [join])
 
   const joinCode = apiErrorCode(join.error)
+  // 기다리는 중에 점주가 선착순을 껐다 (줄 설 때는 바로 주문 화면으로 가지만, 기다리는 중에는 안내를 보여 준다)
+  const ended = apiErrorCode(statusQuery.error) === 'NOT_FIRST_COME'
   const status: QueueStatusResponse | undefined = statusQuery.data ?? join.data
 
   useEffect(() => {
@@ -86,6 +88,25 @@ function QueueView({ item }: { item: CheckoutItem }) {
             다시 줄 서기
           </button>
         )}
+        <Link to={productPath} className="block text-sm text-slate-500 underline">
+          상품으로 돌아가기
+        </Link>
+      </section>
+    )
+  }
+
+  if (ended) {
+    return (
+      <section className="space-y-4 py-10 text-center">
+        <p className="font-medium text-slate-900">선착순 판매가 끝났어요</p>
+        <p className="text-sm text-slate-500">이제 줄을 서지 않고 바로 주문할 수 있어요.</p>
+        <button
+          type="button"
+          onClick={() => navigate(checkoutPath(item), { replace: true })}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white"
+        >
+          주문하기
+        </button>
         <Link to={productPath} className="block text-sm text-slate-500 underline">
           상품으로 돌아가기
         </Link>

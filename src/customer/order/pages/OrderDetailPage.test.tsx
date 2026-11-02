@@ -325,6 +325,23 @@ describe('주문·결제 화면 (U-21)', () => {
     expect(changed).not.toBe(first)
   })
 
+  it('선착순 입장권으로 온 주문은 1개만 살 수 있다고 안내하고 수량을 늘릴 수 없다', () => {
+    renderAt(
+      checkoutPath({
+        storeId: 1,
+        storeName: '프레시 강남점',
+        productId: 15,
+        productName: '매운 컵라면 115g',
+        price: 1700,
+        available: 1,
+        firstCome: true,
+      }),
+    )
+    expect(screen.getByText('선착순 상품은 한 사람이 1개만 살 수 있어요')).toBeInTheDocument()
+    expect(screen.queryByText(/한 번에 5개까지/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '수량 더하기' })).toBeDisabled()
+  })
+
   it('상품 정보가 주소에 없으면 다시 고르게 한다', () => {
     renderAt('/customer/orders/new')
     expect(

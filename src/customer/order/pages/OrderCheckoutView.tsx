@@ -70,7 +70,11 @@ export function OrderCheckoutView() {
           </button>
         </div>
       </div>
-      <p className="text-right text-xs text-slate-500">한 번에 {MAX_QUANTITY}개까지 살 수 있어요</p>
+      <p className="text-right text-xs text-slate-500">
+        {item.firstCome
+          ? '선착순 상품은 한 사람이 1개만 살 수 있어요'
+          : `한 번에 ${MAX_QUANTITY}개까지 살 수 있어요`}
+      </p>
 
       <div className="flex items-center justify-between border-t border-slate-200 pt-4">
         <span className="text-sm text-slate-500">결제 금액</span>

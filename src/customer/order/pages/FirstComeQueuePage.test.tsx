@@ -105,6 +105,7 @@ describe('선착순 대기 화면', () => {
     const where = await screen.findByTestId('where')
     expect(where.textContent).toMatch(/^\/customer\/orders\/new\?/)
     expect(where.textContent).toContain('available=1')
+    expect(where.textContent).toContain('firstCome=1')
     expect(where.textContent).toContain('productId=3')
   })
 
@@ -114,6 +115,17 @@ describe('선착순 대기 화면', () => {
     const where = await screen.findByTestId('where')
     expect(where.textContent).toMatch(/^\/customer\/orders\/new\?/)
     expect(where.textContent).not.toContain('available=1')
+  })
+
+  it('기다리는 중에 선착순이 꺼지면 판매가 끝났다고 알리고 [주문하기]로 일반 주문 화면에 간다', async () => {
+    get.mockRejectedValue(errorWith('NOT_FIRST_COME', 404))
+    renderAt(QUEUE_PATH)
+    expect(await screen.findByText('선착순 판매가 끝났어요')).toBeInTheDocument()
+    expect(get).toHaveBeenCalledTimes(1)
+    await userEvent.click(screen.getByRole('button', { name: '주문하기' }))
+    const where = await screen.findByTestId('where')
+    expect(where.textContent).toMatch(/^\/customer\/orders\/new\?/)
+    expect(where.textContent).not.toContain('firstCome=1')
   })
 
   it('이미 주문한 선착순 상품이면 이유와 주문 내역 링크를 보여 준다', async () => {

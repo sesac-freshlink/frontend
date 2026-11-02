@@ -28,6 +28,14 @@ describe('checkoutPath / parseCheckout', () => {
     expect(parseCheckout(new URL(path, 'http://x').searchParams)?.available).toBe(3)
   })
 
+  it('선착순 입장권 표시를 넘기면 함께 읽고, 없으면 칸을 만들지 않는다', () => {
+    const path = checkoutPath({ ...item, available: 1, firstCome: true })
+    expect(parseCheckout(new URL(path, 'http://x').searchParams)).toMatchObject({ firstCome: true })
+    expect(parseCheckout(new URL(checkoutPath(item), 'http://x').searchParams)).not.toHaveProperty(
+      'firstCome',
+    )
+  })
+
   it('값이 빠지거나 숫자가 아니면 null', () => {
     expect(parseCheckout(new URLSearchParams('storeId=1&productId=2'))).toBeNull()
     expect(

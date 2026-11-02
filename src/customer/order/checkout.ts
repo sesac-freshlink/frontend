@@ -16,6 +16,8 @@ export interface CheckoutItem {
   available?: number
   /** 상품 이미지 주소. 있으면 넘긴다 (주문 화면 표시용) */
   imageUrl?: string
+  /** 선착순 대기열에서 입장권을 받고 온 주문. 1개만 살 수 있다는 안내를 보여 준다 */
+  firstCome?: boolean
 }
 
 /**
@@ -32,6 +34,7 @@ export function checkoutPath(item: CheckoutItem): string {
   })
   if (item.available !== undefined) q.set('available', String(item.available))
   if (item.imageUrl) q.set('imageUrl', item.imageUrl)
+  if (item.firstCome) q.set('firstCome', '1')
   return `/customer/orders/new?${q.toString()}`
 }
 
@@ -59,6 +62,7 @@ export function parseCheckout(q: URLSearchParams): CheckoutItem | null {
     productName,
     price,
     ...(available !== undefined && { available }),
+    ...(q.get('firstCome') === '1' && { firstCome: true }),
   }
 }
 
