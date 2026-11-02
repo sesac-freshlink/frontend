@@ -45,14 +45,14 @@
 
 ```mermaid
 flowchart LR
-    U["점주 · 고객"] --> CF["CloudFront<br/>HTTPS (기본 주소 *.cloudfront.net)"]
+    U["점주 · 고객"] --> CF["CloudFront<br/>HTTPS (getfreshlink.com, ACM)"]
     CF -- "/* 화면" --> S3[("S3 비공개 버킷<br/>OAC")]
     CF -- "/api/*" --> ALB["ALB"] --> GW["gateway (EKS)"]
 ```
 
 화면과 API를 **같은 CloudFront 주소**로 묶었기 때문에 **CORS 설정이 필요 없다.** 프론트에서는 API를 항상 상대 경로 `/api/...`로 부른다.
 
-dev 주소는 infra `envs/dev/persistent`의 `frontend_url` 출력값이다. PR에서는 `frontend-deploy`가 검사·빌드만 하고, `dev`에 합쳐질 때 올린다. 버킷·배포 ID·Role은 레포 Variables(`DEV_*`)에 있다(넣는 법: infra README 4-8).
+dev 주소는 https://dev.getfreshlink.com, prod 주소는 https://getfreshlink.com 이다(infra `envs/<env>/persistent`의 `frontend_url` 출력값, infra README 4-21). 예전 `*.cloudfront.net` 주소도 열리지만 구글 로그인은 새 주소에서만 된다. PR에서는 `frontend-deploy`가 검사·빌드만 하고, `dev`에 합쳐질 때 올린다. 버킷·배포 ID·Role은 레포 Variables(`DEV_*`)에 있다(넣는 법: infra README 4-8).
 
 주의할 점:
 
