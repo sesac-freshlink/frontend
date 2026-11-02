@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -37,6 +37,7 @@ function renderAt(path: string, state?: { storeName: string }) {
         element: <StoreProductDetailPage />,
       },
       { path: '/customer/orders/:id', element: <p>주문·결제 화면</p> },
+      { path: '/customer/stores/:storeId/products/:productId/queue', element: <p>대기 화면</p> },
     ],
     { initialEntries: [state ? { pathname: path, state } : path] },
   )
@@ -174,5 +175,73 @@ describe('고객 상품 상세 (U-10)', () => {
     renderAt('/customer/stores/1/products/abc')
     expect(screen.getByText('상품 주소가 올바르지 않아요.')).toBeInTheDocument()
     expect(get).not.toHaveBeenCalled()
+  })
+
+  it('팔고 있으면 같은 카테고리 상품은 버튼을 눌러야 읽고, 지금 상품과 품절은 빼고 보여 준다', async () => {
+    const others = [
+      milk,
+      { ...milk, productId: 13, name: '딸기 우유 200ml' },
+      { ...milk, productId: 14, name: '초코 우유 200ml', availableQuantity: 0, soldOut: true },
+    ]
+    get.mockImplementation((url: string) =>
+      Promise.resolve({ data: url === '/stores/1/products' ? others : milk }),
+    )
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    await userEvent.click(await screen.findByRole('button', { name: /같은 카테고리 상품 보기/ }))
+
+    const section = await screen.findByRole('region', { name: '같은 카테고리 상품' })
+    expect(get).toHaveBeenCalledWith('/stores/1/products', {
+      params: { category: '유제품', sort: 'POPULAR' },
+    })
+    expect(within(section).getByRole('link', { name: /딸기 우유 200ml/ })).toHaveAttribute(
+      'href',
+      '/customer/stores/1/products/13',
+    )
+    expect(within(section).queryByText('흰 우유 500ml')).not.toBeInTheDocument()
+    expect(within(section).queryByText('초코 우유 200ml')).not.toBeInTheDocument()
+  })
+
+  it('품절이면 대신 살 같은 카테고리 상품을 바로 보여 준다', async () => {
+    const soldOut = { ...milk, availableQuantity: 0, soldOut: true, nearestExpiry: null }
+    get.mockImplementation((url: string) =>
+      Promise.resolve(
+        url === '/stores/1/products'
+          ? { data: [{ ...milk, productId: 13, name: '딸기 우유 200ml' }] }
+          : url === '/notifications/restock/12'
+            ? { data: { storeId: 1, productId: 12, subscribed: false } }
+            : { data: soldOut },
+      ),
+    )
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    const section = await screen.findByRole('region', { name: '같은 카테고리 상품' })
+    expect(within(section).getByText('딸기 우유 200ml')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /같은 카테고리 상품 보기/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('선착순 상품의 구매하기는 주문 화면과 같은 값을 담아 대기 화면으로 보낸다', async () => {
+    get.mockResolvedValue({ data: { ...milk, firstCome: true } })
+    const router = renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    expect(
+      await screen.findByText('선착순 상품이라 줄을 선 뒤 차례대로 살 수 있어요.'),
+    ).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('link', { name: '구매하기' }))
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/customer/stores/1/products/12/queue'),
+    )
+    expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual({
+      storeId: '1',
+      storeName: '프레시 강남점',
+      productId: '12',
+      productName: '흰 우유 500ml',
+      price: '1900',
+      available: '7',
+      imageUrl: 'https://img.example/P012.jpg',
+    })
   })
 })

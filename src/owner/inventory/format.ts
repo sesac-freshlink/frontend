@@ -39,6 +39,21 @@ export function statsPeriod(days: number, now: Date = new Date()): { from: strin
   }
 }
 
+/** 재고 소진 예상이 이 일수 이하면 화면이 강조한다(곧 떨어진다) */
+export const SOON_OUT_DAYS = 2
+
+/**
+ * 재고 소진 예상(최근 7일 하루 평균 순판매 기준) 표시: 품절이면 "-", 최근 판매가 없으면 "판매 없음",
+ * 하루도 못 버티면 "오늘 소진", 그 밖에는 "약 N일"
+ */
+export function formatDaysOfStock(daysOfStock: number | null, availableQuantity: number): string {
+  if (availableQuantity === 0) return '-'
+  // 서버가 아직 이 값을 주지 않는 버전이면(필드 없음) 판매 없음과 같게 본다
+  if (typeof daysOfStock !== 'number') return '판매 없음'
+  if (daysOfStock === 0) return '오늘 소진'
+  return `약 ${daysOfStock}일`
+}
+
 /** 변동 수량은 부호를 항상 붙인다: 10 → "+10", -3 → "−3" */
 export function formatSignedQuantity(quantity: number): string {
   if (quantity > 0) return `+${quantity}`

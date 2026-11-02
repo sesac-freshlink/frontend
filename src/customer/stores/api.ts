@@ -71,13 +71,12 @@ export interface StoreProduct {
   newArrival: boolean
   /** 점주가 정한 선착순 상품. 구매는 대기열을 거친다 */
   firstCome: boolean
-}
-
-/** U-10 상품 상세. inventory-service StoreProductDetailResponse 와 같은 모양 */
-export interface StoreProductDetail extends StoreProduct {
   /** 먼저 받게 될 상품의 유통기한(+09:00). 유통기한 빠른 것부터 준다. 품절이면 null */
   nearestExpiry: string | null
 }
+
+/** U-10 상품 상세. inventory-service StoreProductDetailResponse 와 같은 모양(목록 한 줄과 필드가 같다) */
+export type StoreProductDetail = StoreProduct
 
 /** U-10 상품 상세 (로그인 없이도 된다). 들어올 때만 읽는다. 살 수 있는지는 주문 때 서버가 최종 판정한다 */
 export function useStoreProduct(storeId: number, productId: number) {
@@ -124,11 +123,16 @@ export function storeProductParams(filter: StoreProductFilter): Record<string, s
  * 검색어(q)·카테고리·추천상품만·신상품만·추천순 정렬은 서버가 처리한다.
  * 폴링하지 않고 화면에 들어올 때·조건을 바꿀 때·새로고침 때만 읽는다. 살 수 있는지는 주문 때 서버가 최종 판정한다
  */
-export function useStoreProducts(storeId: number, filter: StoreProductFilter = {}) {
+export function useStoreProducts(
+  storeId: number,
+  filter: StoreProductFilter = {},
+  { enabled = true }: { enabled?: boolean } = {},
+) {
   const params = storeProductParams(filter)
   const url = `/stores/${storeId}/products`
   return useQuery({
     queryKey: ['customer', 'stores', storeId, 'products', params],
+    enabled,
     queryFn: async () =>
       (Object.keys(params).length > 0
         ? await api.get<StoreProduct[]>(url, { params })

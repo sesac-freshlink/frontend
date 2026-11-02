@@ -20,6 +20,8 @@ function item(productId: number, quantities: [number, number, number]): Inventor
     safetyStock: 5,
     lowStock: false,
     hasMemo: false,
+    dailySales: 0,
+    daysOfStock: null,
   }
 }
 

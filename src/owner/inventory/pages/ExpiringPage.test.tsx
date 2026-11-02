@@ -9,7 +9,7 @@ import type { ExpiringLot } from '../api'
 import { ExpiringPage } from './ExpiringPage'
 
 vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
 
@@ -254,5 +254,54 @@ describe('유통기한 관리 (S-30·S-32)', () => {
     await waitFor(() =>
       expect(get).toHaveBeenCalledWith('/owner/inventory/expiry-calendar', expect.anything()),
     )
+  })
+
+  it('경과 탭의 경과 전부 폐기는 고르지 않아도 한 번에 요청하고 서버가 접수한 값으로 알린다', async () => {
+    mockLots(lots)
+    post.mockResolvedValue({
+      data: {
+        lotCount: 2,
+        quantity: 12,
+        items: [
+          { disposalId: 901, lotId: 412, quantity: 10 },
+          { disposalId: 902, lotId: 413, quantity: 2 },
+        ],
+      },
+    })
+    renderPage()
+
+    const all = await screen.findByRole('button', { name: '경과 전부 폐기 (2)' })
+    await userEvent.click(all)
+    const dialog = screen.getByRole('dialog', { name: '경과 lot 전부 폐기' })
+    expect(within(dialog).getByText('12개')).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: '전부 폐기 요청' }))
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('경과 lot 2개, 12개 폐기 요청됨'),
+    )
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(post).toHaveBeenCalledWith('/owner/inventory/disposals/expired')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('이미 요청해 둔 것뿐이라 서버가 0개를 접수하면 안내 토스트를 띄운다', async () => {
+    mockLots(lots)
+    post.mockResolvedValue({ data: { lotCount: 0, quantity: 0, items: [] } })
+    renderPage()
+
+    await userEvent.click(await screen.findByRole('button', { name: /경과 전부 폐기/ }))
+    await userEvent.click(screen.getByRole('button', { name: '전부 폐기 요청' }))
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('새로 폐기할 경과 lot이 없어요.'))
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('경과 전부 폐기는 경과 탭에만 있고, 버릴 경과 lot 이 없으면 꺼져 있다', async () => {
+    mockLots(lots.map((lot) => (lot.expired ? { ...lot, disposableQuantity: 0 } : lot)))
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: '경과 전부 폐기 (0)' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('tab', { name: /임박/ }))
+    expect(screen.queryByRole('button', { name: /경과 전부 폐기/ })).not.toBeInTheDocument()
   })
 })

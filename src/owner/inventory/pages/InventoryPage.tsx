@@ -22,7 +22,7 @@ import { MemoList } from '../components/MemoList'
 import { ProductExposureSettings } from '../components/ProductExposureSettings'
 import { SafetyStockSettings } from '../components/SafetyStockSettings'
 import { TabButton } from '../components/TabButton'
-import { formatExpiry, formatWon } from '../format'
+import { formatDaysOfStock, formatExpiry, formatWon, SOON_OUT_DAYS } from '../format'
 import { useInventoryChanges } from '../useInventoryChanges'
 
 type Tab = 'stock' | 'safetyStock' | 'exposure' | 'memo'
@@ -325,6 +325,7 @@ function InventoryTable({
             <th className="px-3 py-3 text-right font-medium">예약 수량</th>
             <th className="px-3 py-3 text-right font-medium">구매 가능</th>
             <th className="px-3 py-3 text-right font-medium">가장 빠른 기한</th>
+            <th className="px-3 py-3 text-right font-medium">소진 예상</th>
             <th className="px-3 py-3 text-right font-medium">상태</th>
             <th className="px-4 py-3 text-center font-medium">메모</th>
           </tr>
@@ -391,6 +392,18 @@ function InventoryRow({ item, changed, selected, onSelect, onMemo }: RowProps) {
       </td>
       <td className="px-3 py-3 text-right text-slate-600 tabular-nums">
         {formatExpiry(item.nearestExpiry)}
+      </td>
+      <td
+        title={item.dailySales > 0 ? `최근 7일 하루 평균 ${item.dailySales}개 판매` : undefined}
+        className={cn(
+          'px-3 py-3 text-right whitespace-nowrap text-slate-600 tabular-nums',
+          item.availableQuantity > 0 &&
+            item.daysOfStock !== null &&
+            item.daysOfStock <= SOON_OUT_DAYS &&
+            'font-semibold text-orange-700',
+        )}
+      >
+        {formatDaysOfStock(item.daysOfStock, item.availableQuantity)}
       </td>
       <td className="px-3 py-3 text-right whitespace-nowrap">
         <StatusBadges
