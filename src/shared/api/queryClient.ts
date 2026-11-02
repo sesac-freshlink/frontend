@@ -13,8 +13,9 @@ export const queryClient = new QueryClient({
   },
 })
 
-/** 폴링 주기. S-15 점주 재고는 3초, 고객 주문 상세는 2초 */
+/** 폴링 주기. S-15 점주 재고는 3초, 고객 주문 상세는 2초, 선착순 대기 화면 순번은 2.5초 (오픈런 문서 2~3초) */
 export const POLL_MS = {
   ownerInventory: 3_000,
   orderDetail: 2_000,
+  firstComeQueue: 2_500,
 } as const

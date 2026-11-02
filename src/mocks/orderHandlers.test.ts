@@ -1,6 +1,6 @@
 import { getResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CustomerOrderSummary, OrderPage } from '@/customer/order/api'
+import type { CustomerOrderSummary, OrderPage, QueueStatusResponse } from '@/customer/order/api'
 import type { OwnerOrder } from '@/owner/orders/api'
 import { orderHandlers, resetOrders } from './orderHandlers'
 
@@ -161,5 +161,36 @@ describe('주문 목록 가짜 API (OR-06·OR-04 tab)', () => {
       refundStatus: 'COMPLETED',
       refund: { requestedBy: 'OWNER', reasonLabel: '매장 사정' },
     })
+  })
+})
+
+describe('선착순 대기열 가짜 API', () => {
+  beforeEach(() => resetOrders())
+
+  it('줄을 서면 앞에 3명이 있고, 순번을 읽을 때마다 줄어 0명 다음에 입장권(5분)을 준다', async () => {
+    const join = await call('/api/orders/queue/3?storeId=1', { method: 'POST' })
+    const first = (await join.json()) as QueueStatusResponse
+    expect(first).toMatchObject({ status: 'WAITING', position: 4, ahead: 3, remaining: 2 })
+    const aheads: (number | null)[] = []
+    let last = first
+    for (let i = 0; i < 4; i += 1) {
+      last = (await (await call('/api/orders/queue/3/me?storeId=1')).json()) as QueueStatusResponse
+      aheads.push(last.ahead)
+    }
+    expect(aheads).toEqual([2, 1, 0, null])
+    expect(last.status).toBe('ADMITTED')
+    expect(last.ticketExpiresAt).not.toBeNull()
+  })
+
+  it('그만 기다리면 줄에서 빠지고, 선착순이 아닌 상품은 404 NOT_FIRST_COME', async () => {
+    await call('/api/orders/queue/3?storeId=1', { method: 'POST' })
+    expect((await call('/api/orders/queue/3/me?storeId=1', { method: 'DELETE' })).status).toBe(204)
+    const me = (await (
+      await call('/api/orders/queue/3/me?storeId=1')
+    ).json()) as QueueStatusResponse
+    expect(me.status).toBe('NOT_IN_QUEUE')
+    const res = await call('/api/orders/queue/1?storeId=1', { method: 'POST' })
+    expect(res.status).toBe(404)
+    expect(await res.json()).toMatchObject({ code: 'NOT_FIRST_COME' })
   })
 })

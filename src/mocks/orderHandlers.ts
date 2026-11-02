@@ -8,6 +8,7 @@ import type {
   CustomerOrderTab,
   Order,
   OrderPage,
+  QueueStatusResponse,
 } from '@/customer/order/api'
 import type { OrderStatus } from '@/customer/order/orderStatus'
 import type {
@@ -235,8 +236,27 @@ function reasonLabel(requester: CancelRequester, reason: CancelReasonCode) {
   return list.find((r) => r.code === reason)?.label ?? reason
 }
 
+/**
+ * 선착순 대기열 (오픈런 문서 2장). 가짜 상품 중 3번(샌드위치 햄치즈)만 선착순이다 (handlers.ts firstCome 과 같다).
+ * 줄을 서면 앞에 3명이 있고, 순번을 읽을 때마다 한 명씩 줄어 0명이 되면 입장권(5분)을 준다. 남은 수량은 2개
+ */
+const FIRST_COME_PRODUCTS = new Map<number, number>([[3, 2]])
+const FAKE_AHEAD = 3
+interface FakeQueueEntry {
+  ahead: number
+  inQueue: boolean
+  ticketExpiresMs: number | null
+}
+const fakeQueues = new Map<string, FakeQueueEntry>()
+
+/** 가짜 대기열을 비운다 (테스트용) */
+export function resetQueues() {
+  fakeQueues.clear()
+}
+
 /** 가짜 주문을 처음 상태로 되돌린다 (테스트용) */
 export function resetOrders() {
+  resetQueues()
   orders.clear()
   orderIdByKey.clear()
   nextOrderId = 1
@@ -382,7 +402,74 @@ function customerOrder(o: MockOrder): CustomerOrderSummary {
   }
 }
 
+function queueStatus(
+  storeId: number,
+  productId: number,
+  entry: FakeQueueEntry | undefined,
+): QueueStatusResponse {
+  const remaining = FIRST_COME_PRODUCTS.get(productId) ?? null
+  const base = {
+    storeId,
+    productId,
+    position: null,
+    ahead: null,
+    waiting: entry?.inQueue ? entry.ahead + 1 : 0,
+    remaining,
+    ticketExpiresAt: null,
+    serverTime: kstIso(Date.now()),
+  }
+  if (entry?.ticketExpiresMs) {
+    return { ...base, status: 'ADMITTED', ticketExpiresAt: kstIso(entry.ticketExpiresMs) }
+  }
+  if (!entry?.inQueue) return { ...base, status: 'NOT_IN_QUEUE' }
+  return { ...base, status: 'WAITING', position: entry.ahead + 1, ahead: entry.ahead }
+}
+
+function notFirstCome() {
+  return HttpResponse.json(
+    { code: 'NOT_FIRST_COME', message: '선착순 상품이 아닙니다' },
+    { status: 404 },
+  )
+}
+
+const queueHandlers = [
+  http.post('/api/orders/queue/:productId', ({ params, request }) => {
+    const productId = Number(params.productId)
+    const storeId = Number(new URL(request.url).searchParams.get('storeId'))
+    if (!FIRST_COME_PRODUCTS.has(productId)) return notFirstCome()
+    const key = `${storeId}:${productId}`
+    const entry = fakeQueues.get(key)
+    if (!entry || (!entry.inQueue && !entry.ticketExpiresMs)) {
+      fakeQueues.set(key, { ahead: FAKE_AHEAD, inQueue: true, ticketExpiresMs: null })
+    }
+    return HttpResponse.json(queueStatus(storeId, productId, fakeQueues.get(key)))
+  }),
+  http.get('/api/orders/queue/:productId/me', ({ params, request }) => {
+    const productId = Number(params.productId)
+    const storeId = Number(new URL(request.url).searchParams.get('storeId'))
+    if (!FIRST_COME_PRODUCTS.has(productId)) return notFirstCome()
+    const entry = fakeQueues.get(`${storeId}:${productId}`)
+    if (entry?.inQueue) {
+      if (entry.ahead > 0) {
+        entry.ahead -= 1
+      } else {
+        entry.inQueue = false
+        entry.ticketExpiresMs = Date.now() + 5 * 60_000
+      }
+    }
+    return HttpResponse.json(queueStatus(storeId, productId, entry))
+  }),
+  http.delete('/api/orders/queue/:productId/me', ({ params, request }) => {
+    const productId = Number(params.productId)
+    const storeId = Number(new URL(request.url).searchParams.get('storeId'))
+    const entry = fakeQueues.get(`${storeId}:${productId}`)
+    if (entry) entry.inQueue = false
+    return new HttpResponse(null, { status: 204 })
+  }),
+]
+
 export const orderHandlers = [
+  ...queueHandlers,
   http.post('/api/orders', async ({ request }) => {
     const key = request.headers.get('Idempotency-Key')
     if (!key) {
