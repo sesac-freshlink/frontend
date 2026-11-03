@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="가짜 점포 이미지">
+  <rect width="320" height="180" fill="#ecfdf5"/>
+  <rect x="70" y="60" width="180" height="90" rx="6" fill="#ffffff" stroke="#059669" stroke-width="4"/>
+  <path d="M60 64 L80 34 H240 L260 64 Z" fill="#059669"/>
+  <rect x="140" y="98" width="40" height="52" fill="#a7f3d0"/>
+  <text x="160" y="56" font-family="sans-serif" font-size="16" fill="#ffffff" text-anchor="middle">FRESH</text>
+</svg>

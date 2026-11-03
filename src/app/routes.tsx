@@ -3,14 +3,19 @@ import { AdminStoresPage } from '@/admin/stores/pages/AdminStoresPage'
 import { StoreRegisterPage } from '@/admin/stores/pages/StoreRegisterPage'
 import { LoginPage } from '@/auth/pages/LoginPage'
 import { SignupPage } from '@/auth/pages/SignupPage'
+import { FirstComeQueuePage } from '@/customer/order/pages/FirstComeQueuePage'
 import { OrderDetailPage } from '@/customer/order/pages/OrderDetailPage'
+import { OrderHistoryPage } from '@/customer/order/pages/OrderHistoryPage'
 import { CustomerHomePage } from '@/customer/stores/pages/CustomerHomePage'
+import { StoreDetailPage } from '@/customer/stores/pages/StoreDetailPage'
+import { StoreProductDetailPage } from '@/customer/stores/pages/StoreProductDetailPage'
 import { StoreProductsPage } from '@/customer/stores/pages/StoreProductsPage'
 import { ExpiringPage } from '@/owner/inventory/pages/ExpiringPage'
 import { InventoryPage } from '@/owner/inventory/pages/InventoryPage'
 import { LedgerPage } from '@/owner/inventory/pages/LedgerPage'
 import { LotDetailPage } from '@/owner/inventory/pages/LotDetailPage'
 import { OwnerOrdersPage } from '@/owner/orders/pages/OwnerOrdersPage'
+import { OwnerSalesPage } from '@/owner/sales/pages/OwnerSalesPage'
 import { AdminLayout } from './layouts/AdminLayout'
 import { CustomerLayout } from './layouts/CustomerLayout'
 import { OwnerLayout } from './layouts/OwnerLayout'
@@ -34,6 +39,7 @@ export const routes: RouteObject[] = [
           { path: 'ledger', element: <LedgerPage /> },
           { path: 'expiring', element: <ExpiringPage /> },
           { path: 'orders', element: <OwnerOrdersPage /> },
+          { path: 'sales', element: <OwnerSalesPage /> },
         ],
       },
     ],
@@ -47,6 +53,10 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <CustomerHomePage /> },
           { path: 'stores/:storeId', element: <StoreProductsPage /> },
+          { path: 'stores/:storeId/info', element: <StoreDetailPage /> },
+          { path: 'stores/:storeId/products/:productId', element: <StoreProductDetailPage /> },
+          { path: 'stores/:storeId/products/:productId/queue', element: <FirstComeQueuePage /> },
+          { path: 'orders', element: <OrderHistoryPage /> },
           { path: 'orders/:id', element: <OrderDetailPage /> },
         ],
       },

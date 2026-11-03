@@ -27,6 +27,20 @@ const base: Order = {
   paymentExpiresAt: '2026-10-20T15:42:00+09:00',
   paidAt: null,
   createdAt: '2026-10-20T15:31:55+09:00',
+  pickupDeadline: null,
+  pickedUpAt: null,
+  payment: null,
+  refundStatus: 'NONE',
+  refund: null,
+  // 결제 마감 15:42 의 7분 30초 전. 기기 시계와 상관없이 이 값 기준으로 센다
+  serverTime: '2026-10-20T15:34:30+09:00',
+}
+
+const paidPayment = {
+  method: '카드',
+  approvedAt: '2026-10-20T15:35:10+09:00',
+  status: 'DONE' as const,
+  receiptUrl: 'https://dashboard.tosspayments.com/receipt/redirection?transactionId=tviva_1',
 }
 
 function renderAt(path: string) {
@@ -122,6 +136,130 @@ describe('주문 상세 (U-22·U-31)', () => {
     expect(await screen.findByText('상품 목록')).toBeInTheDocument()
   })
 
+  it('결제 대기면 서버 시각 기준 남은 시간을 보여 주고 결제 내역은 없다', async () => {
+    orderReturns({ status: 'PAYMENT_WAITING' })
+    renderAt('/customer/orders/123')
+    // 기기 시계가 몇 시든 serverTime 15:34:30 → 마감 15:42:00 = 7분 30초 (렌더 사이 1초 흐를 수 있음)
+    expect(await screen.findByRole('timer')).toHaveTextContent(/^7분 (30|29)초 남음$/)
+    expect(screen.queryByText('영수증 보기')).not.toBeInTheDocument()
+    expect(screen.queryByText('결제 수단')).not.toBeInTheDocument()
+  })
+
+  it('남은 시간이 0이면 결제 시간이 끝났다고 하고 결제 버튼을 막는다', async () => {
+    orderReturns({ status: 'PAYMENT_WAITING', serverTime: '2026-10-20T15:42:05+09:00' })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByRole('timer')).toHaveTextContent('결제 시간이 끝났어요')
+    expect(screen.queryByRole('button', { name: /결제하기/ })).not.toBeInTheDocument()
+  })
+
+  it('결제 완료면 결제 수단·결제 시각·영수증 보기를 보여 준다', async () => {
+    orderReturns({ status: 'PAID', paidAt: '2026-10-20T15:35:10+09:00', payment: paidPayment })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByText('결제 완료')).toBeInTheDocument()
+    expect(screen.getByText('결제 수단')).toBeInTheDocument()
+    expect(screen.getByText('카드')).toBeInTheDocument()
+    expect(screen.getByText('10/20 15:35')).toBeInTheDocument()
+    const receipt = screen.getByRole('link', { name: '영수증 보기' })
+    expect(receipt).toHaveAttribute('href', paidPayment.receiptUrl)
+    expect(receipt).toHaveAttribute('target', '_blank')
+    expect(receipt).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument()
+  })
+
+  it('영수증 주소가 없으면 영수증 보기만 숨긴다', async () => {
+    orderReturns({
+      status: 'PAID',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: { ...paidPayment, receiptUrl: null },
+    })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByText('결제 완료')).toBeInTheDocument()
+    expect(screen.getByText('카드')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '영수증 보기' })).not.toBeInTheDocument()
+  })
+
+  it('픽업 기한이 있으면 결제 대기 화면에 날짜와 취소·환불 안내를 보여 준다 (A4)', async () => {
+    orderReturns({ status: 'PAYMENT_WAITING', pickupDeadline: '2026-10-22T23:59:59+09:00' })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByText('픽업 기한')).toBeInTheDocument()
+    expect(screen.getByText('10월 22일(목)까지')).toBeInTheDocument()
+    expect(screen.getByText('픽업 기한이 지나면 취소·환불할 수 없어요')).toBeInTheDocument()
+  })
+
+  it('픽업 기한이 없으면(서버가 아직 안 줌) 기한 줄과 안내를 숨긴다', async () => {
+    orderReturns({ status: 'PAYMENT_WAITING' })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByRole('timer')).toBeInTheDocument()
+    expect(screen.queryByText('픽업 기한')).not.toBeInTheDocument()
+    expect(screen.queryByText('픽업 기한이 지나면 취소·환불할 수 없어요')).not.toBeInTheDocument()
+  })
+
+  it('결제 완료 화면에도 픽업 기한을 보여 준다 (A4)', async () => {
+    orderReturns({
+      status: 'PAID',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: paidPayment,
+      pickupDeadline: '2026-10-22T23:59:59+09:00',
+    })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByText('결제 완료')).toBeInTheDocument()
+    expect(screen.getByText('10월 22일(목)까지')).toBeInTheDocument()
+    expect(screen.getByText('매장에서 주문번호를 보여 주고 픽업하세요')).toBeInTheDocument()
+    expect(screen.getByText('픽업 기한이 지나면 취소·환불할 수 없어요')).toBeInTheDocument()
+  })
+
+  it('준비 완료 화면은 취소 안내 대신 기한이 지나면 받아 갈 수 없고 환불도 안 된다고 알린다', async () => {
+    orderReturns({
+      status: 'READY_FOR_PICKUP',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: paidPayment,
+      pickupDeadline: '2026-10-22T23:59:59+09:00',
+    })
+    renderAt('/customer/orders/123')
+    expect(
+      await screen.findByText('픽업 기한이 지나면 받아 갈 수 없고 환불도 되지 않아요'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('픽업 기한이 지나면 취소·환불할 수 없어요')).not.toBeInTheDocument()
+  })
+
+  it('픽업 완료면 픽업 시각을 보여 주고 폴링하지 않는다 (A5)', async () => {
+    orderReturns({
+      status: 'PICKED_UP',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: paidPayment,
+      pickupDeadline: '2026-10-22T23:59:59+09:00',
+      pickedUpAt: '2026-10-21T10:05:00+09:00',
+    })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByRole('heading', { name: '픽업 완료' })).toBeInTheDocument()
+    expect(screen.getByText('픽업 시각')).toBeInTheDocument()
+    expect(screen.getByText('10/21 10:05')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '홈으로' })).toBeInTheDocument()
+    expect(get).toHaveBeenCalledTimes(1)
+  })
+
+  it('결제 뒤 픽업 기한이 지나면 결제 금액은 그대로, 환불 금액 0원을 보여 준다 (A4)', async () => {
+    orderReturns({
+      status: 'PICKUP_EXPIRED',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: paidPayment,
+      pickupDeadline: '2026-10-22T23:59:59+09:00',
+    })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByText('픽업 기한이 지났어요')).toBeInTheDocument()
+    expect(screen.getByText('3,400원')).toBeInTheDocument()
+    expect(screen.getByText('환불금액')).toBeInTheDocument()
+    expect(screen.getByText('0원')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '상품으로 돌아가기' })).toBeInTheDocument()
+  })
+
+  it('결제 전에 픽업 기한이 지나 취소되면 사유 문구를 보여 준다 (A4)', async () => {
+    orderReturns({ status: 'EXPIRED', failureReason: 'PICKUP_DEADLINE' })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByText('픽업 기한이 지나 주문이 취소됐어요')).toBeInTheDocument()
+    expect(screen.queryByText('환불 금액')).not.toBeInTheDocument()
+  })
+
   it('다른 고객의 주문(403)이면 찾을 수 없다고 한다', async () => {
     get.mockRejectedValue(
       Object.assign(new Error('403'), { isAxiosError: true, response: { status: 403 } }),
@@ -185,6 +323,23 @@ describe('주문·결제 화면 (U-21)', () => {
     const [first, retry, changed] = idempotencyKeys()
     expect(retry).toBe(first)
     expect(changed).not.toBe(first)
+  })
+
+  it('선착순 입장권으로 온 주문은 1개만 살 수 있다고 안내하고 수량을 늘릴 수 없다', () => {
+    renderAt(
+      checkoutPath({
+        storeId: 1,
+        storeName: '프레시 강남점',
+        productId: 15,
+        productName: '매운 컵라면 115g',
+        price: 1700,
+        available: 1,
+        firstCome: true,
+      }),
+    )
+    expect(screen.getByText('선착순 상품은 한 사람이 1개만 살 수 있어요')).toBeInTheDocument()
+    expect(screen.queryByText(/한 번에 5개까지/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '수량 더하기' })).toBeDisabled()
   })
 
   it('상품 정보가 주소에 없으면 다시 고르게 한다', () => {

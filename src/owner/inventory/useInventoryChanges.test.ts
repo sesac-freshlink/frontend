@@ -19,6 +19,9 @@ function item(productId: number, quantities: [number, number, number]): Inventor
     expiredLotCount: 0,
     safetyStock: 5,
     lowStock: false,
+    hasMemo: false,
+    dailySales: 0,
+    daysOfStock: null,
   }
 }
 

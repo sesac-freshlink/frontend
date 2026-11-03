@@ -1,9 +1,9 @@
 # 프론트 빌드·배포 (I-11, 할 일 15). PR에서는 검사·빌드만, dev 브랜치에 합치면 dev 버킷, main에 합치면 prod 버킷에 올린다.
-# 흐름: lint → test → build(VITE_COGNITO_* 주입) → S3 sync → CloudFront 무효화 → https://<id>.cloudfront.net
-# 값은 레포 Variables에 둔다(비밀이 아니다. User Pool ID·Client ID는 어차피 빌드 결과에 들어간다). 환경마다 앞에 DEV_·PROD_가 붙는다.
-#   <ENV>_COGNITO_USER_POOL_ID, <ENV>_COGNITO_CLIENT_ID, <ENV>_FRONTEND_BUCKET, <ENV>_FRONTEND_DISTRIBUTION_ID, <ENV>_FRONTEND_DEPLOY_ROLE_ARN
+# 흐름: lint → test → build → S3 sync → CloudFront 무효화 → 화면 주소(도메인, 없으면 https://<id>.cloudfront.net)
+# 로그인은 gateway BFF(/api/auth/*)가 쿠키로 하므로 빌드에 Cognito 값을 넣지 않는다(10/30 dev·prod 모두 지움. prod는 이 변경이 main에 릴리스될 때부터).
+# 값은 레포 Variables에 둔다(비밀이 아니다). 환경마다 앞에 DEV_·PROD_가 붙는다.
+#   <ENV>_FRONTEND_BUCKET, <ENV>_FRONTEND_DISTRIBUTION_ID, <ENV>_FRONTEND_DEPLOY_ROLE_ARN
 #   (infra envs/<env>/persistent output. infra scripts/set-github-values.ps1 -Env <env>이 넣는다. infra README 4-8·4-12)
-# prod는 Cognito가 dev와 달라 빌드 결과도 다르다(같은 코드를 prod 값으로 다시 빌드한다).
 name: frontend-deploy
 
 on:
@@ -24,8 +24,10 @@ permissions:
 # 토스 결제위젯 클라이언트 키(test_gck_...). 공개돼도 되는 값이라 레포 Variables에 둔다(DEV_TOSS_CLIENT_KEY, PROD_TOSS_CLIENT_KEY).
 # infra scripts/set-toss-key.ps1이 Secrets Manager에 키를 넣으면서 같이 넣는다. 시크릿 키(gsk)는 여기 두지 않는다(order-service만 쓴다)
 # 없어도 빌드·배포는 된다(결제 화면만 동작하지 않는다). main 배포만 PROD_ 값을 쓴다
+# 카카오맵 JavaScript 키(10/30)도 같은 방식이다(DEV_KAKAO_MAP_KEY, PROD_KAKAO_MAP_KEY). 브라우저에 보이는 키라 카카오 콘솔 도메인 제한으로 막는다(infra README 4-20)
 env:
   VITE_TOSS_CLIENT_KEY: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_TOSS_CLIENT_KEY || vars.DEV_TOSS_CLIENT_KEY }}
+  VITE_KAKAO_MAP_KEY: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_KAKAO_MAP_KEY || vars.DEV_KAKAO_MAP_KEY }}
 
 jobs:
   build-deploy:
@@ -35,8 +37,6 @@ jobs:
       DEPLOY: ${{ (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') && github.event_name != 'pull_request' }}
       # main → prod, 그 밖(dev, PR) → dev 값. main으로 가는 PR도 dev 값으로 검사 빌드만 한다
       TARGET: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'PROD' || 'DEV' }}
-      COGNITO_USER_POOL_ID: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_COGNITO_USER_POOL_ID || vars.DEV_COGNITO_USER_POOL_ID }}
-      COGNITO_CLIENT_ID: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_COGNITO_CLIENT_ID || vars.DEV_COGNITO_CLIENT_ID }}
       FRONTEND_BUCKET: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_FRONTEND_BUCKET || vars.DEV_FRONTEND_BUCKET }}
       FRONTEND_DISTRIBUTION_ID: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_FRONTEND_DISTRIBUTION_ID || vars.DEV_FRONTEND_DISTRIBUTION_ID }}
       FRONTEND_DEPLOY_ROLE_ARN: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PROD_FRONTEND_DEPLOY_ROLE_ARN || vars.DEV_FRONTEND_DEPLOY_ROLE_ARN }}
@@ -56,9 +56,6 @@ jobs:
 
       - name: build
         run: npm run build
-        env:
-          VITE_COGNITO_USER_POOL_ID: ${{ env.COGNITO_USER_POOL_ID }}
-          VITE_COGNITO_CLIENT_ID: ${{ env.COGNITO_CLIENT_ID }}
 
       # main 배포인데 PROD_ 값이 없으면 위 식이 DEV_ 값으로 넘어간다. dev 값으로 만든 화면이 prod 버킷에 올라가지 않게
       # 그 환경 이름이 붙은 Variables를 직접 다시 확인한다.
@@ -68,11 +65,11 @@ jobs:
           VARS: ${{ toJSON(vars) }}
         run: |
           missing=""
-          for k in COGNITO_USER_POOL_ID COGNITO_CLIENT_ID FRONTEND_BUCKET FRONTEND_DISTRIBUTION_ID FRONTEND_DEPLOY_ROLE_ARN; do
+          keys="FRONTEND_BUCKET FRONTEND_DISTRIBUTION_ID FRONTEND_DEPLOY_ROLE_ARN"
+          for k in $keys; do
             [ -n "$(echo "$VARS" | jq -r --arg k "${TARGET}_${k}" '.[$k] // empty')" ] || missing="$missing ${TARGET}_${k}"
           done
           if [ -n "$missing" ]; then
-            # Cognito 값 없이 빌드하면 가짜 로그인 화면이 올라간다. 올리지 않는다
             echo "::error::레포 Variables가 비어 있다:$missing (infra README 4-8·4-12)"
             exit 1
           fi
@@ -89,9 +86,10 @@ jobs:
           BUCKET: ${{ env.FRONTEND_BUCKET }}
         run: |
           # 이름에 해시가 붙은 파일(assets/)은 1년 캐시, 나머지(index.html 등)는 매번 새로 확인
+          # images/는 member-service가 올린 점포 이미지라 지우지 않는다(infra README 4-20)
           aws s3 sync dist/assets "s3://$BUCKET/assets" --delete \
             --cache-control "public, max-age=31536000, immutable"
-          aws s3 sync dist "s3://$BUCKET" --delete --exclude "assets/*" \
+          aws s3 sync dist "s3://$BUCKET" --delete --exclude "assets/*" --exclude "images/*" \
             --cache-control "no-cache"
 
       - name: CloudFront 무효화
@@ -102,5 +100,17 @@ jobs:
           id=$(aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/index.html" "/" \
             --query Invalidation.Id --output text)
           echo "무효화 ${id}"
-          url=$(aws cloudfront get-distribution --id "$DIST" --query Distribution.DomainName --output text 2>/dev/null || true)
+          # 도메인(별칭, infra README 4-21)이 있으면 그 주소, 없으면 CloudFront 기본 주소
+          url=$(aws cloudfront get-distribution --id "$DIST" \
+            --query "Distribution.DistributionConfig.Aliases.Items[0] || Distribution.DomainName" --output text 2>/dev/null || true)
           echo "### ${TARGET,,} 배포: https://${url:-<CloudFront 주소>} (커밋 ${GITHUB_SHA::7})" >> "$GITHUB_STEP_SUMMARY"
+
+      # 배포(dev·main push, 수동 실행)일 때만 성공·실패를 알린다. PR 검사는 알리지 않는다.
+      # 웹훅은 조직 비밀 DEPLOY_WEBHOOK_URL (.github actions/notify). 없으면 알림만 건너뛴다
+      - name: 배포 알림
+        if: always() && env.DEPLOY == 'true'
+        uses: sesac-freshlink/.github/actions/notify@main
+        with:
+          webhook-url: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          status: ${{ job.status }}
+          title: "frontend ${{ env.TARGET == 'PROD' && 'prod' || 'dev' }} 배포"

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildStorePatch, storeEditSchema, storeRegisterSchema } from './storeForm'
+import {
+  buildStorePatch,
+  storeDetailEditSchema,
+  storeEditSchema,
+  storeRegisterSchema,
+} from './storeForm'
 
 const valid = {
   name: '프레시 강남점',
@@ -51,35 +56,103 @@ describe('수정 요청 본문 만들기 buildStorePatch (A-02)', () => {
     name: '프레시 강남점',
     address: '서울 강남구 테헤란로 1',
     region: 'SEOUL' as const,
+    latitude: null,
+    longitude: null,
+    description: null,
   }
+  /** 모달 입력 칸 값 (좌표·설명은 빈 칸) */
+  const form = { name: original.name, address: original.address, region: original.region as string }
 
   it('바뀐 칸이 없으면 빈 객체', () => {
-    expect(buildStorePatch(original, original)).toEqual({})
+    expect(buildStorePatch(original, form)).toEqual({})
   })
 
   it('이름만 바꾸면 name 만 담는다', () => {
-    expect(buildStorePatch(original, { ...original, name: '프레시 신사점' })).toEqual({
+    expect(buildStorePatch(original, { ...form, name: '프레시 신사점' })).toEqual({
       name: '프레시 신사점',
     })
   })
 
   it('앞뒤 공백만 다른 이름은 바뀐 것으로 보지 않는다', () => {
-    expect(buildStorePatch(original, { ...original, name: '  프레시 강남점 ' })).toEqual({})
+    expect(buildStorePatch(original, { ...form, name: '  프레시 강남점 ' })).toEqual({})
   })
 
   it('시도를 바꾸면 region 만 담는다', () => {
-    expect(buildStorePatch(original, { ...original, region: 'BUSAN' })).toEqual({
+    expect(buildStorePatch(original, { ...form, region: 'BUSAN' })).toEqual({
       region: 'BUSAN',
     })
   })
 
   it('시도 값이 시도 코드가 아니면 넣지 않는다', () => {
-    expect(buildStorePatch(original, { ...original, region: '' })).toEqual({})
+    expect(buildStorePatch(original, { ...form, region: '' })).toEqual({})
   })
 
   it('주소는 앞뒤 공백을 빼서 담는다', () => {
-    expect(buildStorePatch(original, { ...original, address: ' 서울 강남구 2 ' })).toEqual({
+    expect(buildStorePatch(original, { ...form, address: ' 서울 강남구 2 ' })).toEqual({
       address: '서울 강남구 2',
     })
+  })
+
+  it('좌표·설명은 바뀐 것만 숫자·앞뒤 공백 뺀 글자로 담고, 빈 칸은 보내지 않는다', () => {
+    const input = {
+      ...form,
+      latitude: '37.498095',
+      longitude: ' 127.02761 ',
+      description: ' 강남역 1번 출구 앞 ',
+    }
+    expect(buildStorePatch(original, input)).toEqual({
+      latitude: 37.498095,
+      longitude: 127.02761,
+      description: '강남역 1번 출구 앞',
+    })
+    expect(
+      buildStorePatch(original, { ...form, latitude: '', longitude: '', description: '  ' }),
+    ).toEqual({})
+    const saved = { ...original, latitude: 37.498095, longitude: 127.02761, description: '강남역' }
+    expect(
+      buildStorePatch(saved, {
+        ...form,
+        latitude: '37.498095',
+        longitude: '127.02761',
+        description: '강남역',
+      }),
+    ).toEqual({})
+  })
+
+  it('새로 올린 이미지 키가 있으면 imageKey 를 담는다', () => {
+    expect(buildStorePatch(original, form, 'images/stores/1/a.jpg')).toEqual({
+      imageKey: 'images/stores/1/a.jpg',
+    })
+  })
+})
+
+describe('점포 상세 입력 규칙 storeDetailEditSchema (A-02)', () => {
+  const valid = {
+    name: '프레시 강남점',
+    address: '서울 강남구 테헤란로 1',
+    region: 'SEOUL',
+    latitude: '',
+    longitude: '',
+    description: '',
+  }
+
+  it('좌표는 비우거나 범위 안의 소수 6자리 이하 숫자만 받는다', () => {
+    expect(storeDetailEditSchema.safeParse(valid).success).toBe(true)
+    expect(storeDetailEditSchema.safeParse({ ...valid, latitude: '37.498095' }).success).toBe(true)
+    expect(storeDetailEditSchema.safeParse({ ...valid, latitude: '91' }).success).toBe(false)
+    expect(storeDetailEditSchema.safeParse({ ...valid, longitude: '-180.5' }).success).toBe(false)
+    expect(storeDetailEditSchema.safeParse({ ...valid, latitude: '37.1234567' }).success).toBe(
+      false,
+    )
+    expect(storeDetailEditSchema.safeParse({ ...valid, latitude: '북위 37' }).success).toBe(false)
+  })
+
+  it('설명은 500자까지', () => {
+    expect(
+      storeDetailEditSchema.safeParse({ ...valid, description: '가'.repeat(500) }).success,
+    ).toBe(true)
+    expect(
+      storeDetailEditSchema.safeParse({ ...valid, description: '가'.repeat(501) }).success,
+    ).toBe(false)
   })
 })

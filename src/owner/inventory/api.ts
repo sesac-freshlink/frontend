@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { api } from '@/shared/api/client'
 import { POLL_MS } from '@/shared/api/queryClient'
@@ -23,6 +23,38 @@ export interface InventoryItem {
   safetyStock: number
   /** 구매 가능 수량이 안전재고보다 적으면 true */
   lowStock: boolean
+  /** 점주 상품 메모가 있으면 true */
+  hasMemo: boolean
+  /** 재고 소진 예상: 최근 7일 순판매(판매 − 환불)의 하루 평균(소수 첫째 자리). 판매가 없으면 0 */
+  dailySales: number
+  /** 지금 구매 가능 수량이 그 속도로 며칠 버티는지(내림). 최근 7일 판매가 없으면 null */
+  daysOfStock: number | null
+}
+
+/** S-10 상태 필터. 여러 개면 모두 만족하는 상품만 */
+export type InventoryStatusFilter = 'IMMINENT' | 'EXPIRED' | 'SOLD_OUT' | 'LOW_STOCK'
+
+/** S-10 재고 목록 검색 조건. 서버가 거르고 페이지로 자른다 */
+export interface InventoryQuery {
+  /** 상품명·상품 코드 검색어. 비면 조건 없음 */
+  q: string
+  statuses: InventoryStatusFilter[]
+  /** true 면 메모가 있는 상품만 */
+  memoOnly: boolean
+  /** 0부터 */
+  page: number
+  size: number
+}
+
+/** S-10 재고 목록 한 페이지. inventory-service InventoryPageResponse 와 같은 모양 */
+export interface InventoryListPage {
+  items: InventoryItem[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  /** 검색·필터·페이지와 상관없이 점포 전체에서 안전재고보다 적은 상품 수 */
+  lowStockCount: number
 }
 
 /** lot 상태. 서버가 지금 시각으로 계산해서 내려 준다 */
@@ -38,8 +70,11 @@ export interface InventoryLotItem {
   status: InventoryLotStatus
 }
 
-/** 재고 변동 종류. 예약·해제는 실물이 바뀌지 않아 이력에 남지 않는다. ADJUST 는 점주 수동 조정(S-14) */
-export type LedgerType = 'INBOUND' | 'SALE' | 'DISPOSE' | 'ADJUST'
+/**
+ * 재고 변동 종류. 예약·해제는 실물이 바뀌지 않아 이력에 남지 않는다. ADJUST 는 점주 수동 조정(S-14),
+ * RETURN 은 환불 뒤 판매 재고 복원(+, A10)
+ */
+export type LedgerType = 'INBOUND' | 'SALE' | 'DISPOSE' | 'ADJUST' | 'RETURN'
 
 /** S-13 응답 한 줄. inventory-service LedgerResponse 와 같은 모양 */
 export interface LedgerItem {
@@ -185,19 +220,116 @@ export interface AdjustmentHistoryItem {
   createdAt: string
 }
 
+/** 유통기한 달력의 lot 하나. 상태는 서버가 지금 시각으로 계산한다 */
+export interface ExpiryCalendarLot {
+  lotId: number
+  productId: number
+  productCode: string
+  name: string
+  /** 기한(+09:00) */
+  expiryDate: string
+  quantity: number
+  reservedQuantity: number
+  status: InventoryLotStatus
+}
+
+/** 유통기한 달력의 하루. lot 이 있는 날만 온다 */
+export interface ExpiryCalendarDay {
+  /** "YYYY-MM-DD" */
+  date: string
+  lotCount: number
+  /** 그날 끝나는 lot 의 실물 수량 합 */
+  quantity: number
+  lots: ExpiryCalendarLot[]
+}
+
+/** 유통기한 달력. inventory-service ExpiryCalendarResponse 와 같은 모양 */
+export interface ExpiryCalendar {
+  /** "YYYY-MM" */
+  month: string
+  days: ExpiryCalendarDay[]
+}
+
+/** 판매 순위 한 줄. inventory-service SalesRankItem 과 같은 모양. 같은 판매 수량이면 같은 순위(1, 2, 2, 4) */
+export interface SalesRankItem {
+  rank: number
+  productId: number
+  productCode: string
+  name: string
+  category: string
+  imageUrl: string | null
+  /** 결제가 확정되어 실물이 줄어든 수량 */
+  soldQuantity: number
+  /** 기간 전체 판매 중 비중(0~1) */
+  share: number
+}
+
+/** 상품별 판매 순위. inventory-service SalesRankingResponse 와 같은 모양 */
+export interface SalesRanking {
+  from: string
+  to: string
+  /** 잘라 내기 전 기간 전체 판매 수량 */
+  totalSoldQuantity: number
+  items: SalesRankItem[]
+}
+
+/** 점주 상품 메모 하나. inventory-service MemoResponse 와 같은 모양. 상품 하나에 메모 하나 */
+export interface ProductMemo {
+  productId: number
+  productCode: string
+  name: string
+  category: string
+  content: string
+  /** 낙관적 락. 고치거나 지울 때 그대로 보낸다 */
+  version: number
+  /** 마지막으로 고친 시각(+09:00) */
+  updatedAt: string
+}
+
+/** 메모 저장 요청. 처음 만들 때는 version 이 null */
+export interface SaveMemoRequest {
+  productId: number
+  content: string
+  version: number | null
+}
+
+/** 메모 삭제 요청. 읽은 version 을 보내 그 사이 바뀐 메모는 지우지 않는다 */
+export interface DeleteMemoRequest {
+  productId: number
+  version: number
+}
+
 /** 서버 오류 본문 (common ErrorResponse) */
 interface ErrorBody {
   code?: string
   message?: string
 }
 
-/** S-10 재고 목록 + S-15 3초 폴링으로 실시간 반영 */
-export function useInventory() {
+/**
+ * S-10 재고 목록 한 페이지 + S-15 3초 폴링으로 실시간 반영. 검색·필터·페이지는 서버가 한다.
+ * 조건을 바꾸는 동안에는 앞 페이지를 그대로 보여 줘 표가 깜빡이지 않게 한다
+ */
+export function useInventory(query: InventoryQuery) {
   return useQuery({
-    queryKey: ['owner', 'inventory'],
-    queryFn: async () => (await api.get<InventoryItem[]>('/owner/inventory')).data,
+    queryKey: ['owner', 'inventory', query],
+    queryFn: async () =>
+      (await api.get<InventoryListPage>('/owner/inventory', { params: inventoryParams(query) }))
+        .data,
     refetchInterval: POLL_MS.ownerInventory,
+    placeholderData: keepPreviousData,
   })
+}
+
+/** 서버 쿼리 모양. 빈 조건은 보내지 않고, 상태는 쉼표로 잇는다(status=IMMINENT,LOW_STOCK) */
+export function inventoryParams(query: InventoryQuery): Record<string, string | number | boolean> {
+  const q = query.q.trim()
+  return {
+    ...(q ? { q } : {}),
+    ...(query.statuses.length > 0 ? { status: query.statuses.join(',') } : {}),
+    ...(query.memoOnly ? { memo: true } : {}),
+    page: query.page,
+    size: query.size,
+  }
 }
 
 /**
@@ -207,8 +339,13 @@ export function useInventory() {
 export function useInventoryLots(productId: number) {
   return useQuery({
     queryKey: ['owner', 'inventory', productId, 'lots'],
-    queryFn: async () =>
-      (await api.get<InventoryLotItem[]>(`/owner/inventory/${productId}/lots`)).data,
+    queryFn: async () => {
+      const { data } = await api.get<InventoryLotItem[]>(`/owner/inventory/${productId}/lots`)
+      // 배포 사이에 잠깐 어긋나 목록 대신 다른 것(HTML 등)이 오면 화면 전체가 멈췄다(10/29 dev).
+      // 배열이 아니면 오류로 돌려 패널에만 안내가 뜨고 다음 폴링 때 다시 읽는다
+      if (!Array.isArray(data)) throw new Error('lot 응답이 목록이 아니에요')
+      return data
+    },
     refetchInterval: POLL_MS.ownerInventory,
   })
 }
@@ -249,6 +386,35 @@ export function useDisposeLot() {
         queryClient.invalidateQueries({ queryKey: ['owner', 'expiring'] }),
         queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
         queryClient.invalidateQueries({ queryKey: ['owner', 'disposals'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'expiryCalendar'] }),
+      ]),
+  })
+}
+
+/** 경과 lot 한 번에 폐기 결과(202). inventory-service ExpiredDisposalResponse 와 같은 모양 */
+export interface ExpiredDisposalResult {
+  /** 요청한 lot 수 */
+  lotCount: number
+  /** 요청한 수량 합 */
+  quantity: number
+  items: DisposeResponse[]
+}
+
+/**
+ * S-32 경과 lot 한 번에 폐기 요청. 서버가 기한이 지난 lot 마다 폐기 가능 수량 전부를 요청하고,
+ * 이미 요청해 두고 처리 전인 수량은 뺀다. 수량은 쪽지 처리 뒤 바뀌므로 단건 폐기와 같은 목록을 다시 받는다
+ */
+export function useDisposeExpired() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () =>
+      (await api.post<ExpiredDisposalResult>('/owner/inventory/disposals/expired')).data,
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['owner', 'expiring'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'disposals'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'expiryCalendar'] }),
       ]),
   })
 }
@@ -291,6 +457,92 @@ export function useUpdateSafetyStock() {
   })
 }
 
+/** 점주 추천상품 설정 한 줄. 상품 전체가 오고 recommended 면 고객 목록에 '추천'으로 보인다 */
+export interface RecommendationItem {
+  productId: number
+  productCode: string
+  name: string
+  category: string
+  recommended: boolean
+}
+
+/** 점주 선착순 설정 한 줄. 상품 전체가 오고, firstCome 이 false 면 limit·used·remaining 은 null */
+export interface FirstComeSetting {
+  productId: number
+  productCode: string
+  name: string
+  category: string
+  firstCome: boolean
+  /** 판매 한도(1~999) */
+  limit: number | null
+  /** 선착순을 켠 뒤 잡혀 있거나 팔린 수량 */
+  used: number | null
+  /** 지금 더 팔 수 있는 수량 = min(한도 − used, 구매 가능 수량) */
+  remaining: number | null
+}
+
+/** 점주 추천상품 설정 목록 (상품 전체, 이름순). 탭을 열 때 읽는다 */
+export function useRecommendations() {
+  return useQuery({
+    queryKey: ['owner', 'recommendations'],
+    queryFn: async () =>
+      (await api.get<RecommendationItem[]>('/owner/inventory/recommendations')).data,
+  })
+}
+
+/** 추천상품으로 정하거나 뺀다. 같은 요청을 다시 보내도 결과가 같다 */
+export function useSetRecommendation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ productId, recommended }: { productId: number; recommended: boolean }) => {
+      const url = `/owner/inventory/recommendations/${productId}`
+      return (
+        recommended
+          ? await api.put<RecommendationItem>(url)
+          : await api.delete<RecommendationItem>(url)
+      ).data
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['owner', 'recommendations'] }),
+  })
+}
+
+/**
+ * 추천상품 여러 개를 한 번에 켜거나 끈다(1~100개). 없는 상품이 하나라도 섞이면 서버가 아무것도 바꾸지 않고 404 다.
+ * 같은 요청을 다시 보내도 결과가 같다
+ */
+export function useSetRecommendations() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { productIds: number[]; recommended: boolean }) =>
+      (await api.put<RecommendationItem[]>('/owner/inventory/recommendations', body)).data,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['owner', 'recommendations'] }),
+  })
+}
+
+/** 점주 선착순 설정 목록 (상품 전체, 이름순). 탭을 열 때 읽는다 */
+export function useFirstComeSettings() {
+  return useQuery({
+    queryKey: ['owner', 'firstCome'],
+    queryFn: async () => (await api.get<FirstComeSetting[]>('/owner/inventory/first-come')).data,
+  })
+}
+
+/** 선착순 켜기·한도 바꾸기(limit 1~999), 또는 끄기(limit null). 한도를 바꿔도 이미 판 수량은 이어서 센다 */
+export function useSetFirstCome() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ productId, limit }: { productId: number; limit: number | null }) => {
+      const url = `/owner/inventory/first-come/${productId}`
+      return (
+        limit === null
+          ? await api.delete<FirstComeSetting>(url)
+          : await api.put<FirstComeSetting>(url, { limit })
+      ).data
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['owner', 'firstCome'] }),
+  })
+}
+
 /** S-42 기간별 판매·폐기 통계. 원장을 서버가 더해서 내려 준다. 탭을 열 때·기간을 바꿀 때 읽는다 */
 export function useInventoryStats(period: StatsPeriod) {
   return useQuery({
@@ -317,6 +569,7 @@ export function useAdjustLot() {
           ['owner', 'ledger'],
           ['owner', 'stats'],
           ['owner', 'adjustments'],
+          ['owner', 'expiryCalendar'],
         ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
       ),
   })
@@ -329,6 +582,73 @@ export function useAdjustments() {
     queryFn: async () =>
       (await api.get<AdjustmentHistoryItem[]>('/owner/inventory/adjustments')).data,
   })
+}
+
+/** 유통기한 달력 (그 달에 기한이 끝나는 lot 을 날짜별로). 달을 바꿀 때 읽고, 폐기·조정하면 다시 읽는다 */
+export function useExpiryCalendar(month: string) {
+  return useQuery({
+    queryKey: ['owner', 'expiryCalendar', month],
+    queryFn: async () =>
+      (await api.get<ExpiryCalendar>('/owner/inventory/expiry-calendar', { params: { month } }))
+        .data,
+  })
+}
+
+/** 상품별 판매 순위 (결제 확정 수량 기준, 상위 10개). 탭을 열 때·기간을 바꿀 때 읽는다 */
+export function useSalesRanking(period: StatsPeriod) {
+  return useQuery({
+    queryKey: ['owner', 'salesRanking', period.from, period.to],
+    queryFn: async () =>
+      (await api.get<SalesRanking>('/owner/inventory/sales-ranking', { params: period })).data,
+  })
+}
+
+/** 점주 상품 메모 목록 (메모가 있는 상품만, 최근 수정 순). 저장·삭제하면 다시 읽으므로 폴링하지 않는다 */
+export function useMemos() {
+  return useQuery({
+    queryKey: ['owner', 'memos'],
+    queryFn: async () => (await api.get<ProductMemo[]>('/owner/inventory/memos')).data,
+  })
+}
+
+/** 메모·재고 목록(hasMemo)을 다시 읽는다. 409 때도 다시 읽어야 다른 화면이 바꾼 내용이 보인다 */
+function invalidateMemos(queryClient: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['owner', 'memos'] }),
+    queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
+  ])
+}
+
+/** 메모 저장 (없으면 만들고 있으면 고친다). 읽은 뒤 다른 화면이 바꿨으면 409 MEMO_CHANGED */
+export function useSaveMemo() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ productId, content, version }: SaveMemoRequest) =>
+      (
+        await api.put<ProductMemo>(`/owner/inventory/memos/${productId}`, {
+          content,
+          ...(version === null ? {} : { version }),
+        })
+      ).data,
+    onSettled: () => invalidateMemos(queryClient),
+  })
+}
+
+/** 메모 삭제. 읽은 뒤 다른 화면이 바꿨으면 409 MEMO_CHANGED */
+export function useDeleteMemo() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ productId, version }: DeleteMemoRequest) => {
+      await api.delete(`/owner/inventory/memos/${productId}`, { params: { version } })
+    },
+    onSettled: () => invalidateMemos(queryClient),
+  })
+}
+
+/** 서버 오류의 code. 409 중 메모 충돌만 골라낼 때 쓴다 */
+export function apiErrorCode(error: unknown): string | undefined {
+  if (axios.isAxiosError<ErrorBody>(error)) return error.response?.data?.code
+  return undefined
 }
 
 /** 서버 오류 본문의 message 를 꺼낸다. 없으면 fallback */

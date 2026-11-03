@@ -33,24 +33,32 @@ describe('lot 상세 바로 열기 (S-11 /owner/inventory/:productId)', () => {
     get.mockImplementation((url: string) => {
       if (url === '/owner/inventory')
         return Promise.resolve({
-          data: [
-            {
-              productId: 7,
-              productCode: 'P007',
-              name: '제육볶음 도시락',
-              category: '도시락',
-              price: 4900,
-              imageUrl: null,
-              totalQuantity: 3,
-              reservedQuantity: 0,
-              availableQuantity: 3,
-              nearestExpiry: '2026-10-23T23:59:59+09:00',
-              imminentLotCount: 0,
-              expiredLotCount: 0,
-              safetyStock: 5,
-              lowStock: true,
-            },
-          ],
+          data: {
+            items: [
+              {
+                productId: 7,
+                productCode: 'P007',
+                name: '제육볶음 도시락',
+                category: '도시락',
+                price: 4900,
+                imageUrl: null,
+                totalQuantity: 3,
+                reservedQuantity: 0,
+                availableQuantity: 3,
+                nearestExpiry: '2026-10-23T23:59:59+09:00',
+                imminentLotCount: 0,
+                expiredLotCount: 0,
+                safetyStock: 5,
+                lowStock: true,
+                hasMemo: false,
+              },
+            ],
+            page: 0,
+            size: 100,
+            totalElements: 1,
+            totalPages: 1,
+            lowStockCount: 1,
+          },
         })
       if (url === '/owner/inventory/7/lots')
         return Promise.resolve({

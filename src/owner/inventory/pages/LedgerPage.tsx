@@ -12,6 +12,7 @@ const TYPE_LABEL: Record<LedgerType, string> = {
   SALE: '판매',
   DISPOSE: '폐기',
   ADJUST: '조정',
+  RETURN: '환불 복원',
 }
 
 const TYPE_CLASS: Record<LedgerType, string> = {
@@ -19,6 +20,7 @@ const TYPE_CLASS: Record<LedgerType, string> = {
   SALE: 'bg-sky-100 text-sky-800',
   DISPOSE: 'bg-red-100 text-red-700',
   ADJUST: 'bg-violet-100 text-violet-800',
+  RETURN: 'bg-amber-100 text-amber-800',
 }
 
 const FILTERS: { label: string; type?: LedgerType }[] = [
@@ -27,19 +29,21 @@ const FILTERS: { label: string; type?: LedgerType }[] = [
   { label: '판매', type: 'SALE' },
   { label: '폐기', type: 'DISPOSE' },
   { label: '조정', type: 'ADJUST' },
+  { label: '환불 복원', type: 'RETURN' },
 ]
 
 type Tab = 'history' | 'stats' | 'adjustments'
 
 const DESCRIPTION: Record<Tab, string> = {
-  history: '입고·판매·폐기·조정으로 바뀐 수량을 3초마다 새로 읽어요.',
+  history: '입고·판매·폐기·조정·환불 복원으로 바뀐 수량을 3초마다 새로 읽어요.',
   stats: '고른 기간의 입고·판매·폐기 수량을 상품별로 더했어요.',
   adjustments: '점주가 직접 고친 수량이에요. 얼마에서 얼마로, 왜 바꿨는지 남아요.',
 }
 
 /**
  * S-13 재고 변동 이력. 입고 +, 판매·폐기 − 로 lot 별 수량이 어떻게 바뀌었는지 최신순으로 보여 준다.
- * 통계 탭(S-42)은 같은 원장을 기간·상품별로 더한 수량과 폐기율, 조정 내역 탭(S-14)은 수동 조정 기록이다
+ * 통계 탭(S-42)은 같은 원장을 기간·상품별로 더한 수량과 폐기율, 조정 내역 탭(S-14)은 수동 조정 기록이다.
+ * 상품별 판매 순위는 점주 '주문' 메뉴로 옮겼다(10/30)
  */
 export function LedgerPage() {
   const [tab, setTab] = useState<Tab>('history')
@@ -50,7 +54,11 @@ export function LedgerPage() {
         <h1 className="text-xl font-bold text-slate-900">변동 이력</h1>
         <p className="text-sm text-slate-500">{DESCRIPTION[tab]}</p>
       </div>
-      <div role="tablist" aria-label="이력·통계" className="flex gap-1 border-b border-slate-200">
+      <div
+        role="tablist"
+        aria-label="이력·통계·조정 내역"
+        className="flex gap-1 border-b border-slate-200"
+      >
         <TabButton label="이력" selected={tab === 'history'} onSelect={() => setTab('history')} />
         <TabButton label="통계" selected={tab === 'stats'} onSelect={() => setTab('stats')} />
         <TabButton

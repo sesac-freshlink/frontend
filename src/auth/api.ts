@@ -49,20 +49,8 @@ export interface OwnerMe {
 
 export type MyProfile = CustomerMe | OwnerMe
 
-/** 서비스 공통 오류 본문 {code, message, traceId} 에서 code 를 꺼낸다 */
-export function apiErrorCode(e: unknown): string | undefined {
-  if (!axios.isAxiosError(e)) return undefined
-  const data: unknown = e.response?.data
-  if (
-    typeof data === 'object' &&
-    data !== null &&
-    'code' in data &&
-    typeof data.code === 'string'
-  ) {
-    return data.code
-  }
-  return undefined
-}
+/** 공통 오류 code 꺼내기. 다른 화면이 이 경로로 import 하므로 다시 내보낸다 */
+export { apiErrorCode } from '@/shared/api/errors'
 
 /** 사용자마다 따로 캐시한다 (로그아웃 뒤 다른 계정으로 들어와도 섞이지 않게) */
 export const myProfileKey = (userId: string | undefined) => ['auth', 'me', userId ?? 'anonymous']

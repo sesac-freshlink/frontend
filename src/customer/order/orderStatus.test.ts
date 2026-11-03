@@ -4,6 +4,7 @@ import {
   customerMessage,
   isPollingStatus,
   ORDER_STATUSES,
+  orderStatusLabel,
   paymentInterruptedMessage,
 } from './orderStatus'
 
@@ -15,6 +16,27 @@ describe('customerMessage', () => {
     expect(customerMessage('PAID', null).title).toBe('결제 완료')
     expect(customerMessage('PAYMENT_FAILED', 'PAYMENT_FAILED').title).toBe('결제에 실패했어요')
     expect(customerMessage('EXPIRED', 'EXPIRED').title).toBe('결제 시간이 지나 주문이 취소됐어요')
+  })
+
+  it('픽업 상태 문구 (A4·A5, API 명세 7장)', () => {
+    expect(customerMessage('PICKED_UP', null)).toEqual({ title: '픽업 완료', tone: 'pickedUp' })
+    expect(customerMessage('PICKUP_EXPIRED', null)).toEqual({
+      title: '픽업 기한이 지났어요',
+      tone: 'failed',
+    })
+    expect(customerMessage('EXPIRED', 'PICKUP_DEADLINE')).toEqual({
+      title: '픽업 기한이 지나 주문이 취소됐어요',
+      tone: 'failed',
+    })
+  })
+
+  it('픽업 준비 완료 문구 (N-02): 결제 완료처럼 보이되 가게에서 받아 가라고 안내한다', () => {
+    expect(customerMessage('READY_FOR_PICKUP', null)).toEqual({
+      title: '픽업 준비 완료 · 가게에서 받아 가세요',
+      tone: 'done',
+    })
+    expect(orderStatusLabel('READY_FOR_PICKUP', null)).toBe('픽업 준비 완료')
+    expect(isPollingStatus('READY_FOR_PICKUP')).toBe(false)
   })
 
   it('재고 확보 실패는 사유별로 다르게', () => {
@@ -56,6 +78,8 @@ describe('isPollingStatus', () => {
     expect(isPollingStatus('OUT_OF_STOCK')).toBe(false)
     expect(isPollingStatus('PAYMENT_FAILED')).toBe(false)
     expect(isPollingStatus('EXPIRED')).toBe(false)
+    expect(isPollingStatus('PICKED_UP')).toBe(false)
+    expect(isPollingStatus('PICKUP_EXPIRED')).toBe(false)
     expect(isPollingStatus(undefined)).toBe(true)
   })
 })
@@ -69,11 +93,38 @@ describe('결제 중단·승인 오류 문구', () => {
 
   it('승인 오류 code 별 문구, 모르는 code 는 기본 문구', () => {
     expect(confirmErrorMessage('ORDER_EXPIRED')).toBe('결제 시간이 지나 주문이 취소됐어요')
+    expect(confirmErrorMessage('PICKUP_DEADLINE_PASSED')).toBe('픽업 기한이 지나 주문이 취소됐어요')
     expect(confirmErrorMessage('PAYMENT_AMOUNT_MISMATCH')).toBe(
       '결제 정보가 주문과 맞지 않아요. 다시 결제해 주세요.',
     )
     expect(confirmErrorMessage(undefined)).toBe(
       '결제 결과를 확인하지 못했어요. 잠시 뒤 다시 확인해 주세요.',
     )
+  })
+})
+
+describe('orderStatusLabel', () => {
+  it('목록용 짧은 상태 이름 (A3·A6)', () => {
+    expect(orderStatusLabel('RESERVING', null)).toBe('주문 확인 중')
+    expect(orderStatusLabel('PAYMENT_WAITING', null)).toBe('결제 대기')
+    expect(orderStatusLabel('PAYMENT_APPROVING', null)).toBe('결제 확인 중')
+    expect(orderStatusLabel('PAID', null)).toBe('픽업 대기')
+    expect(orderStatusLabel('PICKED_UP', null)).toBe('픽업 완료')
+    expect(orderStatusLabel('PICKUP_EXPIRED', null)).toBe('픽업 기한 지남')
+    expect(orderStatusLabel('OUT_OF_STOCK', 'OUT_OF_STOCK')).toBe('재고 부족 취소')
+    expect(orderStatusLabel('PAYMENT_FAILED', 'PAYMENT_FAILED')).toBe('결제 실패')
+  })
+
+  it('결제 전 만료는 종료 사유로 결제 시간·픽업 기한을 나눈다', () => {
+    expect(orderStatusLabel('EXPIRED', 'EXPIRED')).toBe('결제 시간 지나 취소')
+    expect(orderStatusLabel('EXPIRED', null)).toBe('결제 시간 지나 취소')
+    expect(orderStatusLabel('EXPIRED', 'PICKUP_DEADLINE')).toBe('픽업 기한 지나 취소')
+  })
+
+  it('어느 상태에도 "예약"을 쓰지 않는다', () => {
+    for (const s of ORDER_STATUSES) {
+      expect(orderStatusLabel(s, null)).not.toContain('예약')
+      expect(orderStatusLabel(s, 'PICKUP_DEADLINE')).not.toContain('예약')
+    }
   })
 })

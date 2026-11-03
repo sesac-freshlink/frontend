@@ -1,50 +1,79 @@
+import axios from 'axios'
+import { apiErrorCode } from '@/shared/api/errors'
+import type { LoginNotice } from '@/shared/auth'
+
 /**
- * Cognito(Amplify) 오류를 화면 문구로 바꾼다. Amplify 오류는 name 에 Cognito 예외 이름이 들어 있다.
+ * C-01·C-02 gateway BFF 오류 본문 {code, message, traceId} 의 code 를 화면 문구로 바꾼다.
  * 문구는 member-service 기능명세 M1·M2 를 따른다.
  */
-function errorName(e: unknown): string | undefined {
-  return e instanceof Error ? e.name : undefined
-}
-
 export const EMAIL_TAKEN_MESSAGE =
   '이미 등록되었거나 가입이 진행 중인 이메일입니다. 로그인하거나 테스트 담당자에게 문의해 주세요.'
 
+export const GOOGLE_LOGIN_FAILED_MESSAGE = '구글 로그인에 실패했어요. 다시 시도해 주세요.'
+
+export const EMAIL_SIGNUP_EXISTS_MESSAGE =
+  '이미 이메일로 가입한 계정이 있어요. 이메일로 로그인해 주세요.'
+
+const TOO_MANY_REQUESTS_MESSAGE = '요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요.'
+
+/** 서버 응답을 못 받았는지 (네트워크 오류) */
+function isNoResponse(e: unknown): boolean {
+  return axios.isAxiosError(e) && !e.response
+}
+
 export function signUpErrorMessage(e: unknown): string {
-  switch (errorName(e)) {
-    case 'UsernameExistsException':
-    case 'AliasExistsException':
+  switch (apiErrorCode(e)) {
+    case 'EMAIL_ALREADY_EXISTS':
       return EMAIL_TAKEN_MESSAGE
-    case 'InvalidPasswordException':
+    case 'INVALID_PASSWORD':
       return '비밀번호 규칙을 확인해 주세요.'
-    case 'CodeMismatchException':
+    case 'CODE_MISMATCH':
       return '인증 코드가 맞지 않아요.'
-    case 'ExpiredCodeException':
+    case 'CODE_EXPIRED':
       return '인증 코드가 만료됐어요. 테스트 담당자에게 문의해 주세요.'
-    case 'LimitExceededException':
-    case 'TooManyRequestsException':
-    case 'TooManyFailedAttemptsException':
-      return '요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요.'
+    case 'TOO_MANY_REQUESTS':
+      return TOO_MANY_REQUESTS_MESSAGE
     default:
       return '가입에 실패했어요. 잠시 뒤 다시 시도해 주세요.'
   }
 }
 
 export function signInErrorMessage(e: unknown): string {
-  switch (errorName(e)) {
-    case 'NotAuthorizedException':
-    case 'UserNotFoundException':
+  switch (apiErrorCode(e)) {
+    case 'INVALID_CREDENTIALS':
       return '이메일 또는 비밀번호를 확인해 주세요.'
-    case 'LimitExceededException':
-    case 'TooManyRequestsException':
-      return '요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요.'
+    case 'NO_ROLE':
+      return '계정에 역할이 지정되지 않았어요. 테스트 담당자에게 문의해 주세요.'
+    case 'CHALLENGE_REQUIRED':
+    case 'PASSWORD_RESET_REQUIRED':
+      return '이 계정은 지금 로그인할 수 없어요. 테스트 담당자에게 문의해 주세요.'
+    case 'TOO_MANY_REQUESTS':
+      return TOO_MANY_REQUESTS_MESSAGE
+    case 'AUTH_UNAVAILABLE':
+      return '로그인에 실패했어요. 잠시 뒤 다시 시도해 주세요.'
     default:
-      // 역할이 없는 계정 같은 안내는 로그인 클라이언트가 만든 문구를 그대로 쓴다
-      return e instanceof Error && e.message ? e.message : '로그인에 실패했어요.'
+      return isNoResponse(e)
+        ? '로그인에 실패했어요. 잠시 뒤 다시 시도해 주세요.'
+        : '로그인에 실패했어요.'
   }
 }
 
 /** 가입은 했지만 이메일 인증을 안 한 계정으로 로그인했는지 */
 export function isUnconfirmedSignIn(e: unknown): boolean {
-  if (errorName(e) === 'UserNotConfirmedException') return true
-  return e instanceof Error && e.message.includes('CONFIRM_SIGN_UP')
+  return apiErrorCode(e) === 'USER_NOT_CONFIRMED'
+}
+
+/** 인증 코드가 틀렸는지 (코드 칸에 알린다) */
+export function isCodeMismatch(e: unknown): boolean {
+  return apiErrorCode(e) === 'CODE_MISMATCH'
+}
+
+/** 로그인 화면 고정 안내. 구글 로그인 실패(?error=google)가 먼저, 없으면 store 안내 */
+export function loginNoticeMessage(
+  errorParam: string | null,
+  notice: LoginNotice | null,
+): string | undefined {
+  if (errorParam === 'google') return GOOGLE_LOGIN_FAILED_MESSAGE
+  if (notice === 'EMAIL_SIGNUP_EXISTS') return EMAIL_SIGNUP_EXISTS_MESSAGE
+  return undefined
 }

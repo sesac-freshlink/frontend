@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { apiErrorCode } from '@/auth/api'
 import { useCreateOrder } from './api'
 import { clampQuantity, MIN_QUANTITY, parseCheckout, type CheckoutItem } from './checkout'
+import { firstComeErrorMessage } from './firstCome'
 
 export interface UseCheckoutReturn {
   /** 주소에서 읽은 상품. 값이 없거나 틀리면 null */
@@ -58,8 +59,10 @@ export function useCheckout(): UseCheckoutReturn {
           // 같은 키로 다른 내용을 보낸 경우. 새 시도로 다시 하게 한다
           setIdempotencyKey(crypto.randomUUID())
         }
+        // 선착순 상품: 입장권 없음·이미 주문함·수량 1개 초과는 이유를 알려 준다
+        const firstCome = firstComeErrorMessage(apiErrorCode(e))
         // 그 밖의 실패(네트워크 등)는 같은 키로 다시 보내도 주문이 하나만 생긴다
-        toast.error('주문하지 못했어요. 다시 시도해 주세요.')
+        toast.error(firstCome ?? '주문하지 못했어요. 다시 시도해 주세요.')
       }
     },
   }

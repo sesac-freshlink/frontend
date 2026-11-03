@@ -18,6 +18,20 @@ export function formatHHmm(iso: string): string {
   return dayjs(iso).tz(KST).format('HH:mm')
 }
 
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
+
+/** 픽업 기한(그날 23:59:59 +09:00)을 날짜만 "10월 22일(목)" 로. 시각은 늘 그날 끝이라 뺀다 */
+export function formatPickupDate(iso: string): string {
+  const d = dayjs(iso).tz(KST)
+  return `${d.month() + 1}월 ${d.date()}일(${WEEKDAYS[d.day()]})`
+}
+
+/** 점주 표용 짧은 픽업 기한 "10/22(목)" */
+export function formatShortPickupDate(iso: string): string {
+  const d = dayjs(iso).tz(KST)
+  return `${d.format('MM/DD')}(${WEEKDAYS[d.day()]})`
+}
+
 /** 서버 시각(+09:00)을 "10/20 15:42" 로 */
 export function formatDateTime(iso: string): string {
   return dayjs(iso).tz(KST).format('MM/DD HH:mm')
