@@ -2,15 +2,19 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { apiErrorCode } from '@/auth/api'
+import { useStoreProduct } from '@/customer/stores/api'
 import { useCreateOrder } from './api'
 import { clampQuantity, MIN_QUANTITY, parseCheckout, type CheckoutItem } from './checkout'
 import {
   canCheckout,
   changeLine,
+  clearanceEndedSinceSheet,
+  clearanceReducedTo,
   hasClearance,
   initialLines,
   type LineQuantities,
   linesTotal,
+  withLatestProduct,
 } from './clearance'
 import { firstComeErrorMessage } from './firstCome'
 
@@ -21,8 +25,16 @@ const CLEARANCE_ERRORS: Record<string, string> = {
 }
 
 export interface UseCheckoutReturn {
-  /** 주소에서 읽은 상품. 값이 없거나 틀리면 null */
+  /** 주소에서 읽은 상품(시트에서 왔으면 가격·남은 수는 상품 API의 최신 값). 값이 없거나 틀리면 null */
   item: CheckoutItem | null
+  /** 시트에서 와서 최신 가격·남은 수를 읽는 중 */
+  loadingProduct: boolean
+  /** 시트에서 마감세일을 골라 왔는데 지금은 마감세일이 없다 */
+  clearanceEnded: boolean
+  /** 고른 마감세일 수가 남은 수보다 많아 줄였으면 그 수 */
+  clearanceReducedTo: number | null
+  /** 상품(마감세일 정보)을 읽지 못했다. 기본 줄만 보이고 기본 결제는 된다 */
+  clearanceUnavailable: boolean
   quantity: number
   setQuantity(quantity: number): void
   /** 마감세일 줄이 있으면 두 줄 수량, 없으면 null (지금처럼 수량 한 줄) */
@@ -43,17 +55,34 @@ export interface UseCheckoutReturn {
 export function useCheckout(): UseCheckoutReturn {
   const [params] = useSearchParams()
   const navigate = useNavigate()
-  const item = parseCheckout(params)
+  const urlItem = parseCheckout(params)
+  // 마감세일 시트(이태우)에서 왔으면(clearanceQuantity 가 있으면) 가격·남은 수는 상품 API(이태우 useStoreProduct)에서
+  // 직접 읽는다. 시트가 주소로 넘긴 값보다 최신이다 (11/6 경우 결정)
+  const fromSheet = urlItem?.clearanceQuantity !== undefined
+  const product = useStoreProduct(urlItem?.storeId ?? 0, urlItem?.productId ?? 0)
+  const item = urlItem && fromSheet ? withLatestProduct(urlItem, product.data) : urlItem
+  const loadingProduct = fromSheet && product.isPending
+  const clearanceUnavailable = fromSheet && product.isError
   const createOrder = useCreateOrder()
-  const [quantity, setQuantityState] = useState(MIN_QUANTITY)
-  const [lines, setLines] = useState<LineQuantities | null>(() =>
-    item && hasClearance(item) ? initialLines(item) : null,
-  )
+  const [quantityState, setQuantityState] = useState<number | null>(null)
+  const [lineState, setLines] = useState<LineQuantities | null>(null)
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
+  // 상품을 읽은 뒤에 처음 수량을 정한다. 고르면 그 값을 쓴다
+  const lines =
+    item && !loadingProduct && hasClearance(item) ? (lineState ?? initialLines(item)) : null
+  const quantity =
+    quantityState ??
+    (item ? clampQuantity(sheetRegularQuantity(item), item.available) : MIN_QUANTITY)
   const orderQuantity = lines ? lines.clearance + lines.regular : quantity
 
   return {
     item,
+    loadingProduct,
+    clearanceEnded:
+      item !== null && !loadingProduct && !clearanceUnavailable && clearanceEndedSinceSheet(item),
+    clearanceReducedTo:
+      item && !loadingProduct && lineState === null ? clearanceReducedTo(item) : null,
+    clearanceUnavailable,
     quantity: orderQuantity,
     lines,
     setLine(line, next) {
@@ -74,7 +103,7 @@ export function useCheckout(): UseCheckoutReturn {
     submitting: createOrder.isPending,
 
     async submit() {
-      if (!item || createOrder.isPending || (lines && !canCheckout(lines))) return
+      if (!item || loadingProduct || createOrder.isPending || (lines && !canCheckout(lines))) return
       try {
         const order = await createOrder.mutateAsync({
           idempotencyKey,
@@ -100,4 +129,10 @@ export function useCheckout(): UseCheckoutReturn {
       }
     },
   }
+}
+
+/** 한 줄 수량의 처음 값: 시트에서 고른 기본 수량(마감세일이 끝났으면 기본만), 없으면 1개 */
+function sheetRegularQuantity(item: CheckoutItem): number {
+  if (item.quantity === undefined) return MIN_QUANTITY
+  return Math.max(MIN_QUANTITY, item.quantity - (item.clearanceQuantity ?? 0))
 }

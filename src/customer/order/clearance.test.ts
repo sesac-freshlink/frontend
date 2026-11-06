@@ -4,6 +4,8 @@ import { checkoutPath, parseCheckout } from './checkout'
 import {
   canCheckout,
   changeLine,
+  clearanceEndedSinceSheet,
+  clearanceReducedTo,
   hasClearance,
   initialLines,
   lineMax,
@@ -11,6 +13,7 @@ import {
   lineText,
   quantityText,
   shortageMessage,
+  withLatestProduct,
 } from './clearance'
 
 const item: CheckoutItem = {
@@ -122,14 +125,66 @@ describe('마감세일 문구', () => {
 })
 
 describe('주문 화면 주소의 마감세일 값', () => {
-  it('넘기고 다시 읽는다', () => {
+  it('고른 수량만 주소로 넘기고, 가격·남은 수는 주소로 받지 않는다', () => {
     const path = checkoutPath({ ...item, quantity: 2, clearanceQuantity: 1 })
-    const parsed = parseCheckout(new URL(path, 'http://x').searchParams)
-    expect(parsed).toMatchObject({
-      quantity: 2,
-      clearanceQuantity: 1,
+    expect(path).not.toContain('clearancePrice')
+    const parsed = parseCheckout(
+      new URL(`${path}&clearancePrice=10&clearanceAvailable=99`, 'http://x').searchParams,
+    )
+    expect(parsed).toMatchObject({ quantity: 2, clearanceQuantity: 1 })
+    expect(parsed?.clearancePrice).toBeUndefined()
+    expect(parsed?.clearanceAvailable).toBeUndefined()
+  })
+})
+
+describe('상품 API의 최신 값으로 덮기', () => {
+  const sheet: CheckoutItem = {
+    ...item,
+    clearancePrice: undefined,
+    clearanceAvailable: undefined,
+    quantity: 3,
+    clearanceQuantity: 3,
+  }
+  const product = {
+    productId: 31,
+    name: '꿀밤고구마 800g',
+    category: '채소',
+    price: 4990,
+    imageUrl: null,
+    availableQuantity: 7,
+    soldOut: false,
+    recommended: false,
+    newArrival: false,
+    firstCome: false,
+    nearestExpiry: null,
+    clearanceQuantity: 2,
+    clearancePrice: 3490,
+    clearanceExpiry: null,
+  }
+
+  it('가격·남은 수를 상품 값으로 바꾸고, 고른 마감세일이 남은 수보다 많으면 줄인다', () => {
+    const latest = withLatestProduct(sheet, product)
+    expect(latest).toMatchObject({
+      price: 4990,
+      available: 7,
       clearancePrice: 3490,
       clearanceAvailable: 2,
     })
+    expect(clearanceReducedTo(latest)).toBe(2)
+    expect(initialLines(latest)).toEqual({ clearance: 2, regular: 0 })
+  })
+
+  it('마감세일이 0개면 마감세일 줄을 숨기고 끝났다고 본다', () => {
+    const latest = withLatestProduct(sheet, {
+      ...product,
+      clearanceQuantity: 0,
+      clearancePrice: null,
+    })
+    expect(hasClearance(latest)).toBe(false)
+    expect(clearanceEndedSinceSheet(latest)).toBe(true)
+  })
+
+  it('상품을 못 읽으면 주소 값을 그대로 쓴다', () => {
+    expect(withLatestProduct(sheet, undefined)).toBe(sheet)
   })
 })

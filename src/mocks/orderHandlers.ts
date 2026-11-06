@@ -80,14 +80,21 @@ function clearanceOnSale(ms = Date.now()) {
   return hour >= 6 && hour < 23
 }
 
-/** 상품 998 은 마감세일이 그새 다 팔린 주문을 흉내 낸다 (마감세일 0, 기본 2 남음) */
+/**
+ * 마감세일이 그새 다 팔린 주문 흉내: 상품 998, 또는 마감세일을 4개 고른 주문(삼각김밥 마감세일 4개를 다 사려는 사이
+ * 다른 사람이 사 간 것으로 본다). 마감세일 0, 기본 2 남음
+ */
 const CLEARANCE_SOLD_OUT_PRODUCT = 998
+const CLEARANCE_SOLD_OUT_QUANTITY = 4
 
 /** 진짜처럼 1.5초 뒤 재고 결과(RESERVED·RESERVE_FAILED)가 온 것으로 본다 */
 function advance(order: Order & { createdMs: number }) {
   if (order.status !== 'RESERVING' || Date.now() - order.createdMs < 1500) return
   const clearance = order.clearanceQuantity ?? 0
-  if (clearance > 0 && order.productId === CLEARANCE_SOLD_OUT_PRODUCT) {
+  if (
+    clearance > 0 &&
+    (order.productId === CLEARANCE_SOLD_OUT_PRODUCT || clearance === CLEARANCE_SOLD_OUT_QUANTITY)
+  ) {
     order.status = 'OUT_OF_STOCK'
     order.failureReason = 'CLEARANCE_SOLD_OUT'
     order.availableQuantity = 2

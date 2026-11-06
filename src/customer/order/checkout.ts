@@ -22,9 +22,9 @@ export interface CheckoutItem {
   quantity?: number
   /** 그중 마감세일 수량 */
   clearanceQuantity?: number
-  /** 표시용 마감세일 단가. 실제 금액은 서버가 정한다 */
+  /** 마감세일 단가. 주소로 받지 않고 주문 화면이 상품 API에서 읽어 채운다 (표시용, 실제 금액은 서버) */
   clearancePrice?: number
-  /** 마감세일 남은 수 (마감세일 줄 수량 상한) */
+  /** 마감세일 남은 수. 주소로 받지 않고 주문 화면이 상품 API에서 읽어 채운다 (마감세일 줄 상한) */
   clearanceAvailable?: number
 }
 
@@ -46,9 +46,6 @@ export function checkoutPath(item: CheckoutItem): string {
   if (item.quantity !== undefined) q.set('quantity', String(item.quantity))
   if (item.clearanceQuantity !== undefined)
     q.set('clearanceQuantity', String(item.clearanceQuantity))
-  if (item.clearancePrice !== undefined) q.set('clearancePrice', String(item.clearancePrice))
-  if (item.clearanceAvailable !== undefined)
-    q.set('clearanceAvailable', String(item.clearanceAvailable))
   return `/customer/orders/new?${q.toString()}`
 }
 
@@ -73,8 +70,6 @@ export function parseCheckout(q: URLSearchParams): CheckoutItem | null {
   const available = nonNegativeInt(q.get('available'))
   const quantity = positiveInt(q.get('quantity'))
   const clearanceQuantity = nonNegativeInt(q.get('clearanceQuantity'))
-  const clearancePrice = positiveInt(q.get('clearancePrice'))
-  const clearanceAvailable = nonNegativeInt(q.get('clearanceAvailable'))
   return {
     storeId,
     storeName,
@@ -85,8 +80,6 @@ export function parseCheckout(q: URLSearchParams): CheckoutItem | null {
     ...(q.get('firstCome') === '1' && { firstCome: true }),
     ...(quantity !== undefined && { quantity }),
     ...(clearanceQuantity !== undefined && { clearanceQuantity }),
-    ...(clearancePrice !== undefined && { clearancePrice }),
-    ...(clearanceAvailable !== undefined && { clearanceAvailable }),
   }
 }
 

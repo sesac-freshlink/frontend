@@ -1,3 +1,4 @@
+import type { StoreProductDetail } from '@/customer/stores/api'
 import type { Order, OrderLine } from './api'
 import type { CheckoutItem } from './checkout'
 import { MAX_QUANTITY } from './checkout'
@@ -6,6 +7,39 @@ import { formatWon } from './format'
 /** 마감세일이 섞인 주문의 픽업 안내 (결제 화면·주문 상세) */
 export const SAME_DAY_PICKUP_NOTICE =
   '오늘 23:59까지 픽업해 주세요. 지나면 받아 갈 수 없고 환불되지 않아요'
+
+/**
+ * 주문 화면이 쓸 값: 고른 수량은 시트 주소에서, 가격·남은 수는 상품 API에서 읽은 최신 값으로 덮는다.
+ * 상품을 못 읽으면 주소 값을 그대로 쓴다
+ */
+export function withLatestProduct(
+  item: CheckoutItem,
+  product: StoreProductDetail | undefined,
+): CheckoutItem {
+  if (!product) return item
+  const clearanceAvailable = product.clearanceQuantity ?? 0
+  return {
+    ...item,
+    price: product.price,
+    available: product.availableQuantity,
+    clearanceAvailable,
+    ...(product.clearancePrice != null && clearanceAvailable > 0
+      ? { clearancePrice: product.clearancePrice }
+      : { clearancePrice: undefined }),
+  }
+}
+
+/** 시트에서 마감세일을 골라 왔는데 지금 마감세일 재고가 없다 (그새 다 팔렸거나 판매 시간이 끝났다) */
+export function clearanceEndedSinceSheet(item: CheckoutItem): boolean {
+  return (item.clearanceQuantity ?? 0) > 0 && !hasClearance(item)
+}
+
+/** 시트에서 고른 마감세일 수가 지금 남은 수보다 많아 줄여야 하면 남은 수, 아니면 null */
+export function clearanceReducedTo(item: CheckoutItem): number | null {
+  const wanted = item.clearanceQuantity ?? 0
+  const left = item.clearanceAvailable ?? 0
+  return hasClearance(item) && wanted > left ? left : null
+}
 
 /** 주문 화면의 두 줄 수량 (마감세일·기본) */
 export interface LineQuantities {

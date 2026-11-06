@@ -8,8 +8,21 @@ import { useCheckout } from '../useCheckout'
 
 /** U-21 주문·결제 화면 (/customer/orders/new). 아직 주문은 없고, [결제하기]를 누를 때 만든다 */
 export function OrderCheckoutView() {
-  const { item, quantity, setQuantity, lines, setLine, canSubmit, total, submitting, submit } =
-    useCheckout()
+  const {
+    item,
+    loadingProduct,
+    clearanceEnded,
+    clearanceReducedTo,
+    clearanceUnavailable,
+    quantity,
+    setQuantity,
+    lines,
+    setLine,
+    canSubmit,
+    total,
+    submitting,
+    submit,
+  } = useCheckout()
 
   if (!item) {
     return (
@@ -25,6 +38,15 @@ export function OrderCheckoutView() {
   }
 
   const max = item.available === undefined ? MAX_QUANTITY : Math.min(MAX_QUANTITY, item.available)
+
+  if (loadingProduct) {
+    return (
+      <section className="flex flex-col items-center gap-3 py-16 text-slate-500">
+        <LoaderCircle className="size-8 animate-spin text-emerald-600" />
+        <p className="font-medium text-slate-900">상품 정보를 확인하고 있어요</p>
+      </section>
+    )
+  }
 
   if (submitting) {
     return (
@@ -46,6 +68,21 @@ export function OrderCheckoutView() {
         ]}
       />
 
+      {clearanceUnavailable && (
+        <p role="status" className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+          마감세일 정보를 불러오지 못했어요. 기본 상품은 그대로 살 수 있어요.
+        </p>
+      )}
+      {clearanceReducedTo !== null && (
+        <p role="status" className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+          마감세일 상품이 {clearanceReducedTo}개 남아 {clearanceReducedTo}개로 줄였어요.
+        </p>
+      )}
+      {clearanceEnded && (
+        <p role="status" className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+          마감세일이 끝났어요. 기본 상품으로 골라 주세요.
+        </p>
+      )}
       {lines ? (
         <>
           <Stepper
