@@ -14,6 +14,7 @@ import {
 import { ExpiryBadge } from '../components/ExpiryBadge'
 import { ProductBadges } from '../components/ProductBadges'
 import { PullIndicator } from '../components/PullIndicator'
+import { productLabel } from '../productLabel'
 import { useLoadMoreOnScroll } from '../useLoadMoreOnScroll'
 import { usePullToRefresh } from '../usePullToRefresh'
 import { useStoreName } from '../useStoreName'
@@ -101,8 +102,8 @@ function StoreProducts({ storeId }: { storeId: number }) {
         </button>
       </div>
       <form onSubmit={onSearch} className="flex gap-2" role="search">
-        <label className="flex flex-1 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
-          <Search className="size-4 shrink-0 text-slate-400" />
+        <label className="flex flex-1 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 focus-within:border-emerald-600 focus-within:ring-1 focus-within:ring-emerald-600">
+          <Search className="size-4 shrink-0 text-slate-400" aria-hidden />
           <span className="sr-only">상품 검색어</span>
           <input
             value={draft}
@@ -286,7 +287,7 @@ function ProductRow({ product, to }: { product: StoreProduct; to?: string }) {
       <ProductThumb src={product.imageUrl} name={product.name} className="size-12" />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{product.name}</span>
-        <span className="block text-xs text-slate-400">{product.category}</span>
+        <span className="block text-xs text-slate-500">{product.category}</span>
         <span className="mt-1 flex flex-wrap items-center gap-1">
           <ExpiryBadge nearestExpiry={product.nearestExpiry} />
           <ProductBadges product={product} />
@@ -304,7 +305,7 @@ function ProductRow({ product, to }: { product: StoreProduct; to?: string }) {
           </span>
         )}
       </span>
-      {to && <ChevronRight className="size-4 shrink-0 text-slate-400" />}
+      {to && <ChevronRight className="size-4 shrink-0 text-slate-400" aria-hidden />}
     </>
   )
   const className = cn(
@@ -315,7 +316,11 @@ function ProductRow({ product, to }: { product: StoreProduct; to?: string }) {
   return (
     <li aria-disabled={to ? undefined : true}>
       {to ? (
-        <Link to={to} className={cn(className, 'hover:bg-slate-50')}>
+        <Link
+          to={to}
+          aria-label={productLabel(product)}
+          className={cn(className, 'hover:bg-slate-50')}
+        >
           {body}
         </Link>
       ) : (

@@ -111,7 +111,7 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
         className={cn('mx-auto size-48 rounded-xl', product.soldOut && 'opacity-50')}
       />
       <div className="space-y-1">
-        <p className="text-xs text-slate-400">{product.category}</p>
+        <p className="text-xs text-slate-500">{product.category}</p>
         <h1 className="text-xl font-bold text-slate-900">{product.name}</h1>
         <ProductBadges product={product} />
         <p className="text-lg font-semibold text-slate-900 tabular-nums">
@@ -147,7 +147,7 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
                   {formatDateTime(product.nearestExpiry)}까지
                 </span>
               </span>
-              <span className="block text-xs text-slate-400">유통기한이 빠른 상품부터 드려요</span>
+              <span className="block text-xs text-slate-500">유통기한이 빠른 상품부터 드려요</span>
             </dd>
           </div>
         )}
