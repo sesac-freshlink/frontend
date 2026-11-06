@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { DEFAULT_ORDER_PAGE_SIZE, ORDER_PAGE_SIZES, type OrderPageSize } from '@/customer/order/api'
 import { CancelReasonDialog } from '@/customer/order/components/CancelReasonDialog'
 import { ReceiptLink } from '@/customer/order/components/ReceiptLink'
+import { quantityText } from '@/customer/order/clearance'
 import { formatDateTime, formatShortPickupDate, formatWon } from '@/customer/order/format'
 import { orderStatusLabel } from '@/customer/order/orderStatus'
 import {
@@ -224,7 +225,7 @@ const BASE_COLUMNS: Column[] = [
     className: 'min-w-24 break-keep whitespace-normal',
     cell: (o) => o.productName,
   },
-  { label: '수량', right: true, cell: (o) => `${o.quantity}개` },
+  { label: '수량', right: true, cell: (o) => quantityText(o) },
   { label: '금액', right: true, cell: (o) => formatWon(o.amount) },
   {
     // 결제 수단과 결제 시각을 한 칸에 두 줄로 둔다. 픽업 대기 표(칸 9개)가 1024px 포스기 화면 안에 들어오게 하려는 것이다

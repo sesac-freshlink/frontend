@@ -13,6 +13,7 @@ import {
   type OrderPageSize,
   useCustomerOrders,
 } from '../api'
+import { quantityText } from '../clearance'
 import { formatDateTime, formatPickupDate, formatWon } from '../format'
 import { orderStatusLabel } from '../orderStatus'
 import { hasRefundStarted, refundStatusLabel } from '../refund'
@@ -153,7 +154,7 @@ function OrderRow({ order }: { order: CustomerOrderSummary }) {
             <span className="truncate text-xs text-slate-400">{order.orderNo}</span>
           </div>
           <p className="truncate font-medium text-slate-900">
-            {order.productName ?? '상품 확인 중'} · {order.quantity}개
+            {order.productName ?? '상품 확인 중'} · {quantityText(order)}
           </p>
           <p className="truncate text-xs text-slate-500">
             {order.storeName} · {formatDateTime(order.createdAt)}

@@ -49,6 +49,7 @@ function renderAt(path: string) {
     [
       { path: '/customer/orders/:id', element: <OrderDetailPage /> },
       { path: '/customer/stores/:storeId', element: <p>상품 목록</p> },
+      { path: '/customer/stores/:storeId/products/:productId', element: <p>상품 상세</p> },
       { path: '/customer', element: <p>고객 홈</p> },
     ],
     { initialEntries: [path] },
@@ -347,5 +348,118 @@ describe('주문·결제 화면 (U-21)', () => {
     expect(
       screen.getByText('상품 정보를 찾을 수 없어요. 상품을 다시 골라 주세요.'),
     ).toBeInTheDocument()
+  })
+})
+
+describe('마감세일 함께 사기', () => {
+  beforeEach(() => {
+    get.mockReset()
+    post.mockReset()
+  })
+
+  const clearancePath = checkoutPath({
+    storeId: 1,
+    storeName: '프레시 강남점',
+    productId: 31,
+    productName: '꿀밤고구마 800g',
+    price: 4990,
+    available: 10,
+    quantity: 2,
+    clearanceQuantity: 1,
+    clearancePrice: 3490,
+    clearanceAvailable: 2,
+  })
+
+  it('주문 화면에 마감세일·기본 두 줄과 합계, 당일 픽업 안내를 보여 주고 마감세일 수량을 보낸다', async () => {
+    post.mockResolvedValue({ data: { orderId: 123, orderNo: base.orderNo, status: 'RESERVING' } })
+    orderReturns({ status: 'RESERVING', productName: null, amount: null })
+    renderAt(clearancePath)
+
+    expect(screen.getByText('8,480원')).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent('오늘 23:59까지 픽업해 주세요')
+    await userEvent.click(screen.getByRole('button', { name: '마감세일 수량 더하기' }))
+    expect(screen.getByText('11,970원')).toBeInTheDocument()
+    // 마감세일 남은 수(2)에 닿으면 더 못 늘린다
+    expect(screen.getByRole('button', { name: '마감세일 수량 더하기' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: '결제하기' }))
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/orders',
+        {
+          storeId: 1,
+          storeName: '프레시 강남점',
+          productId: 31,
+          quantity: 3,
+          clearanceQuantity: 2,
+        },
+        expect.anything(),
+      ),
+    )
+  })
+
+  it('두 줄을 모두 0으로 줄이면 결제하기가 꺼지고, 마감세일이 0이면 당일 안내를 숨긴다', async () => {
+    renderAt(clearancePath)
+    await userEvent.click(screen.getByRole('button', { name: '마감세일 수량 빼기' }))
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '기본 수량 빼기' }))
+    expect(screen.getByRole('button', { name: '결제하기' })).toBeDisabled()
+  })
+
+  it('마감세일 값이 주소에 없으면 지금처럼 수량 한 줄', () => {
+    renderAt(
+      checkoutPath({
+        storeId: 1,
+        storeName: '프레시 강남점',
+        productId: 15,
+        productName: '매운 컵라면 115g',
+        price: 1700,
+      }),
+    )
+    expect(screen.getByRole('button', { name: '수량 더하기' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '마감세일 수량 더하기' })).not.toBeInTheDocument()
+  })
+
+  it('결제 대기 상세에 두 줄과 당일 픽업 안내를 보여 준다', async () => {
+    orderReturns({
+      status: 'PAYMENT_WAITING',
+      productName: '꿀밤고구마 800g',
+      quantity: 2,
+      clearanceQuantity: 1,
+      unitPrice: 4990,
+      amount: 8480,
+      pickupDeadline: '2026-10-20T23:59:59+09:00',
+      lines: [
+        { clearance: true, quantity: 1, unitPrice: 3490, amount: 3490 },
+        { clearance: false, quantity: 1, unitPrice: 4990, amount: 4990 },
+      ],
+    })
+    renderAt('/customer/orders/123')
+
+    expect(await screen.findByText('마감세일 1개 3,490원')).toBeInTheDocument()
+    expect(screen.getByText('기본 1개 4,990원')).toBeInTheDocument()
+    expect(screen.getByText(/오늘 23:59까지 픽업해 주세요/)).toBeInTheDocument()
+  })
+
+  it('마감세일이 끝나 실패하면 남은 수를 알려 주고 다시 고르기는 상품 상세로 간다', async () => {
+    orderReturns({
+      status: 'OUT_OF_STOCK',
+      failureReason: 'CLEARANCE_SOLD_OUT',
+      productId: 31,
+      quantity: 2,
+      clearanceQuantity: 1,
+      productName: null,
+      amount: null,
+      unitPrice: null,
+      availableQuantity: 2,
+      clearanceAvailableQuantity: 0,
+    })
+    const router = renderAt('/customer/orders/123')
+
+    expect(
+      await screen.findByText('마감세일이 끝났어요. 기본 상품은 2개 남았어요. 다시 골라 주세요.'),
+    ).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('link', { name: '다시 고르기' }))
+    expect(router.state.location.pathname).toBe('/customer/stores/1/products/31')
   })
 })

@@ -27,6 +27,8 @@ export type FailureReason =
   | 'PAYMENT_FAILED'
   | 'EXPIRED'
   | 'PICKUP_DEADLINE'
+  /** 마감세일 재고가 모자람 (마감세일 함께 사기) */
+  | 'CLEARANCE_SOLD_OUT'
 
 /**
  * loading: 기다리기만 한다 (로딩 표시)
@@ -45,6 +47,7 @@ export interface CustomerMessage {
 
 const OUT_OF_STOCK_MESSAGES: Record<string, string> = {
   OUT_OF_STOCK: '재고가 부족해 주문이 취소됐어요.',
+  CLEARANCE_SOLD_OUT: '마감세일이 끝나 주문이 취소됐어요.',
   PRODUCT_NOT_FOUND: '상품을 찾을 수 없어 주문이 취소됐어요.',
   INVALID_QUANTITY: '주문 수량이 올바르지 않아 주문이 취소됐어요.',
 }
