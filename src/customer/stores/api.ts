@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useInfiniteQuery } from '@tanstack/react-query'
+import { useQueries } from '@tanstack/react-query'
 import type { RegionCode } from '@/auth/regions'
 import { api } from '@/shared/api/client'
 
@@ -174,4 +175,41 @@ export function useStoreCategories(storeId: number) {
     queryKey: ['customer', 'stores', storeId, 'categories'],
     queryFn: async () => (await api.get<string[]>(`/stores/${storeId}/products/categories`)).data,
   })
+}
+
+/** 주변 점포 재고 한 줄. inventory-service StoreStockResponse 와 같은 모양 */
+export interface StoreStock {
+  storeId: number
+  /** 그 점포에서 지금 살 수 있는 수량(1 이상) */
+  availableQuantity: number
+  /** 먼저 받게 될 상품의 유통기한(+09:00) */
+  nearestExpiry: string
+}
+
+/** 주변 점포 재고: 이 상품을 지금 살 수 있는 점포와 수량(공개). 품절 상세에서만 읽는다 */
+export function useProductStores(productId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ['customer', 'products', productId, 'stores'],
+    queryFn: async () => (await api.get<StoreStock[]>(`/products/${productId}/stores`)).data,
+    enabled,
+  })
+}
+
+/**
+ * 여러 점포의 상세(이름·지역·좌표)를 한 번에 읽는다. useStoreDetail 과 같은 queryKey 라 이미 읽은 점포는 다시 묻지 않는다.
+ * 점포 목록 API 에 좌표가 생기면 그걸 쓰도록 바꾼다. 읽은 점포만 Map 으로 돌려준다
+ */
+export function useStoreDetails(storeIds: number[]): ReadonlyMap<number, StoreDetail> {
+  const results = useQueries({
+    queries: storeIds.map((storeId) => ({
+      queryKey: ['customer', 'stores', storeId, 'detail'],
+      queryFn: async () => (await api.get<StoreDetail>(`/stores/${storeId}`)).data,
+      staleTime: 5 * 60 * 1000,
+    })),
+  })
+  const map = new Map<number, StoreDetail>()
+  results.forEach((r, i) => {
+    if (r.data && typeof r.data === 'object' && 'storeId' in r.data) map.set(storeIds[i], r.data)
+  })
+  return map
 }

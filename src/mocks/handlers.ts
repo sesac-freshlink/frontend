@@ -655,6 +655,20 @@ export const handlers = [
     }
     return HttpResponse.json(product)
   }),
+  // 주변 점포 재고: 점포 1~3 중 그 상품이 남은 곳(가짜). 점포 이름·좌표는 memberHandlers 점포 상세가 준다
+  http.get('/api/products/:productId/stores', ({ params }) => {
+    const productId = Number(params.productId)
+    if (!storeProducts.some((p) => p.productId === productId)) {
+      return HttpResponse.json(
+        { code: 'PRODUCT_NOT_FOUND', message: '상품이 없습니다', traceId: '' },
+        { status: 404 },
+      )
+    }
+    return HttpResponse.json([
+      { storeId: 2, availableQuantity: 4, nearestExpiry: kstEndOfDay(1) },
+      { storeId: 3, availableQuantity: 2, nearestExpiry: kstEndOfDay(2) },
+    ])
+  }),
   // 서버처럼 검색어(q)·카테고리·추천상품만·신상품만으로 거르고, 추천순이면 많이 팔린 순(같으면 이름순)
   http.get('/api/stores/:storeId/products', ({ request }) => {
     const params = new URL(request.url).searchParams

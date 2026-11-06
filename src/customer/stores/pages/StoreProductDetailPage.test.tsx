@@ -244,4 +244,64 @@ describe('고객 상품 상세 (U-10)', () => {
       imageUrl: 'https://img.example/P012.jpg',
     })
   })
+
+  it('품절이면 같은 지역의 다른 점포 재고를 많이 남은 순으로 보여 주고, 누르면 그 점포 상품으로 간다', async () => {
+    const soldOut = { ...milk, availableQuantity: 0, soldOut: true, nearestExpiry: null }
+    const storeOf = (storeId: number, name: string, region: string) => ({
+      storeId,
+      storeCode: `S${storeId}`,
+      name,
+      address: '주소',
+      region,
+      latitude: 37.5 + storeId / 100,
+      longitude: 127,
+      description: null,
+      imageUrl: null,
+    })
+    const stores: Record<string, unknown> = {
+      '/stores/1': storeOf(1, '프레시 강남점', 'SEOUL'),
+      '/stores/2': storeOf(2, '프레시 역삼점', 'SEOUL'),
+      '/stores/3': storeOf(3, '프레시 해운대점', 'BUSAN'),
+      '/stores/4': storeOf(4, '프레시 서초점', 'SEOUL'),
+    }
+    get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data:
+          url === '/products/12/stores'
+            ? [
+                { storeId: 2, availableQuantity: 1, nearestExpiry: '2026-11-08T23:59:59+09:00' },
+                { storeId: 3, availableQuantity: 9, nearestExpiry: '2026-11-08T23:59:59+09:00' },
+                { storeId: 4, availableQuantity: 5, nearestExpiry: '2026-11-08T23:59:59+09:00' },
+              ]
+            : url in stores
+              ? stores[url]
+              : url === '/notifications/restock/12'
+                ? { storeId: 1, productId: 12, subscribed: false }
+                : url === '/stores/1/products'
+                  ? []
+                  : soldOut,
+      }),
+    )
+    const router = renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    const section = await screen.findByRole('region', { name: '근처 점포에 있어요' })
+    // 테스트 환경은 위치를 못 써서 같은 지역(서울)만, 많이 남은 순
+    expect(
+      within(section).getByText('위치를 쓸 수 없어 같은 지역 점포를 보여 드려요.'),
+    ).toBeInTheDocument()
+    const names = within(section)
+      .getAllByRole('listitem')
+      .map((li) => li.querySelector('a span')?.textContent)
+    expect(names).toEqual(['프레시 서초점', '프레시 역삼점'])
+    expect(within(section).queryByText('프레시 해운대점')).not.toBeInTheDocument()
+    expect(within(section).getByRole('link', { name: '프레시 서초점 위치 보기' })).toHaveAttribute(
+      'href',
+      '/customer/stores/4/info',
+    )
+
+    await userEvent.click(within(section).getByRole('link', { name: /프레시 서초점.*5개 남음/ }))
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/customer/stores/4/products/12'),
+    )
+  })
 })
