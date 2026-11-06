@@ -16,6 +16,8 @@ export const EMAIL_SIGNUP_EXISTS_MESSAGE =
 
 /** 회원탈퇴 뒤 로그인 화면에 고정으로 띄운다 (추가 명세 A6) */
 export const WITHDRAWN_MESSAGE = '탈퇴했어요. 그동안 FreshLink를 이용해 주셔서 고마워요.'
+/** A4 비밀번호를 바꾸면 모든 기기에서 로그아웃된다. 로그인 화면에 고정으로 띄운다 */
+export const PASSWORD_CHANGED_MESSAGE = '새 비밀번호로 다시 로그인해 주세요'
 
 const TOO_MANY_REQUESTS_MESSAGE = '요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요.'
 
@@ -79,5 +81,6 @@ export function loginNoticeMessage(
   if (errorParam === 'google') return GOOGLE_LOGIN_FAILED_MESSAGE
   if (notice === 'EMAIL_SIGNUP_EXISTS') return EMAIL_SIGNUP_EXISTS_MESSAGE
   if (notice === 'WITHDRAWN') return WITHDRAWN_MESSAGE
+  if (notice === 'PASSWORD_CHANGED') return PASSWORD_CHANGED_MESSAGE
   return undefined
 }

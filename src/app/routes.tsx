@@ -27,6 +27,7 @@ import { LotDetailPage } from '@/owner/inventory/pages/LotDetailPage'
 import { OwnerOrdersPage } from '@/owner/orders/pages/OwnerOrdersPage'
 import { OwnerPickupScanPage } from '@/owner/orders/pages/OwnerPickupScanPage'
 import { OwnerSalesPage } from '@/owner/sales/pages/OwnerSalesPage'
+import { OwnerStorePage } from '@/owner/store/pages/OwnerStorePage'
 import { AdminLayout } from './layouts/AdminLayout'
 import { CustomerLayout } from './layouts/CustomerLayout'
 import { OwnerLayout } from './layouts/OwnerLayout'
@@ -56,7 +57,8 @@ export const routes: RouteObject[] = [
           { path: 'notices', element: <NoticeListPage basePath="/owner/notices" /> },
           { path: 'notices/:noticeId', element: <NoticeDetailPage basePath="/owner/notices" /> },
           { path: 'faq', element: <FaqPage /> },
-          { path: 'password', element: <PasswordChangePage backTo="/owner" /> },
+          { path: 'store', element: <OwnerStorePage /> },
+          { path: 'store/password', element: <PasswordChangePage backTo="/owner/store" /> },
         ],
       },
     ],
@@ -102,7 +104,6 @@ export const routes: RouteObject[] = [
           { path: 'stores/new', element: <StoreRegisterPage /> },
           { path: 'notices', element: <AdminNoticesPage /> },
           { path: 'faqs', element: <AdminFaqsPage /> },
-          { path: 'password', element: <PasswordChangePage backTo="/admin" /> },
         ],
       },
     ],

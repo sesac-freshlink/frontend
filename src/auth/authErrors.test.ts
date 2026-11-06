@@ -120,6 +120,10 @@ describe('loginNoticeMessage', () => {
     )
   })
 
+  it('비밀번호를 바꾼 뒤 다시 로그인 안내 (A4)', () => {
+    expect(loginNoticeMessage(null, 'PASSWORD_CHANGED')).toBe('새 비밀번호로 다시 로그인해 주세요')
+  })
+
   it('안내가 없으면 undefined', () => {
     expect(loginNoticeMessage(null, null)).toBeUndefined()
     expect(loginNoticeMessage('other', null)).toBeUndefined()

@@ -8,7 +8,7 @@ import type { LoginNotice } from './types'
 export const SSO_LOGOUT_PATH = '/api/auth/logout/sso'
 
 const NOTICE_KEY = 'fl_login_notice'
-const NOTICES: readonly LoginNotice[] = ['EMAIL_SIGNUP_EXISTS', 'WITHDRAWN']
+const NOTICES: readonly LoginNotice[] = ['EMAIL_SIGNUP_EXISTS', 'WITHDRAWN', 'PASSWORD_CHANGED']
 
 function isLoginNotice(value: unknown): value is LoginNotice {
   return NOTICES.some((n) => n === value)

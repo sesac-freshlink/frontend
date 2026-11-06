@@ -3,10 +3,10 @@ import {
   CircleHelp,
   ClipboardList,
   History,
-  KeyRound,
   LogOut,
   Megaphone,
   Package,
+  Store,
   TriangleAlert,
 } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
@@ -23,6 +23,13 @@ const MENU = [
   { to: '/owner/sales', label: '매출', icon: ChartColumn },
   { to: '/owner/notices', label: '공지사항', icon: Megaphone },
   { to: '/owner/faq', label: '자주 묻는 질문', icon: CircleHelp },
+  { to: '/owner/store', label: '내 점포', icon: Store },
+]
+
+/** "내 점포" 아래 늘 보이는 하위 메뉴 (추가 명세 A15). 비밀번호 변경은 비밀번호로 가입한 계정만 */
+const STORE_SUBMENU = [
+  { to: '/owner/store', label: '점포 수정', end: true, passwordOnly: false },
+  { to: '/owner/store/password', label: '비밀번호 변경', end: false, passwordOnly: true },
 ]
 
 /** 점주 화면: 매장 포스기(가로 화면)용 왼쪽 사이드 메뉴. 맨 위에 알림 종(유통기한 임박·경과) */
@@ -55,21 +62,27 @@ export function OwnerLayout() {
               {label}
             </NavLink>
           ))}
+          <ul aria-label="내 점포 메뉴" className="space-y-1 pl-7">
+            {STORE_SUBMENU.filter((s) => !s.passwordOnly || user?.passwordLogin !== false).map(
+              ({ to, label, end }) => (
+                <li key={to}>
+                  <NavLink
+                    to={to}
+                    end={end}
+                    className={({ isActive }) =>
+                      cn(
+                        'block rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100',
+                        isActive && 'font-medium text-emerald-700',
+                      )
+                    }
+                  >
+                    {label}
+                  </NavLink>
+                </li>
+              ),
+            )}
+          </ul>
         </nav>
-        {user?.passwordLogin !== false && (
-          <NavLink
-            to="/owner/password"
-            className={({ isActive }) =>
-              cn(
-                'mx-3 flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-100',
-                isActive && 'bg-emerald-50 text-emerald-700',
-              )
-            }
-          >
-            <KeyRound className="size-4" />
-            비밀번호 변경
-          </NavLink>
-        )}
         <button
           type="button"
           onClick={() => void signOut()}

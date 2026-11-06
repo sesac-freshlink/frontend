@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore, type AuthUser } from '@/shared/auth'
 import {
-  PASSWORD_CHANGED_MESSAGE,
+  PASSWORD_CHANGE_NOT_ALLOWED_MESSAGE,
   SESSION_EXPIRED_MESSAGE,
   WRONG_CURRENT_PASSWORD_MESSAGE,
 } from '../usePasswordChange'
@@ -25,12 +25,14 @@ function apiError(status: number, code: string) {
 
 const changePassword = vi.fn<(current: string, next: string) => Promise<void>>()
 const expireSession = vi.fn(() => true)
+const signOut = vi.fn(async () => undefined)
 
 function renderAt(path: string, backTo: string) {
   const router = createMemoryRouter(
     [
       { path, element: <PasswordChangePage backTo={backTo} /> },
       { path: backTo, element: <p>돌아간 화면</p> },
+      { path: '/login', element: <p>로그인 화면</p> },
     ],
     { initialEntries: [path] },
   )
@@ -49,28 +51,39 @@ async function fill(current: string, next: string, confirm = next) {
 beforeEach(() => {
   vi.clearAllMocks()
   changePassword.mockResolvedValue(undefined)
-  useAuthStore.setState({ user: customer, changePassword, expireSession })
+  useAuthStore.setState({ user: customer, changePassword, expireSession, signOut })
 })
 
 describe('PasswordChangePage (A4)', () => {
-  it('바꾸면 지금·새 비밀번호를 보내고 안내 뒤 돌아간다 (로그인은 그대로)', async () => {
+  it('바꾸면 지금·새 비밀번호를 보내고, 로그아웃(PASSWORD_CHANGED 안내)한 뒤 로그인 화면으로 간다', async () => {
     const router = renderAt('/customer/my/password', '/customer/my')
     const user = await fill('Old-pass1', 'New-pass1!')
     await user.click(screen.getByRole('button', { name: '비밀번호 바꾸기' }))
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/customer/my'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(changePassword).toHaveBeenCalledWith('Old-pass1', 'New-pass1!')
-    expect(toast.success).toHaveBeenCalledWith(PASSWORD_CHANGED_MESSAGE)
-    expect(useAuthStore.getState().user).toEqual(customer)
+    expect(signOut).toHaveBeenCalledWith('PASSWORD_CHANGED')
+    expect(toast.success).not.toHaveBeenCalled()
     expect(expireSession).not.toHaveBeenCalled()
   })
 
-  it('점주·관리자도 같은 폼을 쓰고 각자 화면으로 돌아간다', async () => {
+  it('점주도 같은 폼을 쓰고, 취소하면 내 점포로 돌아간다', async () => {
     useAuthStore.setState({ user: { userId: 'o', role: 'OWNER', storeId: '1' } })
-    const router = renderAt('/owner/password', '/owner')
+    const router = renderAt('/owner/store/password', '/owner/store')
+    await userEvent.setup().click(screen.getByRole('link', { name: '취소' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/owner/store'))
+  })
+
+  it('관리자 계정이면(403 PASSWORD_CHANGE_NOT_ALLOWED) 토스트, 로그아웃하지 않는다', async () => {
+    changePassword.mockRejectedValue(apiError(403, 'PASSWORD_CHANGE_NOT_ALLOWED'))
+    renderAt('/customer/my/password', '/customer/my')
     const user = await fill('Old-pass1', 'New-pass1!')
     await user.click(screen.getByRole('button', { name: '비밀번호 바꾸기' }))
-    await waitFor(() => expect(router.state.location.pathname).toBe('/owner'))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(PASSWORD_CHANGE_NOT_ALLOWED_MESSAGE),
+    )
+    expect(signOut).not.toHaveBeenCalled()
   })
 
   it('새 비밀번호가 규칙에 안 맞거나 확인이 다르면 버튼이 꺼진다', async () => {

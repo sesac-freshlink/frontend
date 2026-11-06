@@ -1,4 +1,4 @@
-import { CircleHelp, KeyRound, LogOut, Megaphone, Plus, Store } from 'lucide-react'
+import { CircleHelp, LogOut, Megaphone, Plus, Store } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
 import { useAuthStore } from '@/shared/auth'
 import { cn } from '@/shared/ui/cn'
@@ -41,20 +41,6 @@ export function AdminLayout() {
             </NavLink>
           ))}
         </nav>
-        {user?.passwordLogin !== false && (
-          <NavLink
-            to="/admin/password"
-            className={({ isActive }) =>
-              cn(
-                'mx-3 flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-100',
-                isActive && 'bg-emerald-50 text-emerald-700',
-              )
-            }
-          >
-            <KeyRound className="size-4" />
-            비밀번호 변경
-          </NavLink>
-        )}
         <button
           type="button"
           onClick={() => void signOut()}

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/shared/auth'
@@ -13,13 +13,19 @@ function renderAt(path: string) {
       {
         path: '/owner',
         element: <OwnerLayout />,
-        children: [{ path: 'password', element: <p>비밀번호 본문</p> }],
+        children: [
+          { path: 'store', element: <p>점포 수정 본문</p> },
+          { path: 'store/password', element: <p>비밀번호 본문</p> },
+        ],
       },
     ],
     { initialEntries: [path] },
   )
   render(<RouterProvider router={router} />)
 }
+
+const activeLinks = () =>
+  screen.getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page')
 
 describe('OwnerLayout', () => {
   beforeEach(() =>
@@ -29,18 +35,28 @@ describe('OwnerLayout', () => {
     }),
   )
 
-  it('사이드 메뉴 아래에 비밀번호 변경 링크가 있다 (A4)', () => {
-    renderAt('/owner/password')
-    expect(screen.getByText('비밀번호 본문')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '비밀번호 변경' })).toHaveAttribute(
+  it('"내 점포" 아래에 점포 수정·비밀번호 변경 하위 메뉴가 늘 보인다 (A15)', () => {
+    renderAt('/owner/store')
+    expect(screen.getByRole('link', { name: '내 점포' })).toHaveAttribute('href', '/owner/store')
+    const sub = within(screen.getByRole('list', { name: '내 점포 메뉴' }))
+    expect(sub.getByRole('link', { name: '점포 수정' })).toHaveAttribute('href', '/owner/store')
+    expect(sub.getByRole('link', { name: '비밀번호 변경' })).toHaveAttribute(
       'href',
-      '/owner/password',
+      '/owner/store/password',
     )
+    expect(activeLinks().map((a) => a.textContent)).toEqual(['내 점포', '점포 수정'])
   })
 
-  it('비밀번호 로그인 계정이 아니면 링크를 숨긴다', () => {
+  it('비밀번호 변경 화면에서는 "내 점포"와 비밀번호 변경이 켜진다', () => {
+    renderAt('/owner/store/password')
+    expect(screen.getByText('비밀번호 본문')).toBeInTheDocument()
+    expect(activeLinks().map((a) => a.textContent)).toEqual(['내 점포', '비밀번호 변경'])
+  })
+
+  it('비밀번호 로그인 계정이 아니면 비밀번호 변경 줄을 숨긴다', () => {
     useAuthStore.setState({ user: { userId: 'o', role: 'OWNER', passwordLogin: false } })
-    renderAt('/owner/password')
+    renderAt('/owner/store')
     expect(screen.queryByRole('link', { name: '비밀번호 변경' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '점포 수정' })).toBeInTheDocument()
   })
 })

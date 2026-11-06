@@ -8,7 +8,7 @@ import { type PasswordChangeForm, passwordChangeSchema } from '../signupSchema'
 import { PasswordFieldError, usePasswordChange } from '../usePasswordChange'
 
 interface Props {
-  /** 성공·취소 뒤 돌아갈 화면 (고객 /customer/my, 점주 /owner, 관리자 /admin) */
+  /** 취소하면 돌아갈 화면 (고객 /customer/my, 점주 /owner/store) */
   backTo: string
 }
 
@@ -23,9 +23,9 @@ const FIELDS = [
   { name: 'newPasswordConfirm', label: '새 비밀번호 확인', autoComplete: 'new-password' },
 ] as const
 
-/** A4 비밀번호 변경 (고객 /customer/my/password, 점주 /owner/password, 관리자 /admin/password) */
+/** A4 비밀번호 변경 (고객 /customer/my/password, 점주 /owner/store/password). 바꾸면 다시 로그인한다 */
 export function PasswordChangePage({ backTo }: Props) {
-  const { passwordLogin, submit } = usePasswordChange(backTo)
+  const { passwordLogin, submit } = usePasswordChange()
   const { register, handleSubmit, formState, setError } = useForm<PasswordChangeForm>({
     resolver: zodResolver(passwordChangeSchema),
     mode: 'onChange',

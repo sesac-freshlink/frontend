@@ -10,7 +10,8 @@ import type {
  * C-01·C-02 gateway BFF(/api/auth/*) 가짜 API. 개발 서버의 가짜 로그인이 이것을 쓴다.
  * 이메일이 admin 으로 시작하면 관리자, owner 면 점주(storeId "1"), google 이면 가짜 구글 고객,
  * dup 이면 이메일 가입자 막기 확인용 고객, 나머지는 고객. 비밀번호는 보지 않는다.
- * 비밀번호 변경(A4)은 지금 비밀번호가 wrong 으로 시작하면 400 WRONG_CURRENT_PASSWORD, 구글 고객은 403.
+ * 비밀번호 변경(A4)은 지금 비밀번호가 wrong 으로 시작하면 400 WRONG_CURRENT_PASSWORD, 구글 고객·관리자는 403,
+ * 성공하면 gateway 처럼 로그인(가짜 세션)을 지운다.
  */
 const SESSION_KEY = 'freshlink.mockSession'
 
@@ -127,6 +128,12 @@ export const authHandlers = [
     if (!user) {
       return HttpResponse.json(errorBody('UNAUTHORIZED', '로그인이 필요합니다'), { status: 401 })
     }
+    if (user.role === 'ADMIN') {
+      return HttpResponse.json(
+        errorBody('PASSWORD_CHANGE_NOT_ALLOWED', '관리자 계정은 비밀번호를 바꿀 수 없어요'),
+        { status: 403 },
+      )
+    }
     if (user.passwordLogin === false) {
       return HttpResponse.json(
         errorBody('PASSWORD_LOGIN_ONLY', '구글로 가입한 계정은 비밀번호가 없습니다'),
@@ -140,6 +147,7 @@ export const authHandlers = [
         { status: 400 },
       )
     }
+    resetMockSession()
     return new HttpResponse(null, { status: 204 })
   }),
 ]

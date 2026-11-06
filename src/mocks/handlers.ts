@@ -31,6 +31,7 @@ import { boardHandlers } from './boardHandlers'
 import { memberHandlers } from './memberHandlers'
 import { notificationHandlers } from './notificationHandlers'
 import { orderHandlers } from './orderHandlers'
+import { ownerStoreHandlers } from './ownerStoreHandlers'
 import { salesHandlers } from './salesHandlers'
 
 /**
@@ -1005,6 +1006,7 @@ export const handlers = [
   }),
   ...adminHandlers,
   ...boardHandlers,
+  ...ownerStoreHandlers,
   ...memberHandlers,
   ...orderHandlers,
   ...salesHandlers,

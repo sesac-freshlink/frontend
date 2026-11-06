@@ -45,7 +45,7 @@ export interface AuthUserResponse {
 }
 
 /** 로그아웃 뒤 로그인 화면에 고정으로 띄울 안내 */
-export type LoginNotice = 'EMAIL_SIGNUP_EXISTS' | 'WITHDRAWN'
+export type LoginNotice = 'EMAIL_SIGNUP_EXISTS' | 'WITHDRAWN' | 'PASSWORD_CHANGED'
 
 /**
  * 화면·store 는 이 인터페이스만 쓴다 (테스트에서 바꿔 끼운다).
