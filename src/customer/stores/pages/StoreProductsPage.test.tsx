@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { AxiosRequestConfig } from 'axios'
 import { createMemoryRouter, RouterProvider } from 'react-router'
@@ -55,6 +55,12 @@ function serve(handler: Get) {
 }
 
 /** 상품 목록 요청만 */
+/** page·size 말고 거르는 조건(q·category·sort·recommended·newOnly)이 있는지 */
+function hasFilter(config?: AxiosRequestConfig) {
+  const params = (config?.params ?? {}) as Record<string, unknown>
+  return Object.keys(params).some((key) => key !== 'page' && key !== 'size')
+}
+
 function productCalls() {
   return get.mock.calls.filter(([url]) => url === '/stores/1/products')
 }
@@ -95,7 +101,7 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
 
     expect(await screen.findByRole('heading', { name: '프레시 강남점' })).toBeInTheDocument()
-    expect(get).toHaveBeenCalledWith('/stores/1/products')
+    expect(get).toHaveBeenCalledWith('/stores/1/products', { params: { page: 0, size: 20 } })
 
     const noodle = (await screen.findByText('매운 컵라면 115g')).closest('li')!
     expect(within(noodle).getByText('라면')).toBeInTheDocument()
@@ -187,7 +193,9 @@ describe('고객 점포 상품 목록 (U-10)', () => {
 
     await waitFor(() => expect(screen.queryByText('샌드위치 햄치즈')).not.toBeInTheDocument())
     expect(screen.getByText('매운 컵라면 115g')).toBeInTheDocument()
-    expect(get).toHaveBeenLastCalledWith('/stores/1/products', { params: { q: '컵라면' } })
+    expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+      params: { q: '컵라면', page: 0, size: 20 },
+    })
   })
 
   it('검색 결과가 없으면 안내와 전체 상품 보기를 보여 주고, 누르면 검색을 지운다', async () => {
@@ -216,7 +224,9 @@ describe('고객 점포 상품 목록 (U-10)', () => {
 
     await userEvent.click(within(group).getByRole('button', { name: '라면' }))
     await waitFor(() =>
-      expect(get).toHaveBeenLastCalledWith('/stores/1/products', { params: { category: '라면' } }),
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { category: '라면', page: 0, size: 20 },
+      }),
     )
     expect(within(group).getByRole('button', { name: '라면' })).toHaveAttribute(
       'aria-pressed',
@@ -224,7 +234,9 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     )
 
     await userEvent.click(within(group).getByRole('button', { name: '전체' }))
-    await waitFor(() => expect(get).toHaveBeenLastCalledWith('/stores/1/products'))
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', { params: { page: 0, size: 20 } }),
+    )
   })
 
   it('추천상품·신상품 칩과 추천순 정렬을 같이 서버에 넘긴다', async () => {
@@ -238,7 +250,7 @@ describe('고객 점포 상품 목록 (U-10)', () => {
 
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
-        params: { sort: 'POPULAR', recommended: true, newOnly: true },
+        params: { sort: 'POPULAR', recommended: true, newOnly: true, page: 0, size: 20 },
       }),
     )
   })
@@ -256,7 +268,8 @@ describe('고객 점포 상품 목록 (U-10)', () => {
   })
 
   it('조건에 맞는 상품이 없으면 안내하고, 전체 상품 보기로 조건을 모두 푼다', async () => {
-    serve((_url, config) => Promise.resolve({ data: config?.params ? [] : products }))
+    // page·size 말고 다른 조건이 걸리면 빈 목록
+    serve((_url, config) => Promise.resolve({ data: hasFilter(config) ? [] : products }))
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
     await screen.findByText('샌드위치 햄치즈')
 
@@ -289,5 +302,91 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     // 품절 상품은 기한이 없어 배지가 없다
     const sandwich = screen.getByText('샌드위치 햄치즈').closest('li')!
     expect(within(sandwich).queryByLabelText(/유통기한/)).not.toBeInTheDocument()
+  })
+
+  it('20개가 넘으면 [더 보기]로 다음 묶음을 이어 붙이고, 마지막 묶음이면 버튼이 사라진다', async () => {
+    const many = Array.from({ length: 25 }, (_, i) => ({
+      ...products[0],
+      productId: 100 + i,
+      name: `상품 ${String(i + 1).padStart(2, '0')}`,
+    }))
+    serve((_url, config) => {
+      const { page = 0, size = 20 } = (config?.params ?? {}) as { page?: number; size?: number }
+      return Promise.resolve({ data: many.slice(page * size, (page + 1) * size) })
+    })
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+
+    expect(await screen.findByText('상품 20')).toBeInTheDocument()
+    expect(screen.queryByText('상품 21')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
+    expect(await screen.findByText('상품 25')).toBeInTheDocument()
+    expect(screen.getByText('상품 01')).toBeInTheDocument()
+    expect(get).toHaveBeenLastCalledWith('/stores/1/products', { params: { page: 1, size: 20 } })
+    expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument()
+  })
+
+  it('한 묶음보다 적으면 [더 보기]가 없다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    await screen.findByText('매운 컵라면 115g')
+    expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument()
+  })
+
+  it('맨 위에서 충분히 당겼다 놓으면 상품을 다시 읽고, 조금만 당기면 읽지 않는다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    await screen.findByText('매운 컵라면 115g')
+    const area = screen.getByRole('heading', { name: '프레시 강남점' }).closest('section')!
+    const before = productCalls().length
+
+    // 조금만 당기면(저항 반영 30px) 아무것도 안 한다
+    fireEvent.touchStart(area, { touches: [{ clientX: 10, clientY: 0 }] })
+    fireEvent.touchMove(area, { touches: [{ clientX: 10, clientY: 60 }] })
+    expect(screen.getByRole('status')).toHaveTextContent('당겨서 새로고침')
+    fireEvent.touchEnd(area)
+    expect(productCalls()).toHaveLength(before)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+    // 충분히 당기면 "놓으면 새로고침" → 놓으면 다시 읽는다
+    fireEvent.touchStart(area, { touches: [{ clientX: 10, clientY: 0 }] })
+    fireEvent.touchMove(area, { touches: [{ clientX: 10, clientY: 200 }] })
+    expect(screen.getByRole('status')).toHaveTextContent('놓으면 새로고침')
+    fireEvent.touchEnd(area)
+    await waitFor(() => expect(productCalls().length).toBeGreaterThan(before))
+  })
+
+  it('옆으로 미는 동작은 당기기로 보지 않는다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    await screen.findByText('매운 컵라면 115g')
+    const area = screen.getByRole('heading', { name: '프레시 강남점' }).closest('section')!
+    const before = productCalls().length
+
+    fireEvent.touchStart(area, { touches: [{ clientX: 0, clientY: 0 }] })
+    fireEvent.touchMove(area, { touches: [{ clientX: 300, clientY: 200 }] })
+    fireEvent.touchEnd(area)
+    expect(productCalls()).toHaveLength(before)
+  })
+
+  it('상품 줄은 화면 읽기 프로그램이 상품명, 가격, 남은 수량, 배지 순으로 한 번에 읽는다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    expect(
+      await screen.findByRole('link', { name: '매운 컵라면 115g, 1,700원, 3개 남음, 추천' }),
+    ).toBeInTheDocument()
+  })
+
+  it('마우스 없이 Tab으로 상품까지 가서 Enter로 상세에 들어간다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    const router = renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    const link = await screen.findByRole('link', { name: /^매운 컵라면 115g,/ })
+
+    for (let i = 0; i < 40 && document.activeElement !== link; i++) await userEvent.tab()
+    expect(link).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/customer/stores/1/products/15'),
+    )
   })
 })

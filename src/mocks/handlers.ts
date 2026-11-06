@@ -684,6 +684,12 @@ export const handlers = [
         (a, b) => (storeProductSold[b.productId] ?? 0) - (storeProductSold[a.productId] ?? 0),
       )
     }
+    // 무한 스크롤: page·size가 오면 그 묶음만 (서버와 같다)
+    const page = params.get('page')
+    const size = params.get('size')
+    if (page !== null && size !== null) {
+      list = list.slice(Number(page) * Number(size), (Number(page) + 1) * Number(size))
+    }
     return HttpResponse.json(list)
   }),
   // 서버처럼 검색(q)·상태(status, 쉼표로 여러 개는 모두 만족)·메모·페이지를 처리한다

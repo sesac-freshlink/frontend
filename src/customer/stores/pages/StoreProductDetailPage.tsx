@@ -9,9 +9,11 @@ import { useStoreProduct, type StoreProductDetail } from '../api'
 import { ExpiryBadge } from '../components/ExpiryBadge'
 import { NearbyStoreStock } from '../components/NearbyStoreStock'
 import { ProductBadges } from '../components/ProductBadges'
+import { PullIndicator } from '../components/PullIndicator'
 import { SimilarProducts } from '../components/SimilarProducts'
 import { queuePath } from '../firstComeQueue'
 import { useRestockSubscription, useToggleRestock } from '../restock'
+import { usePullToRefresh } from '../usePullToRefresh'
 import { useStoreName } from '../useStoreName'
 
 /**
@@ -44,9 +46,12 @@ function toId(raw: string | undefined): number | undefined {
 function ProductDetail({ storeId, productId }: { storeId: number; productId: number }) {
   const storeName = useStoreName(storeId)
   const product = useStoreProduct(storeId, productId)
+  // 화면 맨 위에서 당겼다 놓으면 남은 수량·유통기한을 다시 읽는다
+  const { ref: pullRef, pull, ready } = usePullToRefresh<HTMLElement>(() => void product.refetch())
 
   return (
-    <section className="space-y-4">
+    <section ref={pullRef} className="space-y-4">
+      <PullIndicator pull={pull} ready={ready} />
       <Link
         to={`/customer/stores/${storeId}`}
         className="inline-flex items-center gap-1 text-sm text-slate-500"
@@ -107,7 +112,7 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
         className={cn('mx-auto size-48 rounded-xl', product.soldOut && 'opacity-50')}
       />
       <div className="space-y-1">
-        <p className="text-xs text-slate-400">{product.category}</p>
+        <p className="text-xs text-slate-500">{product.category}</p>
         <h1 className="text-xl font-bold text-slate-900">{product.name}</h1>
         <ProductBadges product={product} />
         <p className="text-lg font-semibold text-slate-900 tabular-nums">
@@ -143,7 +148,7 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
                   {formatDateTime(product.nearestExpiry)}까지
                 </span>
               </span>
-              <span className="block text-xs text-slate-400">유통기한이 빠른 상품부터 드려요</span>
+              <span className="block text-xs text-slate-500">유통기한이 빠른 상품부터 드려요</span>
             </dd>
           </div>
         )}

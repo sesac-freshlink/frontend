@@ -7,19 +7,25 @@ import { ProductThumb } from '@/shared/ui/ProductThumb'
 import {
   PRODUCT_KEYWORD_MAX,
   useStoreCategories,
-  useStoreProducts,
+  useStoreProductPages,
   type StoreProduct,
   type StoreProductSort,
 } from '../api'
 import { ExpiryBadge } from '../components/ExpiryBadge'
 import { ProductBadges } from '../components/ProductBadges'
+import { PullIndicator } from '../components/PullIndicator'
+import { productLabel } from '../productLabel'
+import { useLoadMoreOnScroll } from '../useLoadMoreOnScroll'
+import { usePullToRefresh } from '../usePullToRefresh'
 import { useStoreName } from '../useStoreName'
 
 /**
  * U-10 점포 상품 목록 (/customer/stores/:storeId). 상품을 전부 보여 주고 품절은 흐리게 둔다.
  * 위 검색창에 상품명을 넣고 검색을 누르면 서버가 거른 목록을 보여 준다. 카테고리 칩, 추천상품·신상품만 보기,
  * 이름순·추천순(최근 7일 많이 팔린 순) 정렬도 서버가 처리한다. 상품마다 추천·신상품·선착순 배지가 붙는다.
- * 상품을 누르면 상품 상세로 가고, 거기서 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때·검색할 때·새로고침 때만 읽는다
+ * 상품을 누르면 상품 상세로 가고, 거기서 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때·검색할 때·새로고침 때만 읽는다.
+ * 상품은 묶음(20개)씩 불러오고, 목록 끝이 보이면 다음 묶음을 이어 붙인다(무한 스크롤). 키보드로도 [더 보기]로 이어 볼 수 있다.
+ * 화면 맨 위에서 아래로 당겼다 놓으면 상품과 카테고리를 다시 읽는다(당겨서 새로고침)
  */
 export function StoreProductsPage() {
   const { storeId: raw } = useParams()
@@ -37,8 +43,22 @@ function StoreProducts({ storeId }: { storeId: number }) {
   const [recommendedOnly, setRecommendedOnly] = useState(false)
   const [newOnly, setNewOnly] = useState(false)
   const categories = useStoreCategories(storeId)
-  const products = useStoreProducts(storeId, { keyword, category, sort, recommendedOnly, newOnly })
+  const products = useStoreProductPages(storeId, {
+    keyword,
+    category,
+    sort,
+    recommendedOnly,
+    newOnly,
+  })
   const filtered = category !== '' || recommendedOnly || newOnly
+  const {
+    ref: pullRef,
+    pull,
+    ready,
+  } = usePullToRefresh<HTMLElement>(() => {
+    void products.refetch()
+    void categories.refetch()
+  })
 
   const onSearch = (e: FormEvent) => {
     e.preventDefault()
@@ -53,7 +73,8 @@ function StoreProducts({ storeId }: { storeId: number }) {
   }
 
   return (
-    <section className="space-y-4">
+    <section ref={pullRef} className="space-y-4">
+      <PullIndicator pull={pull} ready={ready} />
       <Link to="/customer" className="inline-flex items-center gap-1 text-sm text-slate-500">
         <ChevronLeft className="size-4" />
         점포 찾기
@@ -81,8 +102,8 @@ function StoreProducts({ storeId }: { storeId: number }) {
         </button>
       </div>
       <form onSubmit={onSearch} className="flex gap-2" role="search">
-        <label className="flex flex-1 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
-          <Search className="size-4 shrink-0 text-slate-400" />
+        <label className="flex flex-1 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 focus-within:border-emerald-600 focus-within:ring-1 focus-within:ring-emerald-600">
+          <Search className="size-4 shrink-0 text-slate-400" aria-hidden />
           <span className="sr-only">상품 검색어</span>
           <input
             value={draft}
@@ -143,7 +164,7 @@ function StoreProducts({ storeId }: { storeId: number }) {
 }
 
 interface ListProps {
-  products: ReturnType<typeof useStoreProducts>
+  products: ReturnType<typeof useStoreProductPages>
   storeId: number
   storeName: string | undefined
   /** 지금 걸려 있는 검색어(앞뒤 공백 뺀 것). 없으면 빈 문자열 */
@@ -182,7 +203,8 @@ function ProductList({
       </div>
     )
   }
-  if (products.data.length === 0) {
+  const items = products.data.pages.flat()
+  if (items.length === 0) {
     if (keyword || filtered) {
       return (
         <div className="space-y-2 py-10 text-center">
@@ -207,24 +229,54 @@ function ProductList({
       <>
         <BackToHome message="점포 찾기에서 점포를 다시 골라 주세요." />
         <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
-          {products.data.map((p) => (
+          {items.map((p) => (
             <ProductRow key={p.productId} product={p} />
           ))}
         </ul>
+        <LoadMore products={products} />
       </>
     )
   }
 
   return (
-    <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
-      {products.data.map((p) => (
-        <ProductRow
-          key={p.productId}
-          product={p}
-          to={p.soldOut ? undefined : `/customer/stores/${storeId}/products/${p.productId}`}
-        />
-      ))}
-    </ul>
+    <>
+      <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
+        {items.map((p) => (
+          <ProductRow
+            key={p.productId}
+            product={p}
+            to={p.soldOut ? undefined : `/customer/stores/${storeId}/products/${p.productId}`}
+          />
+        ))}
+      </ul>
+      <LoadMore products={products} />
+    </>
+  )
+}
+
+/**
+ * 목록 끝. 다음 묶음이 있으면 화면에 들어올 때 자동으로 부르고, 키보드·화면 읽기 프로그램으로도 쓸 수 있게
+ * [더 보기] 버튼을 같이 둔다. 다 불러왔으면 아무것도 그리지 않는다
+ */
+function LoadMore({ products }: { products: ReturnType<typeof useStoreProductPages> }) {
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = products
+  const ref = useLoadMoreOnScroll<HTMLDivElement>(() => {
+    if (!isFetchingNextPage) void fetchNextPage()
+  }, hasNextPage)
+  if (!hasNextPage) return null
+  return (
+    <div ref={ref} className="flex justify-center py-2">
+      <button
+        type="button"
+        onClick={() => void fetchNextPage()}
+        disabled={isFetchingNextPage}
+        aria-busy={isFetchingNextPage}
+        className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm text-slate-500 hover:bg-slate-100 disabled:opacity-60"
+      >
+        {isFetchingNextPage && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
+        {isFetchingNextPage ? '불러오는 중' : '더 보기'}
+      </button>
+    </div>
   )
 }
 
@@ -235,7 +287,7 @@ function ProductRow({ product, to }: { product: StoreProduct; to?: string }) {
       <ProductThumb src={product.imageUrl} name={product.name} className="size-12" />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{product.name}</span>
-        <span className="block text-xs text-slate-400">{product.category}</span>
+        <span className="block text-xs text-slate-500">{product.category}</span>
         <span className="mt-1 flex flex-wrap items-center gap-1">
           <ExpiryBadge nearestExpiry={product.nearestExpiry} />
           <ProductBadges product={product} />
@@ -253,7 +305,7 @@ function ProductRow({ product, to }: { product: StoreProduct; to?: string }) {
           </span>
         )}
       </span>
-      {to && <ChevronRight className="size-4 shrink-0 text-slate-400" />}
+      {to && <ChevronRight className="size-4 shrink-0 text-slate-400" aria-hidden />}
     </>
   )
   const className = cn(
@@ -264,7 +316,11 @@ function ProductRow({ product, to }: { product: StoreProduct; to?: string }) {
   return (
     <li aria-disabled={to ? undefined : true}>
       {to ? (
-        <Link to={to} className={cn(className, 'hover:bg-slate-50')}>
+        <Link
+          to={to}
+          aria-label={productLabel(product)}
+          className={cn(className, 'hover:bg-slate-50')}
+        >
           {body}
         </Link>
       ) : (
