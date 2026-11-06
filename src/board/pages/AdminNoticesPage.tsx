@@ -19,6 +19,8 @@ export function AdminNoticesPage() {
   const onDelete = async (noticeId: number) => {
     try {
       await remove.mutateAsync(noticeId)
+      // 이 페이지의 마지막 글을 지우면 빈 페이지가 되지 않게 앞 페이지로 간다
+      if (page > 0 && notices.data?.content.length === 1) setPage((p) => p - 1)
       toast.success('공지를 지웠어요')
     } catch {
       toast.error('지우지 못했어요. 잠시 뒤 다시 시도해 주세요')

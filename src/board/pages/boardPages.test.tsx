@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AxiosError, type AxiosResponse } from 'axios'
+import { AxiosError, type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
@@ -223,5 +223,39 @@ describe('게시판 화면 (A17)', () => {
         sortOrder: 3,
       }),
     )
+  })
+
+  it('주소의 공지 번호가 숫자가 아니면 불러오는 중에 머물지 않고 "없는 공지예요"', async () => {
+    renderAt('/customer/notices/abc', [
+      {
+        path: '/customer/notices/:noticeId',
+        element: <NoticeDetailPage basePath="/customer/notices" />,
+      },
+    ])
+    expect(await screen.findByRole('alert')).toHaveTextContent('없는 공지예요.')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it('관리자가 2페이지의 마지막 공지를 지우면 1페이지로 돌아간다', async () => {
+    const other = summary({ ...pinned, noticeId: 2, title: '다른 공지', pinned: false })
+    const pages: Record<number, BoardPage<NoticeSummary>> = {
+      0: { content: [other], page: 0, size: 20, totalElements: 21, totalPages: 2 },
+      1: { content: [summary(pinned)], page: 1, size: 20, totalElements: 21, totalPages: 2 },
+    }
+    get.mockImplementation(async (url: string, config?: AxiosRequestConfig) => {
+      const page = (config?.params as { page?: number } | undefined)?.page ?? 0
+      if (url === '/admin/notices') return { data: pages[page] }
+      throw new Error(url)
+    })
+    del.mockResolvedValue({ data: undefined })
+    renderAt('/admin/notices', [{ path: '/admin/notices', element: <AdminNoticesPage /> }])
+
+    await screen.findByText('다른 공지')
+    await userEvent.click(screen.getByRole('button', { name: '다음' }))
+    await userEvent.click(await screen.findByRole('button', { name: '서비스를 시작했어요 지우기' }))
+    await userEvent.click(screen.getByRole('button', { name: '정말 지우기' }))
+
+    expect(await screen.findByText('1 / 2')).toBeInTheDocument()
   })
 })

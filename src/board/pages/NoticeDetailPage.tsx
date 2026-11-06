@@ -12,7 +12,10 @@ interface Props {
 /** 공지사항 상세 (추가 명세 A17). 본문은 줄바꿈 그대로 */
 export function NoticeDetailPage({ basePath }: Props) {
   const { noticeId } = useParams()
-  const notice = useNotice(Number(noticeId))
+  const id = Number(noticeId)
+  // 주소의 번호가 숫자가 아니면 부르지 않으므로 "불러오는 중"에 머물지 않게 바로 없는 공지로 보여 준다
+  const validId = Number.isInteger(id) && id > 0
+  const notice = useNotice(id)
 
   return (
     <article className="space-y-4">
@@ -20,7 +23,12 @@ export function NoticeDetailPage({ basePath }: Props) {
         <ChevronLeft className="size-4" />
         공지사항
       </Link>
-      {notice.isPending && (
+      {!validId && (
+        <p role="alert" className="text-sm text-red-600">
+          없는 공지예요.
+        </p>
+      )}
+      {validId && notice.isPending && (
         <p role="status" className="flex items-center gap-2 text-sm text-slate-500">
           <LoaderCircle className="size-4 animate-spin" />
           공지를 불러오는 중이에요
