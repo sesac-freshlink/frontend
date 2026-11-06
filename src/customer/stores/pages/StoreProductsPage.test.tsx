@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { AxiosRequestConfig } from 'axios'
 import { createMemoryRouter, RouterProvider } from 'react-router'
@@ -331,5 +331,41 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
     await screen.findByText('매운 컵라면 115g')
     expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument()
+  })
+
+  it('맨 위에서 충분히 당겼다 놓으면 상품을 다시 읽고, 조금만 당기면 읽지 않는다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    await screen.findByText('매운 컵라면 115g')
+    const area = screen.getByRole('heading', { name: '프레시 강남점' }).closest('section')!
+    const before = productCalls().length
+
+    // 조금만 당기면(저항 반영 30px) 아무것도 안 한다
+    fireEvent.touchStart(area, { touches: [{ clientX: 10, clientY: 0 }] })
+    fireEvent.touchMove(area, { touches: [{ clientX: 10, clientY: 60 }] })
+    expect(screen.getByRole('status')).toHaveTextContent('당겨서 새로고침')
+    fireEvent.touchEnd(area)
+    expect(productCalls()).toHaveLength(before)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+    // 충분히 당기면 "놓으면 새로고침" → 놓으면 다시 읽는다
+    fireEvent.touchStart(area, { touches: [{ clientX: 10, clientY: 0 }] })
+    fireEvent.touchMove(area, { touches: [{ clientX: 10, clientY: 200 }] })
+    expect(screen.getByRole('status')).toHaveTextContent('놓으면 새로고침')
+    fireEvent.touchEnd(area)
+    await waitFor(() => expect(productCalls().length).toBeGreaterThan(before))
+  })
+
+  it('옆으로 미는 동작은 당기기로 보지 않는다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    await screen.findByText('매운 컵라면 115g')
+    const area = screen.getByRole('heading', { name: '프레시 강남점' }).closest('section')!
+    const before = productCalls().length
+
+    fireEvent.touchStart(area, { touches: [{ clientX: 0, clientY: 0 }] })
+    fireEvent.touchMove(area, { touches: [{ clientX: 300, clientY: 200 }] })
+    fireEvent.touchEnd(area)
+    expect(productCalls()).toHaveLength(before)
   })
 })

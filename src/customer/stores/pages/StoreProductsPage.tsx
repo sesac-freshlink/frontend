@@ -13,7 +13,9 @@ import {
 } from '../api'
 import { ExpiryBadge } from '../components/ExpiryBadge'
 import { ProductBadges } from '../components/ProductBadges'
+import { PullIndicator } from '../components/PullIndicator'
 import { useLoadMoreOnScroll } from '../useLoadMoreOnScroll'
+import { usePullToRefresh } from '../usePullToRefresh'
 import { useStoreName } from '../useStoreName'
 
 /**
@@ -21,7 +23,8 @@ import { useStoreName } from '../useStoreName'
  * 위 검색창에 상품명을 넣고 검색을 누르면 서버가 거른 목록을 보여 준다. 카테고리 칩, 추천상품·신상품만 보기,
  * 이름순·추천순(최근 7일 많이 팔린 순) 정렬도 서버가 처리한다. 상품마다 추천·신상품·선착순 배지가 붙는다.
  * 상품을 누르면 상품 상세로 가고, 거기서 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때·검색할 때·새로고침 때만 읽는다.
- * 상품은 묶음(20개)씩 불러오고, 목록 끝이 보이면 다음 묶음을 이어 붙인다(무한 스크롤). 키보드로도 [더 보기]로 이어 볼 수 있다
+ * 상품은 묶음(20개)씩 불러오고, 목록 끝이 보이면 다음 묶음을 이어 붙인다(무한 스크롤). 키보드로도 [더 보기]로 이어 볼 수 있다.
+ * 화면 맨 위에서 아래로 당겼다 놓으면 상품과 카테고리를 다시 읽는다(당겨서 새로고침)
  */
 export function StoreProductsPage() {
   const { storeId: raw } = useParams()
@@ -47,6 +50,14 @@ function StoreProducts({ storeId }: { storeId: number }) {
     newOnly,
   })
   const filtered = category !== '' || recommendedOnly || newOnly
+  const {
+    ref: pullRef,
+    pull,
+    ready,
+  } = usePullToRefresh<HTMLElement>(() => {
+    void products.refetch()
+    void categories.refetch()
+  })
 
   const onSearch = (e: FormEvent) => {
     e.preventDefault()
@@ -61,7 +72,8 @@ function StoreProducts({ storeId }: { storeId: number }) {
   }
 
   return (
-    <section className="space-y-4">
+    <section ref={pullRef} className="space-y-4">
+      <PullIndicator pull={pull} ready={ready} />
       <Link to="/customer" className="inline-flex items-center gap-1 text-sm text-slate-500">
         <ChevronLeft className="size-4" />
         점포 찾기

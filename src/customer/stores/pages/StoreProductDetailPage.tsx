@@ -8,9 +8,11 @@ import { ProductThumb } from '@/shared/ui/ProductThumb'
 import { useStoreProduct, type StoreProductDetail } from '../api'
 import { ExpiryBadge } from '../components/ExpiryBadge'
 import { ProductBadges } from '../components/ProductBadges'
+import { PullIndicator } from '../components/PullIndicator'
 import { SimilarProducts } from '../components/SimilarProducts'
 import { queuePath } from '../firstComeQueue'
 import { useRestockSubscription, useToggleRestock } from '../restock'
+import { usePullToRefresh } from '../usePullToRefresh'
 import { useStoreName } from '../useStoreName'
 
 /**
@@ -43,9 +45,12 @@ function toId(raw: string | undefined): number | undefined {
 function ProductDetail({ storeId, productId }: { storeId: number; productId: number }) {
   const storeName = useStoreName(storeId)
   const product = useStoreProduct(storeId, productId)
+  // 화면 맨 위에서 당겼다 놓으면 남은 수량·유통기한을 다시 읽는다
+  const { ref: pullRef, pull, ready } = usePullToRefresh<HTMLElement>(() => void product.refetch())
 
   return (
-    <section className="space-y-4">
+    <section ref={pullRef} className="space-y-4">
+      <PullIndicator pull={pull} ready={ready} />
       <Link
         to={`/customer/stores/${storeId}`}
         className="inline-flex items-center gap-1 text-sm text-slate-500"
