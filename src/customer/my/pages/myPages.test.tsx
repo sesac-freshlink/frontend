@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { toast } from 'sonner'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { api } from '@/shared/api/client'
 import { useAuthStore, type AuthUser } from '@/shared/auth'
 import { MyPage } from './MyPage'
@@ -85,6 +85,27 @@ describe('MyPage (/customer/my)', () => {
     )
     expect(screen.queryByRole('link', { name: /비밀번호 변경/ })).not.toBeInTheDocument()
     expect(screen.getByText('준비 중')).toBeInTheDocument()
+  })
+
+  it('이용약관을 누르면 두 약관을 창으로 보여 준다 (A16)', async () => {
+    // jsdom 에는 HTMLDialogElement 의 showModal/close 가 없다. 열고 닫기만 흉내 낸다
+    const proto = HTMLDialogElement.prototype as Partial<HTMLDialogElement>
+    const { showModal, close } = proto
+    proto.showModal ??= function (this: HTMLDialogElement) {
+      this.setAttribute('open', '')
+    }
+    proto.close ??= function (this: HTMLDialogElement) {
+      this.removeAttribute('open')
+    }
+    onTestFinished(() => {
+      proto.showModal = showModal
+      proto.close = close
+    })
+    answerGet()
+    renderAt('/customer/my')
+    await userEvent.click(await screen.findByRole('button', { name: /이용약관/ }))
+    const dialog = screen.getByRole('dialog', { name: 'FreshLink 이용약관' })
+    expect(dialog).toHaveTextContent('FreshLink 개인정보 처리방침')
   })
 
   it('로그아웃을 누르면 signOut', async () => {

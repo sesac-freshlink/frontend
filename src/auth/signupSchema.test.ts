@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { profileSchema, signupSchema } from './signupSchema'
+import { profileRegisterSchema, profileSchema, signupSchema } from './signupSchema'
 
 const valid = {
   email: 'kim@test.com',
@@ -8,6 +8,8 @@ const valid = {
   name: '김경우',
   nickname: 'Fresh01',
   region: 'SEOUL',
+  termsAgreed: true,
+  privacyAgreed: true,
 }
 
 function errorPaths(input: unknown) {
@@ -62,5 +64,25 @@ describe('profileSchema', () => {
     expect(
       profileSchema.safeParse({ name: '김경우', nickname: 'Fresh01', region: 'BUSAN' }).success,
     ).toBe(true)
+  })
+})
+
+describe('약관 동의 (A16)', () => {
+  it('가입 입력은 필수 약관 두 개에 모두 동의해야 한다', () => {
+    expect(errorPaths({ ...valid, termsAgreed: false })).toEqual(['termsAgreed'])
+    expect(errorPaths({ ...valid, privacyAgreed: false })).toEqual(['privacyAgreed'])
+  })
+
+  it('프로필 등록 단계(구글 첫 로그인)도 같은 동의가 필요하고, 회원정보 수정 규칙에는 없다', () => {
+    const profile = { name: '김경우', nickname: 'Fresh01', region: 'SEOUL' }
+    expect(
+      profileRegisterSchema.safeParse({ ...profile, termsAgreed: true, privacyAgreed: true })
+        .success,
+    ).toBe(true)
+    expect(
+      profileRegisterSchema.safeParse({ ...profile, termsAgreed: true, privacyAgreed: false })
+        .success,
+    ).toBe(false)
+    expect(profileSchema.safeParse(profile).success).toBe(true)
   })
 })

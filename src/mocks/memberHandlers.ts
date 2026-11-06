@@ -60,6 +60,17 @@ export const memberHandlers = [
   }),
   http.post('/api/members/me', async ({ request }) => {
     const req = (await request.json()) as RegisterProfileRequest
+    // 필수 약관 두 개 (추가 명세 A16)
+    if (req.termsAgreed !== true || req.privacyAgreed !== true) {
+      return HttpResponse.json(
+        {
+          code: 'VALIDATION_ERROR',
+          message: 'requiredAgreed: 필수 약관에 동의해 주세요',
+          traceId: null,
+        },
+        { status: 400 },
+      )
+    }
     // 같은 이메일로 이메일 가입한 사람이 구글로 처음 들어온 경우를 흉내 낸다 (세션 이메일이 dup 으로 시작)
     if (mockSessionUser()?.email?.startsWith('dup')) {
       return HttpResponse.json(
@@ -80,7 +91,13 @@ export const memberHandlers = [
         { status: 409 },
       )
     }
-    const myProfile: CustomerMe = { memberId, role: 'CUSTOMER', ...req }
+    const myProfile: CustomerMe = {
+      memberId,
+      role: 'CUSTOMER',
+      name: req.name,
+      nickname: req.nickname,
+      region: req.region,
+    }
     profiles.set(memberId, myProfile)
     const body: ProfileResponse = { ...myProfile, createdAt: new Date().toISOString() }
     return HttpResponse.json(body, { status: 201 })

@@ -1,6 +1,9 @@
 import { ChevronRight, LoaderCircle } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { useMyProfile } from '@/auth/api'
+import { TermsDialog } from '@/auth/components/TermsDialog'
+import { PRIVACY_POLICY, TERMS_OF_SERVICE } from '@/auth/terms'
 import { REGIONS } from '@/auth/regions'
 import { useAuthStore } from '@/shared/auth'
 import { cn } from '@/shared/ui/cn'
@@ -13,12 +16,13 @@ const rowClass = 'flex items-center justify-between px-4 py-3 text-sm'
 
 /**
  * /customer/my 마이페이지 (3차 할 일 김경우 "마이페이지"). 내 정보(MB-03 + 로그인 이메일)와
- * 회원정보 수정·비밀번호 변경(준비 중)·주문 내역·로그아웃 메뉴
+ * 회원정보 수정·비밀번호 변경(준비 중)·주문 내역·이용약관(A16, 전문 보기 창)·로그아웃 메뉴
  */
 export function MyPage() {
   const email = useAuthStore((s) => s.user?.email)
   const signOut = useAuthStore((s) => s.signOut)
   const profile = useMyProfile()
+  const [termsOpen, setTermsOpen] = useState(false)
 
   return (
     <div className="space-y-6">
@@ -84,12 +88,28 @@ export function MyPage() {
             </Link>
           </li>
           <li>
+            <button
+              type="button"
+              onClick={() => setTermsOpen(true)}
+              className={cn(rowClass, 'w-full')}
+            >
+              <span className="text-slate-900">이용약관</span>
+              <ChevronRight className="size-4 text-slate-400" />
+            </button>
+          </li>
+          <li>
             <button type="button" onClick={() => void signOut()} className={cn(rowClass, 'w-full')}>
               <span className="text-slate-900">로그아웃</span>
             </button>
           </li>
         </ul>
       </nav>
+      {termsOpen && (
+        <TermsDialog
+          documents={[TERMS_OF_SERVICE, PRIVACY_POLICY]}
+          onClose={() => setTermsOpen(false)}
+        />
+      )}
     </div>
   )
 }

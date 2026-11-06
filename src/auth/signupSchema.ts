@@ -25,13 +25,22 @@ const profileFields = {
   region: z.enum(REGION_CODES, { error: '거주 지역을 고르세요' }),
 }
 
-/** C-01 가입 입력 (기능명세 M1 입력 규칙) */
+export const TERMS_REQUIRED_MESSAGE = '필수 약관에 동의해 주세요'
+
+/** A16 필수 약관 두 개. 둘 다 체크해야 한다 */
+const agreementFields = {
+  termsAgreed: z.boolean().refine((v) => v, TERMS_REQUIRED_MESSAGE),
+  privacyAgreed: z.boolean().refine((v) => v, TERMS_REQUIRED_MESSAGE),
+}
+
+/** C-01 가입 입력 (기능명세 M1 입력 규칙 + 추가 명세 A16 약관 동의) */
 export const signupSchema = z
   .object({
     email: z.email('이메일 형식이 아닙니다'),
     password,
     passwordConfirm: z.string(),
     ...profileFields,
+    ...agreementFields,
   })
   .refine((v) => v.password === v.passwordConfirm, {
     path: ['passwordConfirm'],
@@ -46,6 +55,12 @@ export const profileSchema = z.object(profileFields)
 
 export type ProfileForm = z.input<typeof profileSchema>
 export type ProfileValues = z.output<typeof profileSchema>
+
+/** 로그인했는데 프로필이 없는 고객(구글 첫 로그인 포함)의 프로필 등록 단계: 프로필 + 필수 약관 동의 (A16) */
+export const profileRegisterSchema = z.object({ ...profileFields, ...agreementFields })
+
+export type ProfileRegisterForm = z.input<typeof profileRegisterSchema>
+export type ProfileRegisterValues = z.output<typeof profileRegisterSchema>
 
 export const codeSchema = z.object({
   code: z
