@@ -7,6 +7,7 @@ import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
 import { useStoreProduct, type StoreProductDetail } from '../api'
 import { ExpiryBadge } from '../components/ExpiryBadge'
+import { NearbyStoreStock } from '../components/NearbyStoreStock'
 import { ProductBadges } from '../components/ProductBadges'
 import { SimilarProducts } from '../components/SimilarProducts'
 import { queuePath } from '../firstComeQueue'
@@ -189,6 +190,8 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
           )}
         </div>
       )}
+
+      {product.soldOut && <NearbyStoreStock storeId={storeId} productId={product.productId} />}
 
       <SimilarProducts
         storeId={storeId}
