@@ -357,29 +357,58 @@ describe('마감세일 함께 사기', () => {
     post.mockReset()
   })
 
-  const clearancePath = checkoutPath({
-    storeId: 1,
-    storeName: '프레시 강남점',
+  // 시트(이태우)는 고른 수량만 주소로 넘긴다. 가격·남은 수는 주문 화면이 상품 API로 직접 읽는다
+  const clearancePath = (quantity: number, clearanceQuantity: number) =>
+    checkoutPath({
+      storeId: 1,
+      storeName: '프레시 강남점',
+      productId: 31,
+      productName: '꿀밤고구마 800g',
+      price: 4990,
+      available: 10,
+      quantity,
+      clearanceQuantity,
+    })
+
+  const product = {
     productId: 31,
-    productName: '꿀밤고구마 800g',
+    name: '꿀밤고구마 800g',
+    category: '채소',
     price: 4990,
-    available: 10,
-    quantity: 2,
-    clearanceQuantity: 1,
+    imageUrl: null,
+    availableQuantity: 10,
+    soldOut: false,
+    recommended: false,
+    newArrival: false,
+    firstCome: false,
+    nearestExpiry: null,
+    clearanceQuantity: 2,
     clearancePrice: 3490,
-    clearanceAvailable: 2,
-  })
+    clearanceExpiry: null,
+  }
 
-  it('주문 화면에 마감세일·기본 두 줄과 합계, 당일 픽업 안내를 보여 주고 마감세일 수량을 보낸다', async () => {
+  /** 상품 API는 product, 주문 조회는 order 로 답한다 */
+  function answers(productBody: object | Error, order?: Partial<Order>) {
+    get.mockImplementation(async (url: string) => {
+      if (url === '/stores/1/products/31') {
+        if (productBody instanceof Error) throw productBody
+        return { data: productBody }
+      }
+      return { data: { ...base, ...order } }
+    })
+  }
+
+  it('주문 화면이 상품 API로 가격·남은 수를 읽어 두 줄과 합계, 당일 픽업 안내를 보여 주고 마감세일 수량을 보낸다', async () => {
     post.mockResolvedValue({ data: { orderId: 123, orderNo: base.orderNo, status: 'RESERVING' } })
-    orderReturns({ status: 'RESERVING', productName: null, amount: null })
-    renderAt(clearancePath)
+    answers(product, { status: 'RESERVING', productName: null, amount: null })
+    renderAt(clearancePath(2, 1))
 
-    expect(screen.getByText('8,480원')).toBeInTheDocument()
+    expect(await screen.findByText('8,480원')).toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/stores/1/products/31')
     expect(screen.getByRole('note')).toHaveTextContent('오늘 23:59까지 픽업해 주세요')
     await userEvent.click(screen.getByRole('button', { name: '마감세일 수량 더하기' }))
     expect(screen.getByText('11,970원')).toBeInTheDocument()
-    // 마감세일 남은 수(2)에 닿으면 더 못 늘린다
+    // 상품 API의 마감세일 남은 수(2)에 닿으면 더 못 늘린다
     expect(screen.getByRole('button', { name: '마감세일 수량 더하기' })).toBeDisabled()
     await userEvent.click(screen.getByRole('button', { name: '결제하기' }))
 
@@ -399,14 +428,43 @@ describe('마감세일 함께 사기', () => {
   })
 
   it('두 줄을 모두 0으로 줄이면 결제하기가 꺼지고, 마감세일이 0이면 당일 안내를 숨긴다', async () => {
-    renderAt(clearancePath)
-    await userEvent.click(screen.getByRole('button', { name: '마감세일 수량 빼기' }))
+    answers(product)
+    renderAt(clearancePath(2, 1))
+    await userEvent.click(await screen.findByRole('button', { name: '마감세일 수량 빼기' }))
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '기본 수량 빼기' }))
     expect(screen.getByRole('button', { name: '결제하기' })).toBeDisabled()
   })
 
-  it('마감세일 값이 주소에 없으면 지금처럼 수량 한 줄', () => {
+  it('고른 마감세일이 지금 남은 수보다 많으면 남은 수로 줄이고 알려 준다', async () => {
+    answers(product)
+    renderAt(clearancePath(3, 3))
+    expect(await screen.findByText('마감세일 상품이 2개 남아 2개로 줄였어요.')).toBeInTheDocument()
+    expect(screen.getByText('6,980원')).toBeInTheDocument()
+  })
+
+  it('그새 마감세일이 끝났으면 마감세일 줄을 숨기고 기본으로 고르게 한다', async () => {
+    answers({ ...product, clearanceQuantity: 0, clearancePrice: null })
+    renderAt(clearancePath(2, 1))
+    expect(
+      await screen.findByText('마감세일이 끝났어요. 기본 상품으로 골라 주세요.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '마감세일 수량 더하기' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '수량 더하기' })).toBeInTheDocument()
+  })
+
+  it('상품을 못 읽으면 마감세일 안내를 띄우고 기본 결제는 그대로 된다', async () => {
+    answers(new Error('network'))
+    renderAt(clearancePath(2, 1))
+    expect(
+      await screen.findByText(
+        '마감세일 정보를 불러오지 못했어요. 기본 상품은 그대로 살 수 있어요.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '결제하기' })).toBeEnabled()
+  })
+
+  it('마감세일 시트에서 오지 않았으면 지금처럼 수량 한 줄', () => {
     renderAt(
       checkoutPath({
         storeId: 1,
