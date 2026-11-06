@@ -1,4 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import type { RegionCode } from '@/auth/regions'
 import { api } from '@/shared/api/client'
 
@@ -116,6 +117,30 @@ export function storeProductParams(filter: StoreProductFilter): Record<string, s
   if (filter.recommendedOnly) params.recommended = true
   if (filter.newOnly) params.newOnly = true
   return params
+}
+
+/** U-10 무한 스크롤 한 묶음 크기 */
+export const PRODUCT_PAGE_SIZE = 20
+
+/**
+ * U-10 상품 목록을 묶음(PRODUCT_PAGE_SIZE개)씩 불러온다. 서버가 거르고 정렬한 결과를 page·size로 잘라 준다.
+ * 받은 개수가 묶음 크기보다 적으면 마지막 묶음이라 더 부르지 않는다. 조건이 바뀌면 처음 묶음부터 다시 읽는다
+ */
+export function useStoreProductPages(storeId: number, filter: StoreProductFilter = {}) {
+  const params = storeProductParams(filter)
+  return useInfiniteQuery({
+    queryKey: ['customer', 'stores', storeId, 'products', 'pages', params],
+    queryFn: async ({ pageParam }) =>
+      (
+        await api.get<StoreProduct[]>(`/stores/${storeId}/products`, {
+          params: { ...params, page: pageParam, size: PRODUCT_PAGE_SIZE },
+        })
+      ).data,
+    initialPageParam: 0,
+    getNextPageParam: (last, all) => (last.length < PRODUCT_PAGE_SIZE ? undefined : all.length),
+    // 조건을 바꾸는 동안 이전 결과를 그대로 둬서 목록이 깜빡이지 않게 한다
+    placeholderData: keepPreviousData,
+  })
 }
 
 /**

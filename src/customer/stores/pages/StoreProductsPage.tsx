@@ -7,19 +7,21 @@ import { ProductThumb } from '@/shared/ui/ProductThumb'
 import {
   PRODUCT_KEYWORD_MAX,
   useStoreCategories,
-  useStoreProducts,
+  useStoreProductPages,
   type StoreProduct,
   type StoreProductSort,
 } from '../api'
 import { ExpiryBadge } from '../components/ExpiryBadge'
 import { ProductBadges } from '../components/ProductBadges'
+import { useLoadMoreOnScroll } from '../useLoadMoreOnScroll'
 import { useStoreName } from '../useStoreName'
 
 /**
  * U-10 점포 상품 목록 (/customer/stores/:storeId). 상품을 전부 보여 주고 품절은 흐리게 둔다.
  * 위 검색창에 상품명을 넣고 검색을 누르면 서버가 거른 목록을 보여 준다. 카테고리 칩, 추천상품·신상품만 보기,
  * 이름순·추천순(최근 7일 많이 팔린 순) 정렬도 서버가 처리한다. 상품마다 추천·신상품·선착순 배지가 붙는다.
- * 상품을 누르면 상품 상세로 가고, 거기서 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때·검색할 때·새로고침 때만 읽는다
+ * 상품을 누르면 상품 상세로 가고, 거기서 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때·검색할 때·새로고침 때만 읽는다.
+ * 상품은 묶음(20개)씩 불러오고, 목록 끝이 보이면 다음 묶음을 이어 붙인다(무한 스크롤). 키보드로도 [더 보기]로 이어 볼 수 있다
  */
 export function StoreProductsPage() {
   const { storeId: raw } = useParams()
@@ -37,7 +39,13 @@ function StoreProducts({ storeId }: { storeId: number }) {
   const [recommendedOnly, setRecommendedOnly] = useState(false)
   const [newOnly, setNewOnly] = useState(false)
   const categories = useStoreCategories(storeId)
-  const products = useStoreProducts(storeId, { keyword, category, sort, recommendedOnly, newOnly })
+  const products = useStoreProductPages(storeId, {
+    keyword,
+    category,
+    sort,
+    recommendedOnly,
+    newOnly,
+  })
   const filtered = category !== '' || recommendedOnly || newOnly
 
   const onSearch = (e: FormEvent) => {
@@ -143,7 +151,7 @@ function StoreProducts({ storeId }: { storeId: number }) {
 }
 
 interface ListProps {
-  products: ReturnType<typeof useStoreProducts>
+  products: ReturnType<typeof useStoreProductPages>
   storeId: number
   storeName: string | undefined
   /** 지금 걸려 있는 검색어(앞뒤 공백 뺀 것). 없으면 빈 문자열 */
@@ -182,7 +190,8 @@ function ProductList({
       </div>
     )
   }
-  if (products.data.length === 0) {
+  const items = products.data.pages.flat()
+  if (items.length === 0) {
     if (keyword || filtered) {
       return (
         <div className="space-y-2 py-10 text-center">
@@ -207,24 +216,54 @@ function ProductList({
       <>
         <BackToHome message="점포 찾기에서 점포를 다시 골라 주세요." />
         <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
-          {products.data.map((p) => (
+          {items.map((p) => (
             <ProductRow key={p.productId} product={p} />
           ))}
         </ul>
+        <LoadMore products={products} />
       </>
     )
   }
 
   return (
-    <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
-      {products.data.map((p) => (
-        <ProductRow
-          key={p.productId}
-          product={p}
-          to={p.soldOut ? undefined : `/customer/stores/${storeId}/products/${p.productId}`}
-        />
-      ))}
-    </ul>
+    <>
+      <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
+        {items.map((p) => (
+          <ProductRow
+            key={p.productId}
+            product={p}
+            to={p.soldOut ? undefined : `/customer/stores/${storeId}/products/${p.productId}`}
+          />
+        ))}
+      </ul>
+      <LoadMore products={products} />
+    </>
+  )
+}
+
+/**
+ * 목록 끝. 다음 묶음이 있으면 화면에 들어올 때 자동으로 부르고, 키보드·화면 읽기 프로그램으로도 쓸 수 있게
+ * [더 보기] 버튼을 같이 둔다. 다 불러왔으면 아무것도 그리지 않는다
+ */
+function LoadMore({ products }: { products: ReturnType<typeof useStoreProductPages> }) {
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = products
+  const ref = useLoadMoreOnScroll<HTMLDivElement>(() => {
+    if (!isFetchingNextPage) void fetchNextPage()
+  }, hasNextPage)
+  if (!hasNextPage) return null
+  return (
+    <div ref={ref} className="flex justify-center py-2">
+      <button
+        type="button"
+        onClick={() => void fetchNextPage()}
+        disabled={isFetchingNextPage}
+        aria-busy={isFetchingNextPage}
+        className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm text-slate-500 hover:bg-slate-100 disabled:opacity-60"
+      >
+        {isFetchingNextPage && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
+        {isFetchingNextPage ? '불러오는 중' : '더 보기'}
+      </button>
+    </div>
   )
 }
 
