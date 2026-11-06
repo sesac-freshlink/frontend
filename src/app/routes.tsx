@@ -3,6 +3,8 @@ import { AdminStoresPage } from '@/admin/stores/pages/AdminStoresPage'
 import { StoreRegisterPage } from '@/admin/stores/pages/StoreRegisterPage'
 import { LoginPage } from '@/auth/pages/LoginPage'
 import { SignupPage } from '@/auth/pages/SignupPage'
+import { MyPage } from '@/customer/my/pages/MyPage'
+import { ProfileEditPage } from '@/customer/my/pages/ProfileEditPage'
 import { FirstComeQueuePage } from '@/customer/order/pages/FirstComeQueuePage'
 import { OrderDetailPage } from '@/customer/order/pages/OrderDetailPage'
 import { OrderHistoryPage } from '@/customer/order/pages/OrderHistoryPage'
@@ -58,6 +60,8 @@ export const routes: RouteObject[] = [
           { path: 'stores/:storeId/products/:productId/queue', element: <FirstComeQueuePage /> },
           { path: 'orders', element: <OrderHistoryPage /> },
           { path: 'orders/:id', element: <OrderDetailPage /> },
+          { path: 'my', element: <MyPage /> },
+          { path: 'my/profile', element: <ProfileEditPage /> },
         ],
       },
     ],

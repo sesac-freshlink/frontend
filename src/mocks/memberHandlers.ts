@@ -5,11 +5,12 @@ import type {
   ProfileResponse,
   RegisterProfileRequest,
 } from '@/auth/api'
+import type { UpdateProfileRequest } from '@/customer/my/api'
 import type { StoreDetail, StoreSummary } from '@/customer/stores/api'
 import { findActiveStore } from './adminHandlers'
 import { mockSessionUser } from './authHandlers'
 
-/** member-service 가짜 API (김경우): MB-01~03 회원, ST-01 점포 검색, 점포 상세 */
+/** member-service 가짜 API (김경우): MB-01~04 회원, ST-01 점포 검색, 점포 상세 */
 // 프로필은 가짜 세션 사용자(userId)마다 따로 둔다. 처음 고객으로 들어오면 프로필 등록부터 한다
 const profiles = new Map<string, CustomerMe>()
 const sessionUserId = () => mockSessionUser()?.userId ?? 'mock-customer'
@@ -83,6 +84,44 @@ export const memberHandlers = [
     profiles.set(memberId, myProfile)
     const body: ProfileResponse = { ...myProfile, createdAt: new Date().toISOString() }
     return HttpResponse.json(body, { status: 201 })
+  }),
+  // MB-04: 보낸 칸만 바꾼다. 한 칸도 없으면 400, 다른 사람 닉네임이면 409 (내 닉네임은 대소문자만 바꿔도 된다)
+  http.patch('/api/members/me', async ({ request }) => {
+    const memberId = sessionUserId()
+    const existing = profiles.get(memberId)
+    if (!existing) {
+      return HttpResponse.json(
+        { code: 'MEMBER_PROFILE_NOT_FOUND', message: '회원 정보가 없습니다' },
+        { status: 404 },
+      )
+    }
+    const req = (await request.json()) as UpdateProfileRequest
+    if (req.name === undefined && req.nickname === undefined && req.region === undefined) {
+      return HttpResponse.json(
+        {
+          code: 'VALIDATION_ERROR',
+          message: 'anyFieldPresent: 이름·닉네임·지역 중 하나 이상 보내야 합니다',
+        },
+        { status: 400 },
+      )
+    }
+    const nickname = req.nickname?.trim().toLowerCase()
+    const mine = existing.nickname.toLowerCase()
+    if (nickname !== undefined && nickname !== mine && takenNicknames.includes(nickname)) {
+      return HttpResponse.json(
+        { code: 'NICKNAME_DUPLICATED', message: '이미 사용 중인 닉네임입니다' },
+        { status: 409 },
+      )
+    }
+    const updated: CustomerMe = {
+      ...existing,
+      ...(req.name !== undefined && { name: req.name.trim() }),
+      ...(req.nickname !== undefined && { nickname: req.nickname.trim() }),
+      ...(req.region !== undefined && { region: req.region }),
+    }
+    profiles.set(memberId, updated)
+    const body: ProfileResponse = { ...updated, createdAt: new Date().toISOString() }
+    return HttpResponse.json(body)
   }),
   http.get('/api/stores', ({ request }) => {
     const q = new URL(request.url).searchParams
