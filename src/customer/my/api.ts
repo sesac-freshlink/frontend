@@ -21,3 +21,12 @@ export function useUpdateProfile() {
     },
   })
 }
+
+/** MB-05 고객 회원탈퇴 (추가 명세 A6). 204. 진행 중 주문이 있으면 409 WITHDRAWAL_BLOCKED_ACTIVE_ORDER */
+export function useWithdraw() {
+  return useMutation({
+    mutationFn: async () => {
+      await api.delete('/members/me')
+    },
+  })
+}
