@@ -339,12 +339,16 @@ const storeProducts: StoreProduct[] = [
     category: '김밥',
     price: 1500,
     imageUrl: 'https://tqklhszfkvzk6518638.edge.naverncp.com/product/8800279675761_2.png',
-    availableQuantity: 19,
+    availableQuantity: 15,
     soldOut: false,
     recommended: false,
     newArrival: true,
     firstCome: false,
-    nearestExpiry: kstEndOfDay(0),
+    nearestExpiry: kstEndOfDay(2),
+    // 오늘까지 lot 4개는 마감세일(30% 할인, 10원 아래 버림)
+    clearanceQuantity: 4,
+    clearancePrice: 1050,
+    clearanceExpiry: kstEndOfDay(0),
   },
   {
     productId: 3,

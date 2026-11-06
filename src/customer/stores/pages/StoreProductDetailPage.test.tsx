@@ -305,3 +305,82 @@ describe('고객 상품 상세 (U-10)', () => {
     )
   })
 })
+
+describe('마감세일 구매 시트', () => {
+  const clearanceMilk: StoreProductDetail = {
+    ...milk,
+    clearanceQuantity: 2,
+    clearancePrice: 1330,
+    clearanceExpiry: '2026-10-25T23:59:59+09:00',
+  }
+
+  beforeEach(() => {
+    get.mockReset()
+    sessionStorage.clear()
+  })
+
+  it('기본·마감세일 두 줄에서 수량을 골라 주문 화면으로 넘긴다', async () => {
+    get.mockResolvedValue({ data: clearanceMilk })
+    const router = renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    const sheet = await screen.findByRole('region', { name: '마감세일 30%' })
+    expect(screen.getByText('마감세일 남은 수량').nextSibling).toHaveTextContent('2개')
+    // 처음에는 마감세일 1개
+    expect(within(sheet).getByLabelText('마감세일 1개')).toBeInTheDocument()
+    expect(within(sheet).getByLabelText('일반 0개')).toBeInTheDocument()
+    expect(within(sheet).getByText('1,330원', { selector: '[aria-live]' })).toBeInTheDocument()
+
+    await userEvent.click(within(sheet).getByRole('button', { name: '마감세일 한 개 더하기' }))
+    // 마감세일은 2개만 남아 더 고를 수 없다
+    expect(within(sheet).getByRole('button', { name: '마감세일 한 개 더하기' })).toBeDisabled()
+    await userEvent.click(within(sheet).getByRole('button', { name: '일반 한 개 더하기' }))
+    expect(within(sheet).getByText('4,560원')).toBeInTheDocument()
+
+    await userEvent.click(within(sheet).getByRole('link', { name: '구매하기' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/customer/orders/new'))
+    const q = new URLSearchParams(router.state.location.search)
+    expect(q.get('quantity')).toBe('3')
+    expect(q.get('clearanceQuantity')).toBe('2')
+    expect(q.get('available')).toBe('7')
+    expect(q.get('price')).toBe('1900')
+  })
+
+  it('합계는 5개까지이고, 합계가 0이 되게 빼지는 못한다', async () => {
+    get.mockResolvedValue({ data: { ...clearanceMilk, clearanceQuantity: 5 } })
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    const sheet = await screen.findByRole('region', { name: '마감세일 30%' })
+    expect(within(sheet).getByRole('button', { name: '마감세일 한 개 빼기' })).toBeDisabled()
+    for (let i = 0; i < 4; i++) {
+      await userEvent.click(within(sheet).getByRole('button', { name: '일반 한 개 더하기' }))
+    }
+    expect(within(sheet).getByRole('button', { name: '일반 한 개 더하기' })).toBeDisabled()
+    expect(within(sheet).getByRole('button', { name: '마감세일 한 개 더하기' })).toBeDisabled()
+    expect(within(sheet).getByText(/합계 5개/)).toBeInTheDocument()
+  })
+
+  it('기본 수량이 0이어도 마감세일만 살 수 있다', async () => {
+    get.mockResolvedValue({ data: { ...clearanceMilk, availableQuantity: 0, nearestExpiry: null } })
+    const router = renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    const sheet = await screen.findByRole('region', { name: '마감세일 30%' })
+    expect(within(sheet).getByRole('button', { name: '일반 한 개 더하기' })).toBeDisabled()
+    await userEvent.click(within(sheet).getByRole('link', { name: '구매하기' }))
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/customer/orders/new'))
+    const q = new URLSearchParams(router.state.location.search)
+    expect(q.get('quantity')).toBe('1')
+    expect(q.get('clearanceQuantity')).toBe('1')
+  })
+
+  it('마감세일이 없으면 시트 없이 구매하기만 보인다', async () => {
+    get.mockResolvedValue({
+      data: { ...clearanceMilk, clearanceQuantity: 0, clearancePrice: null },
+    })
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    expect(await screen.findByRole('link', { name: '구매하기' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '마감세일 30%' })).not.toBeInTheDocument()
+    expect(screen.queryByText('마감세일 남은 수량')).not.toBeInTheDocument()
+  })
+})

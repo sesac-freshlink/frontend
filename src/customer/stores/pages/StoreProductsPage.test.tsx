@@ -304,6 +304,33 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     expect(within(sandwich).queryByLabelText(/유통기한/)).not.toBeInTheDocument()
   })
 
+  it('마감세일 수량이 있으면 배지와 할인가·수량을 붙이고 읽는 이름에도 넣는다', async () => {
+    serve(() =>
+      Promise.resolve({
+        data: [
+          {
+            ...products[0],
+            clearanceQuantity: 2,
+            clearancePrice: 1190,
+            clearanceExpiry: '2099-12-30T23:59:59+09:00',
+          },
+          products[1],
+        ],
+      }),
+    )
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+
+    const noodle = (await screen.findByText('매운 컵라면 115g')).closest('li')!
+    expect(within(noodle).getByText('마감세일')).toBeInTheDocument()
+    expect(within(noodle).getByText('마감세일 1,190원 · 2개')).toBeInTheDocument()
+    expect(within(noodle).getByRole('link')).toHaveAccessibleName(
+      '매운 컵라면 115g, 1,700원, 3개 남음, 마감세일 1,190원 2개, 추천',
+    )
+    // 마감세일이 없는 상품에는 붙지 않는다
+    const sandwich = screen.getByText('샌드위치 햄치즈').closest('li')!
+    expect(within(sandwich).queryByText(/마감세일/)).not.toBeInTheDocument()
+  })
+
   it('20개가 넘으면 [더 보기]로 다음 묶음을 이어 붙이고, 마지막 묶음이면 버튼이 사라진다', async () => {
     const many = Array.from({ length: 25 }, (_, i) => ({
       ...products[0],

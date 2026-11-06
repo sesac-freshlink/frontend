@@ -75,6 +75,15 @@ export interface StoreProduct {
   firstCome: boolean
   /** 먼저 받게 될 상품의 유통기한(+09:00). 유통기한 빠른 것부터 준다. 품절이면 null */
   nearestExpiry: string | null
+  /**
+   * 마감세일(유통기한 24시간 안, 30% 할인) 수량. 판매 시간(06~23시) 밖이거나 선착순 상품이면 0.
+   * availableQuantity 는 마감세일을 뺀 기본 수량이다. inventory 가 마감세일을 배포하기 전에는 오지 않는다
+   */
+  clearanceQuantity?: number
+  /** 마감세일 단가(원). clearanceQuantity 가 0이면 null */
+  clearancePrice?: number | null
+  /** 마감세일 상품의 유통기한(+09:00). clearanceQuantity 가 0이면 null */
+  clearanceExpiry?: string | null
 }
 
 /** U-10 상품 상세. inventory-service StoreProductDetailResponse 와 같은 모양(목록 한 줄과 필드가 같다) */

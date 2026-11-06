@@ -6,6 +6,8 @@ import { formatDateTime, formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
 import { useStoreProduct, type StoreProductDetail } from '../api'
+import { clearanceOf } from '../clearance'
+import { ClearanceSheet } from '../components/ClearanceSheet'
 import { ExpiryBadge } from '../components/ExpiryBadge'
 import { NearbyStoreStock } from '../components/NearbyStoreStock'
 import { ProductBadges } from '../components/ProductBadges'
@@ -20,7 +22,8 @@ import { useStoreName } from '../useStoreName'
  * U-10 고객 상품 상세 (/customer/stores/:storeId/products/:productId). 가격·남은 수량·먼저 받게 될 상품의 유통기한·점포를
  * 보여 주고, 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때만 읽는다.
  * 품절이면 "재입고 알림 받기"로 notification-service 에 신청한다(다시 입고되면 화면 알림이 한 번 온다)
- * 선착순 상품이면 구매하기가 주문 화면 대신 대기 화면(경우님)으로 간다. 같은 카테고리 상품을 아래에 보여 준다
+ * 선착순 상품이면 구매하기가 주문 화면 대신 대기 화면(경우님)으로 간다. 같은 카테고리 상품을 아래에 보여 준다.
+ * 마감세일 수량이 있으면 구매하기 대신 마감세일 구매 시트(기본·마감세일 두 줄)를 보여 준다
  */
 export function StoreProductDetailPage() {
   const { storeId: rawStore, productId: rawProduct } = useParams()
@@ -103,6 +106,7 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
         }
   // 선착순 상품은 경우님 대기 화면에서 줄을 선 뒤 주문 화면으로 간다(값은 주문 화면과 같다)
   const buyPath = item && (product.firstCome ? queuePath(item) : checkoutPath(item))
+  const clearance = clearanceOf(product)
 
   return (
     <div className="space-y-5">
@@ -135,6 +139,12 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
             )}
           </dd>
         </div>
+        {clearance && (
+          <div className="flex items-center justify-between px-4 py-3">
+            <dt className="text-slate-500">마감세일 남은 수량</dt>
+            <dd className="font-semibold text-rose-700 tabular-nums">{clearance.quantity}개</dd>
+          </div>
+        )}
         {product.nearestExpiry !== null && (
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <dt className="flex items-center gap-1.5 text-slate-500">
@@ -161,7 +171,9 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
         </div>
       </dl>
 
-      {buyPath ? (
+      {clearance ? (
+        <ClearanceSheet product={product} item={item} />
+      ) : buyPath ? (
         <div className="space-y-2">
           <Link
             to={buyPath}
