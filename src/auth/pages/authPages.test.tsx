@@ -278,6 +278,7 @@ describe('회원가입 (C-01)', () => {
     await userEvent.type(screen.getByLabelText('이름'), '김경우')
     await userEvent.type(screen.getByLabelText('닉네임'), nickname)
     await userEvent.selectOptions(screen.getByLabelText('거주 지역'), 'BUSAN')
+    await userEvent.click(screen.getByLabelText('전체 동의'))
     await userEvent.click(screen.getByRole('button', { name: '가입하기' }))
   }
 
@@ -304,6 +305,8 @@ describe('회원가입 (C-01)', () => {
       name: '김경우',
       nickname: 'Fresh02',
       region: 'BUSAN',
+      termsAgreed: true,
+      privacyAgreed: true,
     })
   })
 
@@ -404,6 +407,7 @@ describe('회원가입 (C-01)', () => {
     await userEvent.type(await screen.findByLabelText('이름'), '김경우')
     await userEvent.type(screen.getByLabelText('닉네임'), 'Fresh01')
     await userEvent.selectOptions(screen.getByLabelText('거주 지역'), 'SEOUL')
+    await userEvent.click(screen.getByLabelText('전체 동의'))
     await userEvent.click(screen.getByRole('button', { name: '프로필 등록' }))
     expect(await screen.findByText('이미 사용 중인 닉네임이에요')).toBeInTheDocument()
   })
@@ -417,6 +421,7 @@ describe('회원가입 (C-01)', () => {
     await userEvent.type(await screen.findByLabelText('이름'), '김경우')
     await userEvent.type(screen.getByLabelText('닉네임'), 'Fresh03')
     await userEvent.selectOptions(screen.getByLabelText('거주 지역'), 'SEOUL')
+    await userEvent.click(screen.getByLabelText('전체 동의'))
     await userEvent.click(screen.getByRole('button', { name: '프로필 등록' }))
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
@@ -438,6 +443,40 @@ describe('회원가입 (C-01)', () => {
     expect(await screen.findByLabelText('이름')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '프로필 등록' })).toBeInTheDocument()
     expect(screen.queryByLabelText('비밀번호')).not.toBeInTheDocument()
+  })
+
+  it('필수 약관 두 개에 동의하기 전에는 가입하기 버튼이 꺼져 있다 (A16)', async () => {
+    renderAt('/signup')
+    const join = screen.getByRole('button', { name: '가입하기' })
+    expect(join).toBeDisabled()
+    await userEvent.click(screen.getByLabelText(/\[필수\] 이용약관 동의/))
+    expect(join).toBeDisabled()
+    await userEvent.click(screen.getByLabelText(/\[필수\] 개인정보 처리방침 동의/))
+    expect(join).toBeEnabled()
+  })
+
+  it('구글 첫 프로필 단계도 같은 동의 묶음이 프로필 등록 위에 있고, 동의해야 버튼이 켜진다 (A16)', async () => {
+    useAuthStore.setState({ user: customer })
+    get.mockRejectedValue(notFound)
+    post.mockResolvedValue({ data: profile })
+    renderAt('/signup')
+    const button = await screen.findByRole('button', { name: '프로필 등록' })
+    expect(button).toBeDisabled()
+    await userEvent.type(screen.getByLabelText('이름'), '김경우')
+    await userEvent.type(screen.getByLabelText('닉네임'), 'Fresh04')
+    await userEvent.selectOptions(screen.getByLabelText('거주 지역'), 'SEOUL')
+    await userEvent.click(screen.getByLabelText('전체 동의'))
+    expect(button).toBeEnabled()
+    await userEvent.click(button)
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith('/members/me', {
+        name: '김경우',
+        nickname: 'Fresh04',
+        region: 'SEOUL',
+        termsAgreed: true,
+        privacyAgreed: true,
+      }),
+    )
   })
 
   it('프로필 단계에서 뒤로가기를 누르면 로그아웃하고 로그인 화면으로 간다', async () => {

@@ -127,7 +127,13 @@ describe('BFF 가짜 API (C-01·C-02)', () => {
 
   it('dup 세션으로 프로필을 저장하면 409 EMAIL_SIGNUP_EXISTS', async () => {
     await login('dup@freshlink.test')
-    const res = await post('/api/members/me', { name: '김', nickname: 'dupnick', region: 'SEOUL' })
+    const res = await post('/api/members/me', {
+      name: '김',
+      nickname: 'dupnick',
+      region: 'SEOUL',
+      termsAgreed: true,
+      privacyAgreed: true,
+    })
     expect(res.status).toBe(409)
     expect(await res.json()).toMatchObject({ code: 'EMAIL_SIGNUP_EXISTS' })
   })
@@ -143,6 +149,8 @@ describe('BFF 가짜 API (C-01·C-02)', () => {
       name: '김',
       nickname: 'kimnick',
       region: 'SEOUL',
+      termsAgreed: true,
+      privacyAgreed: true,
     })
     expect(saved.status).toBe(201)
     expect(await saved.json()).toMatchObject({ memberId: 'mock-customer' })
