@@ -3,6 +3,11 @@ import { AdminStoresPage } from '@/admin/stores/pages/AdminStoresPage'
 import { StoreRegisterPage } from '@/admin/stores/pages/StoreRegisterPage'
 import { LoginPage } from '@/auth/pages/LoginPage'
 import { SignupPage } from '@/auth/pages/SignupPage'
+import { AdminFaqsPage } from '@/board/pages/AdminFaqsPage'
+import { AdminNoticesPage } from '@/board/pages/AdminNoticesPage'
+import { FaqPage } from '@/board/pages/FaqPage'
+import { NoticeDetailPage } from '@/board/pages/NoticeDetailPage'
+import { NoticeListPage } from '@/board/pages/NoticeListPage'
 import { MyPage } from '@/customer/my/pages/MyPage'
 import { ProfileEditPage } from '@/customer/my/pages/ProfileEditPage'
 import { WithdrawalPage } from '@/customer/my/pages/WithdrawalPage'
@@ -47,6 +52,9 @@ export const routes: RouteObject[] = [
           { path: 'expiring', element: <ExpiringPage /> },
           { path: 'orders', element: <OwnerOrdersPage /> },
           { path: 'sales', element: <OwnerSalesPage /> },
+          { path: 'notices', element: <NoticeListPage basePath="/owner/notices" /> },
+          { path: 'notices/:noticeId', element: <NoticeDetailPage basePath="/owner/notices" /> },
+          { path: 'faq', element: <FaqPage /> },
         ],
       },
     ],
@@ -69,6 +77,12 @@ export const routes: RouteObject[] = [
           { path: 'my', element: <MyPage /> },
           { path: 'my/profile', element: <ProfileEditPage /> },
           { path: 'my/withdraw', element: <WithdrawalPage /> },
+          { path: 'notices', element: <NoticeListPage basePath="/customer/notices" /> },
+          {
+            path: 'notices/:noticeId',
+            element: <NoticeDetailPage basePath="/customer/notices" />,
+          },
+          { path: 'faq', element: <FaqPage /> },
         ],
       },
     ],
@@ -83,6 +97,8 @@ export const routes: RouteObject[] = [
           { index: true, element: <RootRedirect /> },
           { path: 'stores', element: <AdminStoresPage /> },
           { path: 'stores/new', element: <StoreRegisterPage /> },
+          { path: 'notices', element: <AdminNoticesPage /> },
+          { path: 'faqs', element: <AdminFaqsPage /> },
         ],
       },
     ],
