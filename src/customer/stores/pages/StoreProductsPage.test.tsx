@@ -368,4 +368,25 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     fireEvent.touchEnd(area)
     expect(productCalls()).toHaveLength(before)
   })
+
+  it('상품 줄은 화면 읽기 프로그램이 상품명, 가격, 남은 수량, 배지 순으로 한 번에 읽는다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    expect(
+      await screen.findByRole('link', { name: '매운 컵라면 115g, 1,700원, 3개 남음, 추천' }),
+    ).toBeInTheDocument()
+  })
+
+  it('마우스 없이 Tab으로 상품까지 가서 Enter로 상세에 들어간다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    const router = renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    const link = await screen.findByRole('link', { name: /^매운 컵라면 115g,/ })
+
+    for (let i = 0; i < 40 && document.activeElement !== link; i++) await userEvent.tab()
+    expect(link).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/customer/stores/1/products/15'),
+    )
+  })
 })
