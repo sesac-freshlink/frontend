@@ -9,6 +9,7 @@ import { WithdrawalPage } from '@/customer/my/pages/WithdrawalPage'
 import { FirstComeQueuePage } from '@/customer/order/pages/FirstComeQueuePage'
 import { OrderDetailPage } from '@/customer/order/pages/OrderDetailPage'
 import { OrderHistoryPage } from '@/customer/order/pages/OrderHistoryPage'
+import { PickupQrPage } from '@/customer/order/pages/PickupQrPage'
 import { CustomerHomePage } from '@/customer/stores/pages/CustomerHomePage'
 import { StoreDetailPage } from '@/customer/stores/pages/StoreDetailPage'
 import { StoreProductDetailPage } from '@/customer/stores/pages/StoreProductDetailPage'
@@ -18,6 +19,7 @@ import { InventoryPage } from '@/owner/inventory/pages/InventoryPage'
 import { LedgerPage } from '@/owner/inventory/pages/LedgerPage'
 import { LotDetailPage } from '@/owner/inventory/pages/LotDetailPage'
 import { OwnerOrdersPage } from '@/owner/orders/pages/OwnerOrdersPage'
+import { OwnerPickupScanPage } from '@/owner/orders/pages/OwnerPickupScanPage'
 import { OwnerSalesPage } from '@/owner/sales/pages/OwnerSalesPage'
 import { AdminLayout } from './layouts/AdminLayout'
 import { CustomerLayout } from './layouts/CustomerLayout'
@@ -33,6 +35,8 @@ export const routes: RouteObject[] = [
     path: '/owner',
     element: <RequireRole role="OWNER" />,
     children: [
+      // 점주 핸드폰이 고객 픽업 QR을 찍으면 여는 화면. 점주 공통 틀 없이 핸드폰 한 화면 (추가 명세 A16)
+      { path: 'pickup-scan', element: <OwnerPickupScanPage /> },
       {
         element: <OwnerLayout />,
         children: [
@@ -60,6 +64,7 @@ export const routes: RouteObject[] = [
           { path: 'stores/:storeId/products/:productId', element: <StoreProductDetailPage /> },
           { path: 'stores/:storeId/products/:productId/queue', element: <FirstComeQueuePage /> },
           { path: 'orders', element: <OrderHistoryPage /> },
+          { path: 'orders/pickup-qr', element: <PickupQrPage /> },
           { path: 'orders/:id', element: <OrderDetailPage /> },
           { path: 'my', element: <MyPage /> },
           { path: 'my/profile', element: <ProfileEditPage /> },
