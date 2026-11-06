@@ -157,4 +157,20 @@ describe('BFF 가짜 API (C-01·C-02)', () => {
     await login('google@freshlink.test')
     expect((await call('/api/members/me')).status).toBe(404)
   })
+
+  it('비밀번호 변경(A4): 로그인 고객은 204, wrong 으로 시작하면 400, 구글 고객은 403, 로그인 안 하면 401', async () => {
+    const body = { currentPassword: 'Old-pass1', newPassword: 'New-pass1' }
+    expect((await post('/api/auth/password', body)).status).toBe(401)
+
+    expect((await login('kim@test.com')).passwordLogin).toBe(true)
+    expect((await post('/api/auth/password', body)).status).toBe(204)
+    const wrong = await post('/api/auth/password', { ...body, currentPassword: 'wrong-1' })
+    expect(wrong.status).toBe(400)
+    expect(await wrong.json()).toMatchObject({ code: 'WRONG_CURRENT_PASSWORD' })
+
+    expect((await login('google@freshlink.test')).passwordLogin).toBe(false)
+    const google = await post('/api/auth/password', body)
+    expect(google.status).toBe(403)
+    expect(await google.json()).toMatchObject({ code: 'PASSWORD_LOGIN_ONLY' })
+  })
 })

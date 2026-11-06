@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { profileRegisterSchema, profileSchema, signupSchema } from './signupSchema'
+import {
+  passwordChangeSchema,
+  profileRegisterSchema,
+  profileSchema,
+  signupSchema,
+} from './signupSchema'
 
 const valid = {
   email: 'kim@test.com',
@@ -84,5 +89,37 @@ describe('약관 동의 (A16)', () => {
         .success,
     ).toBe(false)
     expect(profileSchema.safeParse(profile).success).toBe(true)
+  })
+})
+
+describe('passwordChangeSchema (A4)', () => {
+  const change = {
+    currentPassword: 'Old-pass1',
+    newPassword: 'Abcd123!',
+    newPasswordConfirm: 'Abcd123!',
+  }
+  const paths = (input: unknown) => {
+    const result = passwordChangeSchema.safeParse(input)
+    return result.success ? [] : result.error.issues.map((i) => i.path.join('.'))
+  }
+
+  it('지금 비밀번호를 넣고 새 비밀번호가 가입 규칙에 맞으면 통과', () => {
+    expect(paths(change)).toEqual([])
+  })
+
+  it('지금 비밀번호가 비면 막는다', () => {
+    expect(paths({ ...change, currentPassword: '' })).toEqual(['currentPassword'])
+  })
+
+  it('새 비밀번호는 가입과 같은 규칙이다', () => {
+    for (const newPassword of ['Abc12!', 'abcd123!', 'ABCD123!', 'Abcdefg!', 'Abcd1234']) {
+      expect(paths({ ...change, newPassword, newPasswordConfirm: newPassword })).toContain(
+        'newPassword',
+      )
+    }
+  })
+
+  it('새 비밀번호 확인이 다르면 막는다', () => {
+    expect(paths({ ...change, newPasswordConfirm: 'Abcd123@' })).toEqual(['newPasswordConfirm'])
   })
 })

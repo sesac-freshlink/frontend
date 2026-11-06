@@ -3,6 +3,7 @@ import {
   CircleHelp,
   ClipboardList,
   History,
+  KeyRound,
   LogOut,
   Megaphone,
   Package,
@@ -55,6 +56,20 @@ export function OwnerLayout() {
             </NavLink>
           ))}
         </nav>
+        {user?.passwordLogin !== false && (
+          <NavLink
+            to="/owner/password"
+            className={({ isActive }) =>
+              cn(
+                'mx-3 flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-100',
+                isActive && 'bg-emerald-50 text-emerald-700',
+              )
+            }
+          >
+            <KeyRound className="size-4" />
+            비밀번호 변경
+          </NavLink>
+        )}
         <button
           type="button"
           onClick={() => void signOut()}

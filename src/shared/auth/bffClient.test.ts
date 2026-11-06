@@ -69,6 +69,12 @@ describe('toAuthUser', () => {
     })
   })
 
+  it('passwordLogin 은 boolean 일 때만 둔다 (구글 가입 false)', () => {
+    expect(toAuthUser({ ...customer, passwordLogin: false })?.passwordLogin).toBe(false)
+    expect(toAuthUser({ ...customer, passwordLogin: true })?.passwordLogin).toBe(true)
+    expect(toAuthUser({ ...customer, passwordLogin: 'no' })?.passwordLogin).toBeUndefined()
+  })
+
   it('점주는 storeId·email 을 그대로 둔다', () => {
     expect(toAuthUser(owner)).toEqual(owner)
   })
@@ -131,6 +137,24 @@ describe('createBffClient', () => {
     routes['POST /auth/login'] = () => ({ status: 401, data: { code: 'INVALID_CREDENTIALS' } })
     await expect(createBffClient(fakeHttp()).signIn('a@test.com', 'pw')).rejects.toMatchObject({
       response: { status: 401, data: { code: 'INVALID_CREDENTIALS' } },
+    })
+  })
+
+  it('changePassword 는 POST /auth/password 에 지금·새 비밀번호를 보내고, 오류는 그대로 넘긴다', async () => {
+    routes['POST /auth/password'] = () => ({ status: 204 })
+    const client = createBffClient(fakeHttp())
+    await client.changePassword('Old-pass1', 'New-pass1')
+    expect(JSON.parse(String(calls[0].data))).toEqual({
+      currentPassword: 'Old-pass1',
+      newPassword: 'New-pass1',
+    })
+
+    routes['POST /auth/password'] = () => ({
+      status: 400,
+      data: { code: 'WRONG_CURRENT_PASSWORD', message: 'x', traceId: null },
+    })
+    await expect(client.changePassword('bad', 'New-pass1')).rejects.toMatchObject({
+      response: { status: 400 },
     })
   })
 

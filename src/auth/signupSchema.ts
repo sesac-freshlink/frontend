@@ -70,3 +70,17 @@ export const codeSchema = z.object({
 })
 
 export type CodeForm = z.input<typeof codeSchema>
+
+/** A4 비밀번호 변경 입력. 새 비밀번호는 가입과 같은 규칙 (Cognito 정책) */
+export const passwordChangeSchema = z
+  .object({
+    currentPassword: z.string().min(1, '지금 비밀번호를 입력하세요'),
+    newPassword: password,
+    newPasswordConfirm: z.string(),
+  })
+  .refine((v) => v.newPassword === v.newPasswordConfirm, {
+    path: ['newPasswordConfirm'],
+    message: '비밀번호가 같지 않아요',
+  })
+
+export type PasswordChangeForm = z.input<typeof passwordChangeSchema>

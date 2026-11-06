@@ -13,6 +13,7 @@ function renderAt(path: string) {
         children: [
           { path: 'stores', element: <p>목록 본문</p> },
           { path: 'stores/new', element: <p>등록 본문</p> },
+          { path: 'password', element: <p>비밀번호 본문</p> },
         ],
       },
     ],
@@ -42,5 +43,14 @@ describe('AdminLayout', () => {
     renderAt('/admin/stores')
     expect(activeLinks().map((a) => a.textContent)).toEqual(['점포 목록'])
     expect(screen.getByText('admin@test.com')).toBeInTheDocument()
+  })
+
+  it('비밀번호 변경 링크가 있고, 그 화면에서는 그 링크만 켜진다 (A4)', () => {
+    renderAt('/admin/password')
+    expect(screen.getByRole('link', { name: '비밀번호 변경' })).toHaveAttribute(
+      'href',
+      '/admin/password',
+    )
+    expect(activeLinks().map((a) => a.textContent)).toEqual(['비밀번호 변경'])
   })
 })

@@ -1,10 +1,16 @@
 import { http, HttpResponse } from 'msw'
-import type { AuthUserResponse, ConfirmRequest, LoginRequest } from '@/shared/auth'
+import type {
+  AuthUserResponse,
+  ConfirmRequest,
+  LoginRequest,
+  PasswordChangeRequest,
+} from '@/shared/auth'
 
 /**
  * C-01·C-02 gateway BFF(/api/auth/*) 가짜 API. 개발 서버의 가짜 로그인이 이것을 쓴다.
  * 이메일이 admin 으로 시작하면 관리자, owner 면 점주(storeId "1"), google 이면 가짜 구글 고객,
  * dup 이면 이메일 가입자 막기 확인용 고객, 나머지는 고객. 비밀번호는 보지 않는다.
+ * 비밀번호 변경(A4)은 지금 비밀번호가 wrong 으로 시작하면 400 WRONG_CURRENT_PASSWORD, 구글 고객은 403.
  */
 const SESSION_KEY = 'freshlink.mockSession'
 
@@ -14,13 +20,16 @@ function errorBody(code: string, message: string) {
 
 /** 이메일 → 가짜 사용자 */
 function mockUserFor(email: string): AuthUserResponse {
+  const passwordLogin = true
   if (email.startsWith('admin'))
-    return { userId: 'mock-admin', role: 'ADMIN', storeId: null, email }
-  if (email.startsWith('owner')) return { userId: 'mock-owner', role: 'OWNER', storeId: '1', email }
+    return { userId: 'mock-admin', role: 'ADMIN', storeId: null, email, passwordLogin }
+  if (email.startsWith('owner'))
+    return { userId: 'mock-owner', role: 'OWNER', storeId: '1', email, passwordLogin }
   if (email.startsWith('google'))
-    return { userId: 'mock-google', role: 'CUSTOMER', storeId: null, email }
-  if (email.startsWith('dup')) return { userId: 'mock-dup', role: 'CUSTOMER', storeId: null, email }
-  return { userId: 'mock-customer', role: 'CUSTOMER', storeId: null, email }
+    return { userId: 'mock-google', role: 'CUSTOMER', storeId: null, email, passwordLogin: false }
+  if (email.startsWith('dup'))
+    return { userId: 'mock-dup', role: 'CUSTOMER', storeId: null, email, passwordLogin }
+  return { userId: 'mock-customer', role: 'CUSTOMER', storeId: null, email, passwordLogin }
 }
 
 function isAuthUserResponse(v: unknown): v is AuthUserResponse {
@@ -112,5 +121,25 @@ export const authHandlers = [
     return user
       ? HttpResponse.json(user)
       : HttpResponse.json(errorBody('UNAUTHORIZED', '로그인이 필요합니다'), { status: 401 })
+  }),
+  http.post('/api/auth/password', async ({ request }) => {
+    const user = mockSessionUser()
+    if (!user) {
+      return HttpResponse.json(errorBody('UNAUTHORIZED', '로그인이 필요합니다'), { status: 401 })
+    }
+    if (user.passwordLogin === false) {
+      return HttpResponse.json(
+        errorBody('PASSWORD_LOGIN_ONLY', '구글로 가입한 계정은 비밀번호가 없습니다'),
+        { status: 403 },
+      )
+    }
+    const req = (await request.json()) as Partial<PasswordChangeRequest>
+    if (req.currentPassword?.startsWith('wrong')) {
+      return HttpResponse.json(
+        errorBody('WRONG_CURRENT_PASSWORD', '현재 비밀번호가 맞지 않습니다'),
+        { status: 400 },
+      )
+    }
+    return new HttpResponse(null, { status: 204 })
   }),
 ]
