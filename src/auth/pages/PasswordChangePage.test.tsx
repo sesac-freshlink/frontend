@@ -23,7 +23,8 @@ function apiError(status: number, code: string) {
   })
 }
 
-const changePassword = vi.fn<(current: string, next: string) => Promise<void>>()
+const changePassword =
+  vi.fn<(current: string, next: string) => Promise<{ otherDevicesSignedOut: boolean }>>()
 const expireSession = vi.fn(() => true)
 const signOut = vi.fn(async () => undefined)
 
@@ -50,7 +51,7 @@ async function fill(current: string, next: string, confirm = next) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  changePassword.mockResolvedValue(undefined)
+  changePassword.mockResolvedValue({ otherDevicesSignedOut: true })
   useAuthStore.setState({ user: customer, changePassword, expireSession, signOut })
 })
 
@@ -65,6 +66,16 @@ describe('PasswordChangePage (A4)', () => {
     expect(signOut).toHaveBeenCalledWith('PASSWORD_CHANGED')
     expect(toast.success).not.toHaveBeenCalled()
     expect(expireSession).not.toHaveBeenCalled()
+  })
+
+  it('다른 기기 로그아웃이 끝내 실패했으면 PASSWORD_CHANGED_OTHERS_ACTIVE 안내로 로그인 화면에 간다', async () => {
+    changePassword.mockResolvedValue({ otherDevicesSignedOut: false })
+    const router = renderAt('/customer/my/password', '/customer/my')
+    const user = await fill('Old-pass1', 'New-pass1!')
+    await user.click(screen.getByRole('button', { name: '비밀번호 바꾸기' }))
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    expect(signOut).toHaveBeenCalledWith('PASSWORD_CHANGED_OTHERS_ACTIVE')
   })
 
   it('점주도 같은 폼을 쓰고, 취소하면 내 점포로 돌아간다', async () => {

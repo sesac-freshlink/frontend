@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { isMockApi } from '@/shared/api/mockMode'
 import { createBffClient } from './bffClient'
 import { leaveForSsoLogout, takeLoginNotice } from './ssoLogout'
-import type { AuthClient, AuthUser, LoginNotice, SignUpInput } from './types'
+import type { AuthClient, AuthUser, LoginNotice, PasswordChangeResult, SignUpInput } from './types'
 
 /** 로그인은 항상 gateway BFF 로 한다. 개발 서버의 가짜 로그인은 MSW 가 /api/auth/* 를 흉내 낸다 */
 export const authClient: AuthClient = createBffClient()
@@ -28,7 +28,7 @@ interface AuthState {
    */
   refreshSession(): Promise<boolean>
   /** A4 비밀번호 변경. 로그인(user·쿠키)은 그대로 둔다. 실패는 gateway 오류로 reject */
-  changePassword(currentPassword: string, newPassword: string): Promise<void>
+  changePassword(currentPassword: string, newPassword: string): Promise<PasswordChangeResult>
   /** 세션 만료. user 가 있었을 때만 비우고 로그아웃 요청을 보낸 뒤 true. 이미 없으면 false */
   expireSession(): boolean
 }

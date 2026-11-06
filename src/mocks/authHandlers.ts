@@ -148,6 +148,10 @@ export const authHandlers = [
       )
     }
     resetMockSession()
+    // 모든 기기 로그아웃이 끝내 실패한 경우를 흉내 낸다 (지금 비밀번호가 signout-fail 로 시작)
+    if (req.currentPassword?.startsWith('signout-fail')) {
+      return HttpResponse.json({ otherDevicesSignedOut: false })
+    }
     return new HttpResponse(null, { status: 204 })
   }),
 ]

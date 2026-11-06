@@ -30,6 +30,11 @@ export interface ConfirmRequest {
 }
 
 /** POST /api/auth/password 요청 (A4 비밀번호 변경) */
+/** A4 비밀번호 변경 결과. 다른 기기 로그아웃까지 됐는지 */
+export interface PasswordChangeResult {
+  otherDevicesSignedOut: boolean
+}
+
 export interface PasswordChangeRequest {
   currentPassword: string
   newPassword: string
@@ -45,7 +50,8 @@ export interface AuthUserResponse {
 }
 
 /** 로그아웃 뒤 로그인 화면에 고정으로 띄울 안내 */
-export type LoginNotice = 'EMAIL_SIGNUP_EXISTS' | 'WITHDRAWN' | 'PASSWORD_CHANGED'
+export type LoginNotice =
+  'EMAIL_SIGNUP_EXISTS' | 'WITHDRAWN' | 'PASSWORD_CHANGED' | 'PASSWORD_CHANGED_OTHERS_ACTIVE'
 
 /**
  * 화면·store 는 이 인터페이스만 쓴다 (테스트에서 바꿔 끼운다).
@@ -66,8 +72,9 @@ export interface AuthClient {
    */
   refresh(): Promise<AuthUser | null>
   /**
-   * A4 비밀번호 변경 (POST /auth/password, 204). 로그인은 그대로 유지된다.
+   * A4 비밀번호 변경 (POST /auth/password). 바꾸면 gateway 가 모든 기기에서 로그아웃하고 쿠키를 지운다(204).
+   * 모든 기기 로그아웃이 끝내 실패하면 200 {otherDevicesSignedOut: false} — 비밀번호는 바뀌었다.
    * 실패는 gateway 오류(400 WRONG_CURRENT_PASSWORD·INVALID_PASSWORD, 403 PASSWORD_LOGIN_ONLY, 429, 401)로 reject 한다
    */
-  changePassword(currentPassword: string, newPassword: string): Promise<void>
+  changePassword(currentPassword: string, newPassword: string): Promise<PasswordChangeResult>
 }

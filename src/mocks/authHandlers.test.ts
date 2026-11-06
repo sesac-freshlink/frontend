@@ -170,6 +170,13 @@ describe('BFF 가짜 API (C-01·C-02)', () => {
     expect((await post('/api/auth/password', body)).status).toBe(204)
     expect((await call('/api/auth/me')).status).toBe(401)
 
+    // 모든 기기 로그아웃이 끝내 실패: 200 + 표시, 이 기기 로그인은 풀린다
+    await login('kim@test.com')
+    const partial = await post('/api/auth/password', { ...body, currentPassword: 'signout-fail-1' })
+    expect(partial.status).toBe(200)
+    expect(await partial.json()).toEqual({ otherDevicesSignedOut: false })
+    expect((await call('/api/auth/me')).status).toBe(401)
+
     await login('admin@test.com')
     const admin = await post('/api/auth/password', body)
     expect(admin.status).toBe(403)

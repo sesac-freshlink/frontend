@@ -143,10 +143,18 @@ describe('createBffClient', () => {
   it('changePassword 는 POST /auth/password 에 지금·새 비밀번호를 보내고, 오류는 그대로 넘긴다', async () => {
     routes['POST /auth/password'] = () => ({ status: 204 })
     const client = createBffClient(fakeHttp())
-    await client.changePassword('Old-pass1', 'New-pass1')
+    expect(await client.changePassword('Old-pass1', 'New-pass1')).toEqual({
+      otherDevicesSignedOut: true,
+    })
     expect(JSON.parse(String(calls[0].data))).toEqual({
       currentPassword: 'Old-pass1',
       newPassword: 'New-pass1',
+    })
+
+    // 모든 기기 로그아웃이 끝내 실패하면 200 + 표시
+    routes['POST /auth/password'] = () => ({ status: 200, data: { otherDevicesSignedOut: false } })
+    expect(await client.changePassword('Old-pass1', 'New-pass1')).toEqual({
+      otherDevicesSignedOut: false,
     })
 
     routes['POST /auth/password'] = () => ({

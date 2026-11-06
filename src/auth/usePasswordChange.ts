@@ -62,8 +62,9 @@ export function usePasswordChange(): UsePasswordChangeReturn {
   return {
     passwordLogin,
     async submit({ currentPassword, newPassword }) {
+      let result
       try {
-        await changePassword(currentPassword, newPassword)
+        result = await changePassword(currentPassword, newPassword)
       } catch (e) {
         if (axios.isAxiosError(e) && e.response?.status === 401) {
           toast.error(SESSION_EXPIRED_MESSAGE)
@@ -73,7 +74,10 @@ export function usePasswordChange(): UsePasswordChangeReturn {
         throw passwordChangeError(e)
       }
       // gateway 가 이미 쿠키를 지웠다. 화면 로그인 정보를 비우고 로그인 화면에서 안내한다
-      await signOut('PASSWORD_CHANGED')
+      // 다른 기기 로그아웃이 끝내 실패했으면 그 사실을 알린다 (비밀번호는 바뀜)
+      await signOut(
+        result.otherDevicesSignedOut ? 'PASSWORD_CHANGED' : 'PASSWORD_CHANGED_OTHERS_ACTIVE',
+      )
       navigate('/login', { replace: true })
     },
   }

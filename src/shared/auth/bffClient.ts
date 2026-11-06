@@ -99,7 +99,15 @@ export function createBffClient(http: AxiosInstance = createApiInstance()): Auth
     refresh,
     async changePassword(currentPassword, newPassword) {
       const body: PasswordChangeRequest = { currentPassword, newPassword }
-      await http.post('/auth/password', body)
+      const res = await http.post<unknown>('/auth/password', body)
+      // 204(본문 없음)면 다 됐다. 200 {otherDevicesSignedOut: false}일 때만 다른 기기가 남아 있다
+      const data: unknown = res.data
+      const othersActive =
+        typeof data === 'object' &&
+        data !== null &&
+        'otherDevicesSignedOut' in data &&
+        data.otherDevicesSignedOut === false
+      return { otherDevicesSignedOut: !othersActive }
     },
   }
 }
