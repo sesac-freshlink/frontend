@@ -1,5 +1,6 @@
 import { formatWon } from '@/customer/order/format'
 import type { StoreProduct } from './api'
+import { clearanceOf } from './clearance'
 import { expiryBadge } from './expiry'
 
 /**
@@ -17,6 +18,8 @@ export function productLabel(
     | 'newArrival'
     | 'firstCome'
     | 'nearestExpiry'
+    | 'clearanceQuantity'
+    | 'clearancePrice'
   >,
   now: Date = new Date(),
 ): string {
@@ -25,6 +28,8 @@ export function productLabel(
     formatWon(product.price),
     product.soldOut ? '품절' : `${product.availableQuantity}개 남음`,
   ]
+  const clearance = clearanceOf(product)
+  if (clearance) parts.push(`마감세일 ${formatWon(clearance.price)} ${clearance.quantity}개`)
   const expiry = expiryBadge(product.nearestExpiry, now)
   if (expiry) parts.push(`유통기한 ${expiry.label}`)
   if (product.recommended) parts.push('추천')

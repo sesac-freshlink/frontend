@@ -15,6 +15,7 @@ import { ExpiryBadge } from '../components/ExpiryBadge'
 import { ProductBadges } from '../components/ProductBadges'
 import { PullIndicator } from '../components/PullIndicator'
 import { productLabel } from '../productLabel'
+import { clearanceOf } from '../clearance'
 import { useLoadMoreOnScroll } from '../useLoadMoreOnScroll'
 import { usePullToRefresh } from '../usePullToRefresh'
 import { useStoreName } from '../useStoreName'
@@ -282,6 +283,7 @@ function LoadMore({ products }: { products: ReturnType<typeof useStoreProductPag
 
 /** 상품 한 줄. to 가 없으면(품절이거나 점포 이름을 모르면) 누를 수 없다 */
 function ProductRow({ product, to }: { product: StoreProduct; to?: string }) {
+  const clearance = clearanceOf(product)
   const body = (
     <>
       <ProductThumb src={product.imageUrl} name={product.name} className="size-12" />
@@ -289,12 +291,22 @@ function ProductRow({ product, to }: { product: StoreProduct; to?: string }) {
         <span className="block truncate font-medium">{product.name}</span>
         <span className="block text-xs text-slate-500">{product.category}</span>
         <span className="mt-1 flex flex-wrap items-center gap-1">
+          {clearance && (
+            <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-xs font-medium text-rose-700">
+              마감세일
+            </span>
+          )}
           <ExpiryBadge nearestExpiry={product.nearestExpiry} />
           <ProductBadges product={product} />
         </span>
       </span>
       <span className="shrink-0 text-right">
         <span className="block font-semibold tabular-nums">{formatWon(product.price)}</span>
+        {clearance && (
+          <span className="block text-xs font-medium text-rose-700 tabular-nums">
+            마감세일 {formatWon(clearance.price)} · {clearance.quantity}개
+          </span>
+        )}
         {product.soldOut ? (
           <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
             품절
