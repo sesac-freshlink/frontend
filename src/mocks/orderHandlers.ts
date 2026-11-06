@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse, sse } from 'msw'
 import type {
   ConfirmPaymentRequest,
   ConfirmPaymentResponse,
@@ -24,6 +24,13 @@ import {
   hasRefundStarted,
 } from '@/customer/order/refund'
 import type { OwnerOrder, OwnerOrderTab, PickupResponse, ReadyResponse } from '@/owner/orders/api'
+import type {
+  PickupApproveResult,
+  PickupOutcome,
+  PickupPassOrders,
+  PickupScanResult,
+} from '@/owner/orders/pickup/api'
+import type { PickupPass } from '@/customer/order/api'
 
 /**
  * order-service 가짜 API (김경우): OR-01~03 고객 주문·결제, OR-04 점주 주문 목록(A6 구분), OR-05 픽업 확인, OR-06 고객 주문 내역(A3).
@@ -468,7 +475,124 @@ const queueHandlers = [
   }),
 ]
 
+/**
+ * 픽업 QR 가짜 (추가 명세 A16, OR-07~OR-11). 가짜 로그인은 고객·점주가 한 명씩이라 지금 표 하나만 둔다.
+ * 6자리 코드 000000 은 늘 틀린 코드다. 컴퓨터 알림 SSE 는 같은 탭 안에서만 전달된다(브라우저에서만 넣는다)
+ */
+let pickupPass: (PickupPass & { expiresMs: number }) | null = null
+type PickupStreamClient = { send(m: { event: 'pickup-scan'; data: string }): void }
+const pickupStreamClients = new Set<PickupStreamClient>()
+
+/** 테스트용: 픽업 QR 표를 지운다 */
+export function resetPickupPass(): void {
+  pickupPass = null
+}
+
+function livePickupPass(key: string): PickupPass | null {
+  if (!pickupPass || Date.now() > pickupPass.expiresMs) return null
+  return key === pickupPass.token || key === pickupPass.code ? pickupPass : null
+}
+
+function pickupWaiting(): MockOrder[] {
+  return [...orders.values()]
+    .filter((o) => AWAITING_PICKUP.includes(o.status) && o.refundStatus === 'NONE')
+    .filter((o) => !o.pickupDeadline || Date.now() <= Date.parse(o.pickupDeadline))
+    .sort((a, b) => (a.paidAt ?? '').localeCompare(b.paidAt ?? ''))
+}
+
+const passNotFound = () =>
+  HttpResponse.json(
+    {
+      code: 'PICKUP_PASS_NOT_FOUND',
+      message: 'QR이 만료됐거나 없습니다. 고객에게 새 QR을 보여 달라고 해 주세요',
+    },
+    { status: 404 },
+  )
+
+const pickupStreamHandlers =
+  typeof EventSource === 'undefined'
+    ? []
+    : [
+        sse<{ 'pickup-scan': string }>('/api/owner/orders/pickup-stream', ({ client }) => {
+          pickupStreamClients.add(client)
+        }),
+      ]
+
+const pickupPassHandlers = [
+  http.post('/api/orders/pickup-pass', () => {
+    const count = pickupWaiting().length
+    if (count === 0) {
+      return HttpResponse.json(
+        { code: 'NO_PICKUP_WAITING_ORDER', message: '받아 갈 주문이 없습니다' },
+        { status: 409 },
+      )
+    }
+    const expiresMs = Date.now() + 5 * 60_000
+    const token = crypto.randomUUID().replace(/-/g, '')
+    const code = String(Math.floor(100_000 + Math.random() * 900_000))
+    pickupPass = { token, code, expiresAt: kstIso(expiresMs), orderCount: count, expiresMs }
+    const body: PickupPass = { token, code, expiresAt: pickupPass.expiresAt, orderCount: count }
+    return HttpResponse.json(body)
+  }),
+  http.post('/api/owner/orders/pickup-scan', async ({ request }) => {
+    const { token } = (await request.json()) as { token?: string }
+    if (!token || !livePickupPass(token)) return passNotFound()
+    for (const client of pickupStreamClients) {
+      client.send({ event: 'pickup-scan', data: JSON.stringify({ token }) })
+    }
+    const body: PickupScanResult = { screens: pickupStreamClients.size }
+    return HttpResponse.json(body)
+  }),
+  http.get('/api/owner/orders/pickup-pass/:key', ({ params }) => {
+    const pass = livePickupPass(String(params.key))
+    if (!pass) return passNotFound()
+    const body: PickupPassOrders = {
+      token: pass.token,
+      orders: pickupWaiting().map((o) => ({
+        orderId: o.orderId,
+        orderNo: o.orderNo,
+        status: o.status,
+        productName: o.productName,
+        quantity: o.quantity,
+        amount: o.amount,
+        paidAt: o.paidAt,
+        pickupDeadline: o.pickupDeadline,
+        selectable: o.status === 'READY_FOR_PICKUP',
+      })),
+    }
+    return HttpResponse.json(body)
+  }),
+  http.post('/api/owner/orders/pickup', async ({ request }) => {
+    const { token, orderIds } = (await request.json()) as { token?: string; orderIds?: number[] }
+    if (!orderIds || orderIds.length === 0 || orderIds.length > 20) {
+      return HttpResponse.json(
+        { code: 'VALIDATION_ERROR', message: 'orderIds: 1~20건이어야 합니다' },
+        { status: 400 },
+      )
+    }
+    if (!token || !livePickupPass(token)) return passNotFound()
+    const results = [...new Set(orderIds)].map((orderId) => {
+      const o = orders.get(orderId)
+      let result: PickupOutcome
+      if (!o) result = 'NOT_FOUND'
+      else if (o.status !== 'READY_FOR_PICKUP' || o.refundStatus !== 'NONE') result = 'NOT_PICKABLE'
+      else if (o.pickupDeadline && Date.now() > Date.parse(o.pickupDeadline))
+        result = 'DEADLINE_PASSED'
+      else {
+        o.status = 'PICKED_UP'
+        o.pickedUpAt = kstIso(Date.now())
+        result = 'PICKED_UP'
+      }
+      return { orderId, result }
+    })
+    const body: PickupApproveResult = { results }
+    return HttpResponse.json(body)
+  }),
+]
+
 export const orderHandlers = [
+  ...pickupPassHandlers,
+  ...pickupStreamHandlers,
   ...queueHandlers,
   http.post('/api/orders', async ({ request }) => {
     const key = request.headers.get('Idempotency-Key')

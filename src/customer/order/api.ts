@@ -251,3 +251,35 @@ export function useLeaveQueue(storeId: number, productId: number) {
     },
   })
 }
+
+/** OR-07 고객 픽업 QR (추가 명세 A16). token 은 QR 안에, code 는 카메라가 안 될 때 점주가 손으로 넣는 6자리 */
+export interface PickupPass {
+  token: string
+  code: string
+  /** +09:00, 만든 뒤 5분 */
+  expiresAt: string
+  /** 기한이 남은 미픽업 주문 수 (모든 점포) */
+  orderCount: number
+}
+
+/** OR-07 픽업 QR 만들기. 예전 QR은 서버가 지운다. 미픽업 주문이 없으면 409 NO_PICKUP_WAITING_ORDER */
+export function useIssuePickupPass() {
+  return useMutation({
+    mutationFn: async () => (await api.post<PickupPass>('/orders/pickup-pass')).data,
+  })
+}
+
+/** 픽업 QR 화면의 픽업 대기 목록. 점주가 승인하면 줄어든 것을 보여 주려고 5초마다 다시 읽는다 */
+export function usePickupWaitingOrders(enabled = true) {
+  return useQuery({
+    queryKey: ['customer', 'orders', 'PICKUP_WAITING', 'pickup-qr'],
+    queryFn: async () =>
+      (
+        await api.get<OrderPage<CustomerOrderSummary>>('/orders', {
+          params: { tab: 'PICKUP_WAITING', page: 0, size: 50 },
+        })
+      ).data,
+    enabled,
+    refetchInterval: POLL_MS.pickupQr,
+  })
+}

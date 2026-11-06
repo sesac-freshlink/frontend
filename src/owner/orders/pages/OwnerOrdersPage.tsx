@@ -27,6 +27,7 @@ import {
   useOwnerOrders,
 } from '../api'
 import { PickupConfirmModal } from '../components/PickupConfirmModal'
+import { PickupCodeEntry } from '../pickup/components/PickupCodeEntry'
 
 interface TabInfo {
   tab: OwnerOrderTab
@@ -132,15 +133,18 @@ function OwnerOrderList() {
           <h1 className="text-xl font-bold text-slate-900">주문 목록</h1>
           <p className="text-sm text-slate-500">{info.description}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void orders.refetch()}
-          disabled={orders.isFetching || reversed}
-          className="flex shrink-0 items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-        >
-          <RefreshCw className={cn('size-4', orders.isFetching && 'animate-spin')} />
-          새로 고침
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <PickupCodeEntry />
+          <button
+            type="button"
+            onClick={() => void orders.refetch()}
+            disabled={orders.isFetching || reversed}
+            className="flex shrink-0 items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+          >
+            <RefreshCw className={cn('size-4', orders.isFetching && 'animate-spin')} />
+            새로 고침
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-3">

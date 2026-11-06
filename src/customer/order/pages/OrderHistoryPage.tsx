@@ -1,4 +1,4 @@
-import { ChevronRight, LoaderCircle, RefreshCw } from 'lucide-react'
+import { ChevronRight, LoaderCircle, QrCode, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { type DatePeriod, EMPTY_PERIOD, isReversedPeriod } from '@/shared/api/period'
@@ -42,6 +42,14 @@ export function OrderHistoryPage() {
   const [size, setSize] = useState<OrderPageSize>(DEFAULT_ORDER_PAGE_SIZE)
   const [period, setPeriod] = useState<DatePeriod>(EMPTY_PERIOD)
   const orders = useCustomerOrders({ tab, page, size, period })
+  // [픽업 QR]은 받아 갈 주문이 있을 때만 (추가 명세 A16)
+  const waiting = useCustomerOrders({
+    tab: 'PICKUP_WAITING',
+    page: 0,
+    size: 10,
+    period: EMPTY_PERIOD,
+  })
+  const hasWaiting = (waiting.data?.totalElements ?? 0) > 0
   const reversed = isReversedPeriod(period)
   const filtered = period.from !== '' || period.to !== ''
 
@@ -59,6 +67,15 @@ export function OrderHistoryPage() {
           <RefreshCw className={cn('size-4', orders.isFetching && 'animate-spin')} />
         </button>
       </div>
+      {hasWaiting && (
+        <Link
+          to="/customer/orders/pickup-qr"
+          className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3 font-medium text-white"
+        >
+          <QrCode className="size-5" />
+          픽업 QR 보여 주기
+        </Link>
+      )}
 
       <div role="tablist" className="flex gap-1 rounded-lg bg-slate-100 p-1 text-sm">
         {TABS.map((t) => (

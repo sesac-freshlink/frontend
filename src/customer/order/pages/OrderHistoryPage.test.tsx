@@ -25,6 +25,12 @@ const paid: CustomerOrderSummary = {
 }
 
 /** A3 페이지 응답 한 장 */
+/** 요청의 tab (픽업 QR 버튼용 픽업 대기 조회를 가린다) */
+function tabOf(config?: { params?: unknown }): unknown {
+  const params = config?.params
+  return typeof params === 'object' && params !== null && 'tab' in params ? params.tab : undefined
+}
+
 function pageOf(
   content: CustomerOrderSummary[],
   extra: { page?: number; size?: number; totalPages?: number } = {},
@@ -189,12 +195,39 @@ describe('고객 주문 내역 (A3)', () => {
   })
 
   it('[새로 고침]을 누르면 다시 읽고, 실패하면 오류 문구를 보여 준다', async () => {
-    get.mockResolvedValueOnce(pageOf([paid])).mockRejectedValue(new Error('network'))
+    // [픽업 QR] 버튼용 픽업 대기 조회(A16)는 따로 답하고, 화면 목록(전체) 조회만 센다
+    let listCalls = 0
+    get.mockImplementation(async (_url: string, config?: { params?: unknown }) => {
+      if (tabOf(config) === 'PICKUP_WAITING') return pageOf([])
+      listCalls += 1
+      if (listCalls === 1) return pageOf([paid])
+      throw new Error('network')
+    })
     renderPage()
     await screen.findByText('FL-20261020-000123')
     await userEvent.click(screen.getByRole('button', { name: '새로 고침' }))
     expect(await screen.findByText('주문 내역을 불러오지 못했어요.')).toBeInTheDocument()
-    expect(get).toHaveBeenCalledTimes(2)
+    expect(listCalls).toBe(2)
+  })
+
+  it('받아 갈 주문이 있을 때만 [픽업 QR 보여 주기]가 있다 (A16)', async () => {
+    get.mockImplementation(async (_url: string, config?: { params?: unknown }) =>
+      tabOf(config) === 'PICKUP_WAITING' ? pageOf([paid]) : pageOf([paid]),
+    )
+    renderPage()
+    expect(await screen.findByRole('link', { name: /픽업 QR 보여 주기/ })).toHaveAttribute(
+      'href',
+      '/customer/orders/pickup-qr',
+    )
+  })
+
+  it('받아 갈 주문이 없으면 [픽업 QR 보여 주기]가 없다 (A16)', async () => {
+    get.mockImplementation(async (_url: string, config?: { params?: unknown }) =>
+      tabOf(config) === 'PICKUP_WAITING' ? pageOf([]) : pageOf([paid]),
+    )
+    renderPage()
+    await screen.findByText('FL-20261020-000123')
+    expect(screen.queryByRole('link', { name: /픽업 QR 보여 주기/ })).not.toBeInTheDocument()
   })
 
   it('상태 배지는 주문마다 짧은 이름으로 보여 준다', async () => {

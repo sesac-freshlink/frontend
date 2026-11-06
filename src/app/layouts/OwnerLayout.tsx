@@ -1,6 +1,7 @@
 import { ChartColumn, ClipboardList, History, LogOut, Package, TriangleAlert } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
 import { useAuthStore } from '@/shared/auth'
+import { PickupScanListener } from '@/owner/orders/pickup/components/PickupScanListener'
 import { NotificationBell } from '@/shared/notifications/NotificationBell'
 import { cn } from '@/shared/ui/cn'
 
@@ -52,6 +53,8 @@ export function OwnerLayout() {
           로그아웃
         </button>
       </aside>
+      {/* 점주 핸드폰이 고객 픽업 QR을 찍으면 어느 화면에 있든 승인 창이 뜬다 (추가 명세 A16) */}
+      <PickupScanListener />
       <main className="min-w-0 flex-1 p-6">
         <Outlet />
       </main>
