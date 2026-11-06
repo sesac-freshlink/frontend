@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiErrorCode } from '@/auth/api'
-import type { OrderPage, OrderPageSize, OrderPayment } from '@/customer/order/api'
+import type { OrderLine, OrderPage, OrderPageSize, OrderPayment } from '@/customer/order/api'
 import type { OrderStatus } from '@/customer/order/orderStatus'
 import type {
   CancelOrderRequest,
@@ -21,7 +21,11 @@ export interface OwnerOrder {
   status: OrderStatus
   productName: string
   quantity: number
+  /** 전체 수량 중 마감세일 수량 (마감세일 함께 사기). 옛 서버는 보내지 않는다 */
+  clearanceQuantity?: number
   amount: number
+  /** 줄(마감세일·기본) */
+  lines?: OrderLine[]
   paidAt: string
   pickupDeadline: string | null
   pickedUpAt: string | null

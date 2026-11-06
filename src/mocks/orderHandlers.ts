@@ -76,9 +76,31 @@ function pickupDeadline(days: number) {
   return `${kstDate}T23:59:59+09:00`
 }
 
+/** 마감세일 단가: 정가 30% 할인, 10원 단위 내림 (이태우 11/6) */
+function clearancePriceOf(price: number) {
+  return Math.floor((price * 0.7) / 10) * 10
+}
+
+/** 마감세일 판매 시간: KST 06:00 이상 23:00 미만 */
+function clearanceOnSale(ms = Date.now()) {
+  const hour = new Date(ms + 9 * HOUR).getUTCHours()
+  return hour >= 6 && hour < 23
+}
+
+/** 상품 998 은 마감세일이 그새 다 팔린 주문을 흉내 낸다 (마감세일 0, 기본 2 남음) */
+const CLEARANCE_SOLD_OUT_PRODUCT = 998
+
 /** 진짜처럼 1.5초 뒤 재고 결과(RESERVED·RESERVE_FAILED)가 온 것으로 본다 */
 function advance(order: Order & { createdMs: number }) {
   if (order.status !== 'RESERVING' || Date.now() - order.createdMs < 1500) return
+  const clearance = order.clearanceQuantity ?? 0
+  if (clearance > 0 && order.productId === CLEARANCE_SOLD_OUT_PRODUCT) {
+    order.status = 'OUT_OF_STOCK'
+    order.failureReason = 'CLEARANCE_SOLD_OUT'
+    order.availableQuantity = 2
+    order.clearanceAvailableQuantity = 0
+    return
+  }
   const product = products[order.productId]
   if (!product) {
     order.status = 'OUT_OF_STOCK'
@@ -88,9 +110,34 @@ function advance(order: Order & { createdMs: number }) {
   order.status = 'PAYMENT_WAITING'
   order.productName = product.name
   order.unitPrice = product.price
-  order.amount = product.price * order.quantity
+  const clearancePrice = clearancePriceOf(product.price)
+  const regular = order.quantity - clearance
+  order.lines = [
+    ...(clearance > 0
+      ? [
+          {
+            clearance: true,
+            quantity: clearance,
+            unitPrice: clearancePrice,
+            amount: clearancePrice * clearance,
+          },
+        ]
+      : []),
+    ...(regular > 0
+      ? [
+          {
+            clearance: false,
+            quantity: regular,
+            unitPrice: product.price,
+            amount: product.price * regular,
+          },
+        ]
+      : []),
+  ]
+  order.amount = order.lines.reduce((sum, line) => sum + line.amount, 0)
   order.paymentExpiresAt = new Date(Date.now() + 10 * 60_000).toISOString()
-  order.pickupDeadline = pickupDeadline(2)
+  // 마감세일이 섞이면 당일 픽업 (오늘 23:59:59)
+  order.pickupDeadline = pickupDeadline(clearance > 0 ? 0 : 2)
 }
 
 function publicOrder({
@@ -394,7 +441,9 @@ function ownerOrder(o: MockOrder): OwnerOrder {
     status: o.status,
     productName: o.productName ?? '',
     quantity: o.quantity,
+    clearanceQuantity: o.clearanceQuantity ?? 0,
     amount: o.amount ?? 0,
+    lines: o.lines ?? [],
     paidAt: o.paidAt ?? '',
     pickupDeadline: o.pickupDeadline,
     pickedUpAt: o.pickedUpAt,
@@ -414,7 +463,9 @@ function customerOrder(o: MockOrder): CustomerOrderSummary {
     storeName: o.storeName,
     productName: o.productName,
     quantity: o.quantity,
+    clearanceQuantity: o.clearanceQuantity ?? 0,
     amount: o.amount,
+    lines: o.lines ?? [],
     createdAt: o.createdAt,
     pickupDeadline: o.pickupDeadline,
     refundStatus: o.refundStatus,
@@ -615,12 +666,29 @@ export const orderHandlers = [
       )
     }
     const req = (await request.json()) as CreateOrderRequest
+    const clearance = req.clearanceQuantity ?? 0
+    if (clearance > req.quantity || clearance < 0) {
+      return HttpResponse.json(
+        {
+          code: 'VALIDATION_ERROR',
+          message: 'clearanceQuantityWithinQuantity: 전체 수량 이하여야 합니다',
+        },
+        { status: 400 },
+      )
+    }
+    if (clearance > 0 && !clearanceOnSale()) {
+      return HttpResponse.json(
+        { code: 'CLEARANCE_NOT_ON_SALE', message: '마감세일은 06:00~23:00에만 살 수 있어요' },
+        { status: 400 },
+      )
+    }
     const existing = orderIdByKey.get(key)
     if (existing !== undefined) {
       const o = orders.get(existing)!
       if (
         o.productId !== req.productId ||
         o.quantity !== req.quantity ||
+        (o.clearanceQuantity ?? 0) !== clearance ||
         o.storeId !== req.storeId
       ) {
         return HttpResponse.json({ code: 'IDEMPOTENCY_KEY_REUSED', message: '' }, { status: 409 })
@@ -640,8 +708,12 @@ export const orderHandlers = [
       productId: req.productId,
       productName: null,
       quantity: req.quantity,
+      clearanceQuantity: clearance,
       unitPrice: null,
       amount: null,
+      lines: [],
+      availableQuantity: null,
+      clearanceAvailableQuantity: null,
       paymentExpiresAt: null,
       paidAt: null,
       createdAt: kstIso(now.getTime()),
