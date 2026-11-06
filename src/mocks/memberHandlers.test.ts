@@ -74,3 +74,32 @@ describe('MB-02 가짜 API 약관 동의 (A16)', () => {
     expect([200, 201]).toContain(ok.status)
   })
 })
+
+describe('MB-05 가짜 API 회원탈퇴 (A6)', () => {
+  it('진행 중 주문이 있으면 409, bye 고객은 204 뒤 로그아웃', async () => {
+    resetMockSession()
+    await call('/api/auth/login', 'POST', { email: 'busy@test.com', password: 'x' })
+    await call('/api/members/me', 'POST', {
+      name: '김경우',
+      nickname: 'Busy01',
+      region: 'SEOUL',
+      termsAgreed: true,
+      privacyAgreed: true,
+    })
+    const blocked = await call('/api/members/me', 'DELETE')
+    expect(blocked.status).toBe(409)
+    expect(await blocked.json()).toMatchObject({ code: 'WITHDRAWAL_BLOCKED_ACTIVE_ORDER' })
+
+    resetMockSession()
+    await call('/api/auth/login', 'POST', { email: 'bye@test.com', password: 'x' })
+    await call('/api/members/me', 'POST', {
+      name: '김경우',
+      nickname: 'Bye01',
+      region: 'SEOUL',
+      termsAgreed: true,
+      privacyAgreed: true,
+    })
+    expect((await call('/api/members/me', 'DELETE')).status).toBe(204)
+    expect((await call('/api/auth/me', 'GET')).status).toBe(401)
+  })
+})

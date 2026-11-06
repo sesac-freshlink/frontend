@@ -16,7 +16,7 @@ const rowClass = 'flex items-center justify-between px-4 py-3 text-sm'
 
 /**
  * /customer/my 마이페이지 (3차 할 일 김경우 "마이페이지"). 내 정보(MB-03 + 로그인 이메일)와
- * 회원정보 수정·비밀번호 변경(준비 중)·주문 내역·이용약관(A16, 전문 보기 창)·로그아웃 메뉴
+ * 회원정보 수정·비밀번호 변경(준비 중)·주문 내역·이용약관(A16, 전문 보기 창)·로그아웃·회원탈퇴(A6) 메뉴
  */
 export function MyPage() {
   const email = useAuthStore((s) => s.user?.email)
@@ -101,6 +101,12 @@ export function MyPage() {
             <button type="button" onClick={() => void signOut()} className={cn(rowClass, 'w-full')}>
               <span className="text-slate-900">로그아웃</span>
             </button>
+          </li>
+          <li>
+            <Link to="/customer/my/withdraw" className={rowClass}>
+              <span className="text-slate-500">회원탈퇴</span>
+              <ChevronRight className="size-4 text-slate-400" />
+            </Link>
           </li>
         </ul>
       </nav>

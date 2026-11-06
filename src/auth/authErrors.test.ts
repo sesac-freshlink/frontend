@@ -114,6 +114,12 @@ describe('loginNoticeMessage', () => {
     expect(loginNoticeMessage(null, 'EMAIL_SIGNUP_EXISTS')).toBe(EMAIL_SIGNUP_EXISTS_MESSAGE)
   })
 
+  it('회원탈퇴 뒤 안내 (A6)', () => {
+    expect(loginNoticeMessage(null, 'WITHDRAWN')).toBe(
+      '탈퇴했어요. 그동안 FreshLink를 이용해 주셔서 고마워요.',
+    )
+  })
+
   it('안내가 없으면 undefined', () => {
     expect(loginNoticeMessage(null, null)).toBeUndefined()
     expect(loginNoticeMessage('other', null)).toBeUndefined()

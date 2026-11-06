@@ -266,6 +266,18 @@ resetOrders()
 
 const AWAITING_PICKUP: readonly OrderStatus[] = ['PAID', 'READY_FOR_PICKUP']
 
+/** 회원탈퇴 가짜용: 진행 중 주문 수 (추가 명세 0.4: 재고 확보 중·결제 대기·승인 중·결제 완료·준비 완료) */
+export function activeMockOrderCount(): number {
+  const active: readonly OrderStatus[] = [
+    'RESERVING',
+    'PAYMENT_WAITING',
+    'PAYMENT_APPROVING',
+    'PAID',
+    'READY_FOR_PICKUP',
+  ]
+  return [...orders.values()].filter((o) => active.includes(o.status)).length
+}
+
 /**
  * 결제 완료·준비 완료 주문은 환불 상태로 나눈다 (order-service CustomerOrderTab·OwnerOrderTab 과 같다).
  * 환불 없음은 픽업 대기, 환불 처리·확인·실패는 취소·환불 구분이다

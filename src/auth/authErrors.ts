@@ -14,6 +14,9 @@ export const GOOGLE_LOGIN_FAILED_MESSAGE = '구글 로그인에 실패했어요.
 export const EMAIL_SIGNUP_EXISTS_MESSAGE =
   '이미 이메일로 가입한 계정이 있어요. 이메일로 로그인해 주세요.'
 
+/** 회원탈퇴 뒤 로그인 화면에 고정으로 띄운다 (추가 명세 A6) */
+export const WITHDRAWN_MESSAGE = '탈퇴했어요. 그동안 FreshLink를 이용해 주셔서 고마워요.'
+
 const TOO_MANY_REQUESTS_MESSAGE = '요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요.'
 
 /** 서버 응답을 못 받았는지 (네트워크 오류) */
@@ -75,5 +78,6 @@ export function loginNoticeMessage(
 ): string | undefined {
   if (errorParam === 'google') return GOOGLE_LOGIN_FAILED_MESSAGE
   if (notice === 'EMAIL_SIGNUP_EXISTS') return EMAIL_SIGNUP_EXISTS_MESSAGE
+  if (notice === 'WITHDRAWN') return WITHDRAWN_MESSAGE
   return undefined
 }

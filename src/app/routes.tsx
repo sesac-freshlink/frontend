@@ -5,6 +5,7 @@ import { LoginPage } from '@/auth/pages/LoginPage'
 import { SignupPage } from '@/auth/pages/SignupPage'
 import { MyPage } from '@/customer/my/pages/MyPage'
 import { ProfileEditPage } from '@/customer/my/pages/ProfileEditPage'
+import { WithdrawalPage } from '@/customer/my/pages/WithdrawalPage'
 import { FirstComeQueuePage } from '@/customer/order/pages/FirstComeQueuePage'
 import { OrderDetailPage } from '@/customer/order/pages/OrderDetailPage'
 import { OrderHistoryPage } from '@/customer/order/pages/OrderHistoryPage'
@@ -62,6 +63,7 @@ export const routes: RouteObject[] = [
           { path: 'orders/:id', element: <OrderDetailPage /> },
           { path: 'my', element: <MyPage /> },
           { path: 'my/profile', element: <ProfileEditPage /> },
+          { path: 'my/withdraw', element: <WithdrawalPage /> },
         ],
       },
     ],

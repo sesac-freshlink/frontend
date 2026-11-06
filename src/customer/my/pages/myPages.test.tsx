@@ -108,6 +108,15 @@ describe('MyPage (/customer/my)', () => {
     expect(dialog).toHaveTextContent('FreshLink 개인정보 처리방침')
   })
 
+  it('메뉴 맨 아래에 회원탈퇴가 있다 (A6)', async () => {
+    answerGet()
+    renderAt('/customer/my')
+    expect(await screen.findByRole('link', { name: /회원탈퇴/ })).toHaveAttribute(
+      'href',
+      '/customer/my/withdraw',
+    )
+  })
+
   it('로그아웃을 누르면 signOut', async () => {
     answerGet()
     renderAt('/customer/my')
