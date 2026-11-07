@@ -88,6 +88,18 @@ export function MyPage() {
             </Link>
           </li>
           <li>
+            <Link to="/customer/notices" className={rowClass}>
+              <span className="text-slate-900">공지사항</span>
+              <ChevronRight className="size-4 text-slate-400" />
+            </Link>
+          </li>
+          <li>
+            <Link to="/customer/faq" className={rowClass}>
+              <span className="text-slate-900">자주 묻는 질문</span>
+              <ChevronRight className="size-4 text-slate-400" />
+            </Link>
+          </li>
+          <li>
             <button
               type="button"
               onClick={() => setTermsOpen(true)}

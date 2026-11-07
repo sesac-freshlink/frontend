@@ -27,6 +27,7 @@ import type {
 } from '@/owner/inventory/api'
 import { adminHandlers } from './adminHandlers'
 import { authHandlers, csrfGuard } from './authHandlers'
+import { boardHandlers } from './boardHandlers'
 import { memberHandlers } from './memberHandlers'
 import { notificationHandlers } from './notificationHandlers'
 import { orderHandlers } from './orderHandlers'
@@ -1003,6 +1004,7 @@ export const handlers = [
     return HttpResponse.json(found)
   }),
   ...adminHandlers,
+  ...boardHandlers,
   ...memberHandlers,
   ...orderHandlers,
   ...salesHandlers,

@@ -1,4 +1,4 @@
-import { LogOut, Plus, Store } from 'lucide-react'
+import { CircleHelp, LogOut, Megaphone, Plus, Store } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
 import { useAuthStore } from '@/shared/auth'
 import { cn } from '@/shared/ui/cn'
@@ -7,6 +7,8 @@ import { cn } from '@/shared/ui/cn'
 const MENU = [
   { to: '/admin/stores', label: '점포 목록', icon: Store, end: true },
   { to: '/admin/stores/new', label: '점포 등록', icon: Plus, end: false },
+  { to: '/admin/notices', label: '공지사항', icon: Megaphone, end: false },
+  { to: '/admin/faqs', label: '자주 묻는 질문', icon: CircleHelp, end: false },
 ]
 
 /** 관리자 화면: PC 브라우저용 왼쪽 사이드 메뉴 */
