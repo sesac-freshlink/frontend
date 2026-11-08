@@ -15,13 +15,8 @@ import { describedBy, inputClass } from '@/auth/components/fieldStyles'
 import { REGIONS } from '@/auth/regions'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
-import {
-  type AdminStore,
-  STORE_IMAGE_TYPES,
-  isStoreImageType,
-  useUpdateAdminStore,
-  useUploadStoreImage,
-} from '../api'
+import { isStoreImageType, STORE_IMAGE_TYPES } from '@/shared/storeImage'
+import { type AdminStore, useUpdateAdminStore, useUploadStoreImage } from '../api'
 import {
   buildStorePatch,
   type StoreEditForm,

@@ -16,10 +16,11 @@ const rowClass = 'flex items-center justify-between px-4 py-3 text-sm'
 
 /**
  * /customer/my 마이페이지 (3차 할 일 김경우 "마이페이지"). 내 정보(MB-03 + 로그인 이메일)와
- * 회원정보 수정·비밀번호 변경(준비 중)·주문 내역·이용약관(A16, 전문 보기 창)·로그아웃·회원탈퇴(A6) 메뉴
+ * 회원정보 수정·비밀번호 변경(A4, 구글 가입 계정은 숨김)·주문 내역·이용약관(A16, 전문 보기 창)·로그아웃·회원탈퇴(A6) 메뉴
  */
 export function MyPage() {
   const email = useAuthStore((s) => s.user?.email)
+  const passwordLogin = useAuthStore((s) => s.user?.passwordLogin !== false)
   const signOut = useAuthStore((s) => s.signOut)
   const profile = useMyProfile()
   const [termsOpen, setTermsOpen] = useState(false)
@@ -75,12 +76,14 @@ export function MyPage() {
               <ChevronRight className="size-4 text-slate-400" />
             </Link>
           </li>
-          <li>
-            <span aria-disabled="true" className={rowClass}>
-              <span className="text-slate-400">비밀번호 변경</span>
-              <span className="text-xs text-slate-400">준비 중</span>
-            </span>
-          </li>
+          {passwordLogin && (
+            <li>
+              <Link to="/customer/my/password" className={rowClass}>
+                <span className="text-slate-900">비밀번호 변경</span>
+                <ChevronRight className="size-4 text-slate-400" />
+              </Link>
+            </li>
+          )}
           <li>
             <Link to="/customer/orders" className={rowClass}>
               <span className="text-slate-900">주문 내역</span>

@@ -3,6 +3,7 @@ import { AdminStoresPage } from '@/admin/stores/pages/AdminStoresPage'
 import { StoreRegisterPage } from '@/admin/stores/pages/StoreRegisterPage'
 import { LoginPage } from '@/auth/pages/LoginPage'
 import { SignupPage } from '@/auth/pages/SignupPage'
+import { PasswordChangePage } from '@/auth/pages/PasswordChangePage'
 import { AdminFaqsPage } from '@/board/pages/AdminFaqsPage'
 import { AdminNoticesPage } from '@/board/pages/AdminNoticesPage'
 import { FaqPage } from '@/board/pages/FaqPage'
@@ -26,6 +27,7 @@ import { LotDetailPage } from '@/owner/inventory/pages/LotDetailPage'
 import { OwnerOrdersPage } from '@/owner/orders/pages/OwnerOrdersPage'
 import { OwnerPickupScanPage } from '@/owner/orders/pages/OwnerPickupScanPage'
 import { OwnerSalesPage } from '@/owner/sales/pages/OwnerSalesPage'
+import { OwnerStorePage } from '@/owner/store/pages/OwnerStorePage'
 import { AdminLayout } from './layouts/AdminLayout'
 import { CustomerLayout } from './layouts/CustomerLayout'
 import { OwnerLayout } from './layouts/OwnerLayout'
@@ -55,6 +57,8 @@ export const routes: RouteObject[] = [
           { path: 'notices', element: <NoticeListPage basePath="/owner/notices" /> },
           { path: 'notices/:noticeId', element: <NoticeDetailPage basePath="/owner/notices" /> },
           { path: 'faq', element: <FaqPage /> },
+          { path: 'store', element: <OwnerStorePage /> },
+          { path: 'store/password', element: <PasswordChangePage backTo="/owner/store" /> },
         ],
       },
     ],
@@ -83,6 +87,7 @@ export const routes: RouteObject[] = [
             element: <NoticeDetailPage basePath="/customer/notices" />,
           },
           { path: 'faq', element: <FaqPage /> },
+          { path: 'my/password', element: <PasswordChangePage backTo="/customer/my" /> },
         ],
       },
     ],

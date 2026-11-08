@@ -70,3 +70,24 @@ export const codeSchema = z.object({
 })
 
 export type CodeForm = z.input<typeof codeSchema>
+
+/** 비밀번호 칸 최대 길이 (gateway A4 @Size(max = 256), Cognito 최대) */
+const PASSWORD_MAX = 256
+const PASSWORD_TOO_LONG = `비밀번호는 ${PASSWORD_MAX}자까지 입력할 수 있어요`
+
+/** A4 비밀번호 변경 입력. 새 비밀번호는 가입과 같은 규칙 (Cognito 정책) */
+export const passwordChangeSchema = z
+  .object({
+    currentPassword: z
+      .string()
+      .min(1, '지금 비밀번호를 입력하세요')
+      .max(PASSWORD_MAX, PASSWORD_TOO_LONG),
+    newPassword: password.max(PASSWORD_MAX, PASSWORD_TOO_LONG),
+    newPasswordConfirm: z.string(),
+  })
+  .refine((v) => v.newPassword === v.newPasswordConfirm, {
+    path: ['newPasswordConfirm'],
+    message: '비밀번호가 같지 않아요',
+  })
+
+export type PasswordChangeForm = z.input<typeof passwordChangeSchema>

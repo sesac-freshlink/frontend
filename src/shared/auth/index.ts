@@ -6,6 +6,7 @@ export type {
   ConfirmRequest,
   LoginNotice,
   LoginRequest,
+  PasswordChangeRequest,
   Role,
   SignUpInput,
 } from './types'

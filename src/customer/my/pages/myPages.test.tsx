@@ -67,7 +67,7 @@ beforeEach(() => {
 })
 
 describe('MyPage (/customer/my)', () => {
-  it('내 정보 4칸과 메뉴를 보여 주고, 비밀번호 변경은 준비 중이다', async () => {
+  it('내 정보 4칸과 메뉴(회원정보 수정·비밀번호 변경·주문 내역)를 보여 준다', async () => {
     answerGet()
     renderAt('/customer/my')
 
@@ -83,8 +83,20 @@ describe('MyPage (/customer/my)', () => {
       'href',
       '/customer/orders',
     )
+    expect(screen.getByRole('link', { name: /비밀번호 변경/ })).toHaveAttribute(
+      'href',
+      '/customer/my/password',
+    )
+    expect(screen.queryByText('준비 중')).not.toBeInTheDocument()
+  })
+
+  it('구글 가입 계정(passwordLogin false)은 비밀번호 변경 메뉴가 없다', async () => {
+    answerGet()
+    useAuthStore.setState({ user: { ...customer, passwordLogin: false } })
+    renderAt('/customer/my')
+
+    expect(await screen.findByText('Fresh01')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /비밀번호 변경/ })).not.toBeInTheDocument()
-    expect(screen.getByText('준비 중')).toBeInTheDocument()
   })
 
   it('이용약관을 누르면 두 약관을 창으로 보여 준다 (A16)', async () => {
