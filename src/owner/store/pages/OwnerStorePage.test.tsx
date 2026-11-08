@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { toast } from 'sonner'
@@ -51,6 +51,13 @@ function renderPage() {
       </MemoryRouter>
     </QueryClientProvider>,
   )
+  return queryClient
+}
+
+/** 다른 사람(관리자)이 설명을 바꾼 뒤 화면이 서버 값을 다시 읽는다 */
+async function refetchWithServerDescription(queryClient: QueryClient, description: string) {
+  get.mockResolvedValue({ data: { ...store, description } })
+  await act(() => queryClient.invalidateQueries({ queryKey: ['owner', 'store'] }))
 }
 
 const save = () => screen.getByRole('button', { name: '저장' })
@@ -177,6 +184,76 @@ describe('OwnerStorePage (/owner/store, A15)', () => {
     await user.paste('가'.repeat(501))
     expect(await screen.findByText('500자까지 쓸 수 있어요')).toBeInTheDocument()
     expect(save()).toBeDisabled()
+  })
+
+  it('설명 길이는 앞뒤 공백을 지우고 센다: 500자 + 공백은 저장되고 공백 없이 보낸다', async () => {
+    const text = '가'.repeat(500)
+    patch.mockResolvedValue({ data: { ...store, description: text } })
+    renderPage()
+    const user = userEvent.setup()
+    const field = await screen.findByLabelText('점포 설명')
+    await user.clear(field)
+    await user.click(field)
+    await user.paste(`  ${text}  `)
+
+    await waitFor(() => expect(save()).toBeEnabled())
+    expect(screen.queryByText('500자까지 쓸 수 있어요')).not.toBeInTheDocument()
+    await user.click(save())
+    await waitFor(() => expect(patch).toHaveBeenCalledWith('/owner/store', { description: text }))
+  })
+
+  it('점주가 쓰는 중에 서버 설명이 바뀌어도 쓰던 글은 그대로이고, 저장하면 쓴 글을 보낸다', async () => {
+    patch.mockResolvedValue({ data: { ...store, description: '점주가 쓴 설명' } })
+    const queryClient = renderPage()
+    const user = userEvent.setup()
+    const field = await screen.findByLabelText('점포 설명')
+    await user.clear(field)
+    await user.type(field, '점주가 쓴 설명')
+
+    await refetchWithServerDescription(queryClient, '관리자가 바꾼 설명')
+
+    expect(screen.getByLabelText('점포 설명')).toHaveValue('점주가 쓴 설명')
+    await user.click(save())
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith('/owner/store', { description: '점주가 쓴 설명' }),
+    )
+  })
+
+  it('사진만 고른 중에 서버 설명이 바뀌면 사진은 그대로, 설명 칸은 새 값이라 덮어쓰지 않는다', async () => {
+    const queryClient = renderPage()
+    const user = userEvent.setup()
+    await screen.findByLabelText('점포 설명')
+    await user.upload(picker(), new File(['img'], 'store.jpg', { type: 'image/jpeg' }))
+
+    await refetchWithServerDescription(queryClient, '관리자가 바꾼 설명')
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('점포 설명')).toHaveValue('관리자가 바꾼 설명'),
+    )
+    expect(screen.getByRole('img', { name: '프레시 강남점 점포' })).toHaveAttribute(
+      'src',
+      'blob:preview',
+    )
+  })
+
+  it('건드리지 않은 칸은 서버 값을 따라가고, 저장 뒤에도 다시 서버 값을 따라간다', async () => {
+    const queryClient = renderPage()
+    const user = userEvent.setup()
+    const field = await screen.findByLabelText('점포 설명')
+
+    await refetchWithServerDescription(queryClient, '관리자가 바꾼 설명')
+    await waitFor(() => expect(field).toHaveValue('관리자가 바꾼 설명'))
+
+    get.mockResolvedValue({ data: { ...store, description: '저장한 설명' } })
+    patch.mockResolvedValue({ data: { ...store, description: '저장한 설명' } })
+    await user.clear(field)
+    await user.type(field, '저장한 설명')
+    await user.click(save())
+    await waitFor(() => expect(toast.success).toHaveBeenCalled())
+    await waitFor(() => expect(save()).toBeDisabled())
+
+    await refetchWithServerDescription(queryClient, '또 바뀐 설명')
+    await waitFor(() => expect(field).toHaveValue('또 바뀐 설명'))
   })
 
   it('연결된 점포가 없으면(404) 안내', async () => {

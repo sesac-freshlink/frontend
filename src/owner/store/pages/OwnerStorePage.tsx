@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ImagePlus, LoaderCircle } from 'lucide-react'
+import { useEffect } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { FormField } from '@/auth/components/FormField'
@@ -13,7 +14,8 @@ import { DESCRIPTION_MAX, OWNER_STORE_TEXT, ownerStoreErrorMessage } from '../ow
 import { useOwnerStoreEdit } from '../useOwnerStoreEdit'
 
 const schema = z.object({
-  description: z.string().max(DESCRIPTION_MAX, OWNER_STORE_TEXT.descriptionTooLong),
+  // 서버처럼 앞뒤 공백을 지운 길이로 센다
+  description: z.string().trim().max(DESCRIPTION_MAX, OWNER_STORE_TEXT.descriptionTooLong),
 })
 type DescriptionForm = z.infer<typeof schema>
 
@@ -45,9 +47,7 @@ export function OwnerStorePage() {
       </p>
     )
   }
-  // 저장 뒤 OW-01 을 다시 읽어 값이 바뀌면 폼을 새 값으로 다시 만든다
-  const { data } = store
-  return <OwnerStoreForm key={`${data.description ?? ''}|${data.imageUrl ?? ''}`} store={data} />
+  return <OwnerStoreForm store={store.data} />
 }
 
 const readOnlyRows = (store: OwnerStore) => [
@@ -59,15 +59,29 @@ const readOnlyRows = (store: OwnerStore) => [
 
 function OwnerStoreForm({ store }: { store: OwnerStore }) {
   const edit = useOwnerStoreEdit(store)
-  const { register, handleSubmit, control, formState } = useForm<DescriptionForm>({
-    resolver: zodResolver(schema),
-    mode: 'onChange',
-    defaultValues: { description: store.description ?? '' },
-  })
+  const serverDescription = store.description ?? ''
+  const { register, handleSubmit, control, formState, reset, getValues } = useForm<DescriptionForm>(
+    {
+      resolver: zodResolver(schema),
+      mode: 'onChange',
+      defaultValues: { description: serverDescription },
+    },
+  )
+  const { isDirty } = formState
+
+  // 다시 읽은 서버 값은 점주가 설명 칸을 건드리지 않았을 때만 칸에 넣는다. 쓰던 글·고른 사진은 지우지 않는다
+  useEffect(() => {
+    if (!isDirty && getValues('description') !== serverDescription) {
+      reset({ description: serverDescription })
+    }
+  }, [isDirty, serverDescription, getValues, reset])
+
   const description = useWatch({ control, name: 'description' }) ?? ''
   const changed = edit.isChanged(description)
 
-  const submit = handleSubmit((v) => edit.save(v.description))
+  const submit = handleSubmit(async (v) => {
+    if (await edit.save(v.description)) reset({ description: v.description })
+  })
 
   return (
     <form onSubmit={submit} className="max-w-xl space-y-6" noValidate>

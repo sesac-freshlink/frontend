@@ -53,6 +53,8 @@ export function useUpdateOwnerStore() {
   return useMutation({
     mutationFn: async (body: UpdateOwnerStoreRequest) =>
       (await api.patch<OwnerStore>('/owner/store', body)).data,
+    // 다시 읽기가 실패해도 화면이 저장 전 값으로 돌아가지 않게 응답을 먼저 넣는다
+    onSuccess: (saved) => queryClient.setQueryData(OWNER_STORE_KEY, saved),
     onSettled: () => queryClient.invalidateQueries({ queryKey: OWNER_STORE_KEY }),
   })
 }

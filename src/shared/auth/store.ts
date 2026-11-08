@@ -27,7 +27,7 @@ interface AuthState {
    * 세션 만료(refresh 401)면 false, 그 밖의 갱신 실패는 reject (user 는 그대로)
    */
   refreshSession(): Promise<boolean>
-  /** A4 비밀번호 변경. 로그인(user·쿠키)은 그대로 둔다. 실패는 gateway 오류로 reject */
+  /** A4 비밀번호 변경. 성공하면 gateway 가 로그인 쿠키를 지우므로 부르는 쪽이 signOut 으로 화면 로그인도 비운다. 실패는 gateway 오류로 reject */
   changePassword(currentPassword: string, newPassword: string): Promise<PasswordChangeResult>
   /** 세션 만료. user 가 있었을 때만 비우고 로그아웃 요청을 보낸 뒤 true. 이미 없으면 false */
   expireSession(): boolean

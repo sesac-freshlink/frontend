@@ -27,8 +27,8 @@ export interface UseOwnerStoreEditReturn {
   pickImage(file: File): void
   /** 설명이나 사진이 바뀌었는지 (저장 버튼) */
   isChanged(description: string): boolean
-  /** 사진을 새로 골랐으면 OW-03 → PUT → OW-02, 아니면 설명만 OW-02. 성공하면 안내를 띄우고 그 화면에 남는다 */
-  save(description: string): Promise<void>
+  /** 사진을 새로 골랐으면 OW-03 → PUT → OW-02, 아니면 설명만 OW-02. 성공하면 안내를 띄우고 그 화면에 남으며 true */
+  save(description: string): Promise<boolean>
 }
 
 /** A15 점주 내 점포 수정 화면의 동작 */
@@ -68,19 +68,21 @@ export function useOwnerStoreEdit(store: OwnerStore): UseOwnerStoreEditReturn {
             .imageKey
         } catch (e) {
           setSaveError(ownerStoreErrorMessage(e, OWNER_STORE_TEXT.imageUploadFailed))
-          return
+          return false
         }
       }
       const patch = ownerStorePatch(store, description, imageKey)
-      if (Object.keys(patch).length === 0) return
+      if (Object.keys(patch).length === 0) return false
       try {
         await update.mutateAsync(patch)
       } catch (e) {
         setSaveError(ownerStoreErrorMessage(e, OWNER_STORE_TEXT.saveFailed))
-        return
+        return false
       }
       setImage(null)
+      setImageError(null)
       toast.success(OWNER_STORE_TEXT.saved)
+      return true
     },
   }
 }
