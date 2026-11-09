@@ -38,7 +38,7 @@ export function OwnerLayout() {
 
   return (
     <div className="flex min-h-dvh">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-white">
+      <aside className="sticky top-0 flex h-dvh w-56 shrink-0 flex-col self-start border-r border-slate-200 bg-white">
         <div className="flex items-start justify-between px-5 py-4">
           <div>
             <p className="text-lg font-bold text-emerald-600">FreshLink</p>
@@ -46,7 +46,7 @@ export function OwnerLayout() {
           </div>
           <NotificationBell align="start" />
         </div>
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
           {MENU.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}

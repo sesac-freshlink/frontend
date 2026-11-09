@@ -89,5 +89,10 @@ export const passwordChangeSchema = z
     path: ['newPasswordConfirm'],
     message: '비밀번호가 같지 않아요',
   })
+  // Cognito 는 같은 비밀번호도 받는다. 그러면 바뀐 것 없이 모든 기기만 로그아웃되므로 화면에서 막는다
+  .refine((v) => v.newPassword !== v.currentPassword, {
+    path: ['newPassword'],
+    message: '지금 비밀번호와 다르게 정해 주세요',
+  })
 
 export type PasswordChangeForm = z.input<typeof passwordChangeSchema>

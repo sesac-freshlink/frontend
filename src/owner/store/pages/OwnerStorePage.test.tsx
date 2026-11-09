@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { toast } from 'sonner'
@@ -62,12 +62,11 @@ async function refetchWithServerDescription(queryClient: QueryClient, descriptio
 
 const save = () => screen.getByRole('button', { name: '저장' })
 const picker = () => screen.getByLabelText(/사진 고르기/)
+const previewSrc = () => screen.getByRole('img', { name: '프레시 강남점 점포' }).getAttribute('src')
 
 beforeEach(() => {
   vi.clearAllMocks()
   get.mockResolvedValue({ data: store })
-  URL.createObjectURL = vi.fn(() => 'blob:preview')
-  URL.revokeObjectURL = vi.fn()
 })
 
 afterEach(() => vi.unstubAllGlobals())
@@ -112,10 +111,8 @@ describe('OwnerStorePage (/owner/store, A15)', () => {
     const file = new File(['img'], 'store.jpg', { type: 'image/jpeg' })
     await user.upload(picker(), file)
 
-    expect(screen.getByRole('img', { name: '프레시 강남점 점포' })).toHaveAttribute(
-      'src',
-      'blob:preview',
-    )
+    // CSP 가 blob: 을 막으므로 미리 보기는 data: 주소다
+    await waitFor(() => expect(previewSrc()).toMatch(/^data:image\/jpeg;base64,/))
     expect(post).not.toHaveBeenCalled()
     await user.click(save())
 
@@ -143,7 +140,7 @@ describe('OwnerStorePage (/owner/store, A15)', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('5MB 이하 사진만 올릴 수 있어요')
     expect(save()).toBeDisabled()
-    expect(URL.createObjectURL).not.toHaveBeenCalled()
+    expect(screen.queryByRole('img', { name: '프레시 강남점 점포' })).not.toBeInTheDocument()
   })
 
   it('JPG·PNG 가 아니면 안내한다', async () => {
@@ -224,16 +221,15 @@ describe('OwnerStorePage (/owner/store, A15)', () => {
     const user = userEvent.setup()
     await screen.findByLabelText('점포 설명')
     await user.upload(picker(), new File(['img'], 'store.jpg', { type: 'image/jpeg' }))
+    await waitFor(() => expect(previewSrc()).toMatch(/^data:/))
+    const picked = previewSrc()
 
     await refetchWithServerDescription(queryClient, '관리자가 바꾼 설명')
 
     await waitFor(() =>
       expect(screen.getByLabelText('점포 설명')).toHaveValue('관리자가 바꾼 설명'),
     )
-    expect(screen.getByRole('img', { name: '프레시 강남점 점포' })).toHaveAttribute(
-      'src',
-      'blob:preview',
-    )
+    expect(previewSrc()).toBe(picked)
   })
 
   it('건드리지 않은 칸은 서버 값을 따라가고, 저장 뒤에도 다시 서버 값을 따라간다', async () => {
@@ -254,6 +250,36 @@ describe('OwnerStorePage (/owner/store, A15)', () => {
 
     await refetchWithServerDescription(queryClient, '또 바뀐 설명')
     await waitFor(() => expect(field).toHaveValue('또 바뀐 설명'))
+  })
+
+  it('사진을 불러오지 못해 회색 칸이 됐어도 주소가 바뀌면 다시 불러온다', async () => {
+    get.mockResolvedValue({ data: { ...store, imageUrl: '/images/stores/1/old.jpg' } })
+    const queryClient = renderPage()
+    fireEvent.error(await screen.findByRole('img', { name: '프레시 강남점 점포' }))
+    expect(
+      await screen.findByRole('img', { name: '프레시 강남점 점포 이미지 없음' }),
+    ).toBeInTheDocument()
+
+    get.mockResolvedValue({ data: { ...store, imageUrl: '/images/stores/1/new.jpg' } })
+    await act(() => queryClient.invalidateQueries({ queryKey: ['owner', 'store'] }))
+
+    await waitFor(() => expect(previewSrc()).toBe('/images/stores/1/new.jpg'))
+  })
+
+  it('사진을 읽지 못하면 안내한다', async () => {
+    const read = vi.spyOn(FileReader.prototype, 'readAsDataURL').mockImplementation(function (
+      this: FileReader,
+    ) {
+      this.onerror?.(new ProgressEvent('error') as ProgressEvent<FileReader>)
+    })
+    renderPage()
+    const user = userEvent.setup()
+    await screen.findByLabelText('점포 설명')
+    await user.upload(picker(), new File(['img'], 'store.jpg', { type: 'image/jpeg' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('사진을 읽지 못했어요')
+    expect(save()).toBeDisabled()
+    read.mockRestore()
   })
 
   it('연결된 점포가 없으면(404) 안내', async () => {

@@ -32,6 +32,12 @@ describe('AdminLayout', () => {
     }),
   )
 
+  it('왼쪽 메뉴는 화면에 붙어 있어 긴 화면에서도 로그아웃이 보인다', () => {
+    renderAt('/admin/stores/new')
+    expect(screen.getByRole('complementary')).toHaveClass('sticky', 'top-0', 'h-dvh', 'self-start')
+    expect(screen.getByRole('navigation')).toHaveClass('overflow-y-auto')
+  })
+
   it('점포 등록 화면에서는 점포 등록 메뉴 하나만 켜진다', () => {
     renderAt('/admin/stores/new')
     expect(screen.getByText('등록 본문')).toBeInTheDocument()

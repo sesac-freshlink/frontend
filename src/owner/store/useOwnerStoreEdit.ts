@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { isStoreImageType } from '@/shared/storeImage'
+import { isStoreImageType, readAsDataUrl } from '@/shared/storeImage'
 import { type OwnerStore, useUpdateOwnerStore, useUploadOwnerStoreImage } from './api'
 import {
   imageFileError,
@@ -9,7 +9,7 @@ import {
   ownerStorePatch,
 } from './ownerStoreForm'
 
-/** 새로 고른 사진: 올릴 파일과 미리보기 주소(브라우저 안 임시 주소) */
+/** 새로 고른 사진: 올릴 파일과 미리보기 주소(data:, CSP 때문에 blob: 은 못 쓴다) */
 export interface PickedImage {
   file: File
   previewUrl: string
@@ -38,12 +38,8 @@ export function useOwnerStoreEdit(store: OwnerStore): UseOwnerStoreEditReturn {
   const [image, setImage] = useState<PickedImage | null>(null)
   const [imageError, setImageError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
-
-  // 미리보기 임시 주소는 바뀌거나 화면을 떠날 때 지운다
-  useEffect(() => {
-    if (!image) return
-    return () => URL.revokeObjectURL(image.previewUrl)
-  }, [image])
+  // 사진을 빠르게 두 번 고르면 마지막에 고른 것만 남긴다
+  const lastPick = useRef(0)
 
   return {
     image,
@@ -54,7 +50,15 @@ export function useOwnerStoreEdit(store: OwnerStore): UseOwnerStoreEditReturn {
       const error = imageFileError(file)
       setImageError(error)
       if (error) return
-      setImage({ file, previewUrl: URL.createObjectURL(file) })
+      const pick = ++lastPick.current
+      readAsDataUrl(file).then(
+        (previewUrl) => {
+          if (pick === lastPick.current) setImage({ file, previewUrl })
+        },
+        () => {
+          if (pick === lastPick.current) setImageError(OWNER_STORE_TEXT.imagePreviewFailed)
+        },
+      )
     },
     isChanged(description) {
       return image !== null || Object.keys(ownerStorePatch(store, description)).length > 0
