@@ -14,6 +14,7 @@ export const OWNER_STORE_TEXT = {
   imageType: 'JPG나 PNG 이미지만 올릴 수 있어요',
   imageTooBig: '5MB 이하 사진만 올릴 수 있어요',
   imageUploadFailed: '사진을 올리지 못했어요. 다시 시도해 주세요',
+  imagePreviewFailed: '사진을 읽지 못했어요. 다시 골라 주세요',
   descriptionTooLong: `${DESCRIPTION_MAX}자까지 쓸 수 있어요`,
   adminOnly: '관리자만 바꿀 수 있어요',
 } as const

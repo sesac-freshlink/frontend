@@ -125,7 +125,9 @@ function OwnerStoreForm({ store }: { store: OwnerStore }) {
       <div className="space-y-2">
         <p className="text-sm font-medium text-slate-900">점포 사진</p>
         <div className="flex items-center gap-3">
+          {/* 주소가 바뀌면 사진 칸을 새로 만들어, 한 번 실패한 표시가 남지 않게 한다 */}
           <ProductThumb
+            key={edit.image?.previewUrl ?? store.imageUrl ?? 'none'}
             src={edit.image?.previewUrl ?? store.imageUrl}
             name={`${store.name} 점포`}
             className="size-20"

@@ -17,13 +17,13 @@ export function AdminLayout() {
 
   return (
     <div className="flex min-h-dvh">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-white">
+      <aside className="sticky top-0 flex h-dvh w-56 shrink-0 flex-col self-start border-r border-slate-200 bg-white">
         <div className="px-5 py-4">
           <p className="text-lg font-bold text-emerald-600">FreshLink</p>
           <p className="text-xs text-slate-500">관리자</p>
           {user?.email && <p className="truncate text-xs text-slate-400">{user.email}</p>}
         </div>
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
           {MENU.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}

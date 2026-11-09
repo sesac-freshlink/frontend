@@ -119,6 +119,16 @@ describe('passwordChangeSchema (A4)', () => {
     expect(paths({ ...change, currentPassword: long })).toEqual(['currentPassword'])
   })
 
+  it('새 비밀번호가 지금 비밀번호와 같으면 새 비밀번호 칸을 막는다', () => {
+    expect(
+      paths({
+        currentPassword: 'Abcd123!',
+        newPassword: 'Abcd123!',
+        newPasswordConfirm: 'Abcd123!',
+      }),
+    ).toEqual(['newPassword'])
+  })
+
   it('지금 비밀번호가 비면 막는다', () => {
     expect(paths({ ...change, currentPassword: '' })).toEqual(['currentPassword'])
   })

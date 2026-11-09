@@ -28,6 +28,12 @@ const activeLinks = () =>
   screen.getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page')
 
 describe('OwnerLayout', () => {
+  it('왼쪽 메뉴는 화면에 붙어 있어 긴 화면에서도 로그아웃이 보인다', () => {
+    renderAt('/owner/store')
+    expect(screen.getByRole('complementary')).toHaveClass('sticky', 'top-0', 'h-dvh', 'self-start')
+    expect(screen.getByRole('navigation')).toHaveClass('overflow-y-auto')
+  })
+
   beforeEach(() =>
     useAuthStore.setState({
       user: { userId: 'o', role: 'OWNER', storeId: '1', passwordLogin: true },

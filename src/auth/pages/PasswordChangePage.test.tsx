@@ -104,6 +104,46 @@ describe('PasswordChangePage (A4)', () => {
     expect(screen.getByText('대문자를 넣어 주세요')).toBeInTheDocument()
   })
 
+  it('새 비밀번호가 지금 비밀번호와 같으면 안내를 띄우고 보내지 않는다', async () => {
+    renderAt('/customer/my/password', '/customer/my')
+    await fill('Old-pass1!', 'Old-pass1!')
+
+    expect(await screen.findByText('지금 비밀번호와 다르게 정해 주세요')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '비밀번호 바꾸기' })).toBeDisabled()
+    expect(changePassword).not.toHaveBeenCalled()
+  })
+
+  it('새 비밀번호를 먼저 쓰고 지금 비밀번호를 나중에 써도 같은지 알려 주고, 고치면 안내가 사라진다', async () => {
+    renderAt('/customer/my/password', '/customer/my')
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('새 비밀번호'), 'Old-pass1!')
+    await user.type(screen.getByLabelText('새 비밀번호 확인'), 'Old-pass1!')
+    await user.type(screen.getByLabelText('지금 비밀번호'), 'Old-pass1!')
+    expect(await screen.findByText('지금 비밀번호와 다르게 정해 주세요')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('지금 비밀번호'), 'x')
+    await waitFor(() =>
+      expect(screen.queryByText('지금 비밀번호와 다르게 정해 주세요')).not.toBeInTheDocument(),
+    )
+    expect(screen.getByRole('button', { name: '비밀번호 바꾸기' })).toBeEnabled()
+  })
+
+  it('눈 버튼은 그 칸만 보이게 하고, 다시 누르면 숨긴다', async () => {
+    renderAt('/customer/my/password', '/customer/my')
+    const user = userEvent.setup()
+    const current = screen.getByLabelText('지금 비밀번호')
+    const next = screen.getByLabelText('새 비밀번호')
+    expect(current).toHaveAttribute('type', 'password')
+
+    await user.click(screen.getByRole('button', { name: '지금 비밀번호 보기' }))
+    expect(current).toHaveAttribute('type', 'text')
+    expect(next).toHaveAttribute('type', 'password')
+
+    await user.click(screen.getByRole('button', { name: '지금 비밀번호 숨기기' }))
+    expect(current).toHaveAttribute('type', 'password')
+    expect(screen.getByRole('button', { name: '새 비밀번호 확인 보기' })).toBeInTheDocument()
+  })
+
   it('지금 비밀번호가 틀리면(400 WRONG_CURRENT_PASSWORD) 그 칸에 오류', async () => {
     changePassword.mockRejectedValue(apiError(400, 'WRONG_CURRENT_PASSWORD'))
     renderAt('/customer/my/password', '/customer/my')
