@@ -9,6 +9,7 @@ import { CancelReasonDialog } from '../components/CancelReasonDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { OrderSummary, type SummaryRow } from '../components/OrderSummary'
 import { ReceiptLink } from '../components/ReceiptLink'
+import { isSameDayPickup, lineText, SAME_DAY_PICKUP_NOTICE, shortageMessage } from '../clearance'
 import { formatRemaining } from '../countdown'
 import { formatDateTime, formatHHmm, formatPickupDate, formatWon } from '../format'
 import { customerMessage, paymentInterruptedMessage } from '../orderStatus'
@@ -101,9 +102,17 @@ function summaryRows(order: Order): SummaryRow[] {
   return [
     { label: '점포', value: order.storeName },
     { label: '상품', value: order.productName ?? '-' },
-    { label: '수량', value: `${order.quantity}개` },
+    ...quantityRows(order),
     { label: '결제 금액', value: order.amount === null ? '-' : formatWon(order.amount) },
   ]
+}
+
+/** 수량: 마감세일이 섞이면 줄마다 ("마감세일 1개 3,490원" / "기본 1개 4,990원"), 아니면 한 줄 */
+function quantityRows(order: Order): SummaryRow[] {
+  if (isSameDayPickup(order) && order.lines && order.lines.length > 0) {
+    return order.lines.map((line, i) => ({ label: i === 0 ? '수량' : '', value: lineText(line) }))
+  }
+  return [{ label: '수량', value: `${order.quantity}개` }]
 }
 
 /** 픽업 기한 한 줄 (A4). 재고 확보 전이거나 서버가 아직 안 주면 없다 */
@@ -119,6 +128,9 @@ function pickupRows(order: Order): SummaryRow[] {
  */
 function PickupNotice({ order }: { order: Order }) {
   if (!order.pickupDeadline) return null
+  if (isSameDayPickup(order)) {
+    return <p className="text-sm text-amber-800">{SAME_DAY_PICKUP_NOTICE}</p>
+  }
   return (
     <p className="text-sm text-slate-500">
       {order.status === 'READY_FOR_PICKUP'
@@ -420,12 +432,15 @@ function Failed({ order, title }: { order: Order; title: string }) {
   // 결제 전 직접 취소(A7)도 환불금액 0원으로 보여 준다 (추가 명세 A8 환불금액 표)
   const pickupExpired = order.status === 'PICKUP_EXPIRED'
   const canceled = order.status === 'CANCELED'
+  // 마감세일 함께 사기: 어느 쪽 재고가 모자란지 알려 주고, 같은 상품 화면에서 다시 고르게 한다
+  const shortage = order.status === 'OUT_OF_STOCK' ? shortageMessage(order) : null
   return (
     <section className="space-y-4">
       <div className="flex flex-col items-center gap-2 py-6">
         <CircleX className="size-12 text-red-600" />
         <h1 className="text-center text-lg font-bold text-slate-900">{title}</h1>
         <p className="text-sm text-slate-500">주문번호 {order.orderNo}</p>
+        {shortage && <p className="text-center text-sm text-slate-700">{shortage}</p>}
       </div>
       {(pickupExpired || canceled) && (
         <OrderSummary
@@ -437,13 +452,23 @@ function Failed({ order, title }: { order: Order; title: string }) {
         />
       )}
       {/* 같은 주문을 다시 결제하지 않고 새 주문으로 시작한다 */}
-      <Link
-        to={`/customer/stores/${order.storeId}`}
-        state={{ storeName: order.storeName }}
-        className="block rounded-lg bg-emerald-600 py-3 text-center font-medium text-white"
-      >
-        상품으로 돌아가기
-      </Link>
+      {shortage ? (
+        <Link
+          to={`/customer/stores/${order.storeId}/products/${order.productId}`}
+          state={{ storeName: order.storeName }}
+          className="block rounded-lg bg-emerald-600 py-3 text-center font-medium text-white"
+        >
+          다시 고르기
+        </Link>
+      ) : (
+        <Link
+          to={`/customer/stores/${order.storeId}`}
+          state={{ storeName: order.storeName }}
+          className="block rounded-lg bg-emerald-600 py-3 text-center font-medium text-white"
+        >
+          상품으로 돌아가기
+        </Link>
+      )}
     </section>
   )
 }

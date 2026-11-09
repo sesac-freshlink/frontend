@@ -18,6 +18,14 @@ export interface CheckoutItem {
   imageUrl?: string
   /** 선착순 대기열에서 입장권을 받고 온 주문. 1개만 살 수 있다는 안내를 보여 준다 */
   firstCome?: boolean
+  /** 마감세일 함께 사기: 시트에서 고른 전체 수량 (없으면 주문 화면에서 고른다) */
+  quantity?: number
+  /** 그중 마감세일 수량 */
+  clearanceQuantity?: number
+  /** 마감세일 단가. 주소로 받지 않고 주문 화면이 상품 API에서 읽어 채운다 (표시용, 실제 금액은 서버) */
+  clearancePrice?: number
+  /** 마감세일 남은 수. 주소로 받지 않고 주문 화면이 상품 API에서 읽어 채운다 (마감세일 줄 상한) */
+  clearanceAvailable?: number
 }
 
 /**
@@ -35,7 +43,14 @@ export function checkoutPath(item: CheckoutItem): string {
   if (item.available !== undefined) q.set('available', String(item.available))
   if (item.imageUrl) q.set('imageUrl', item.imageUrl)
   if (item.firstCome) q.set('firstCome', '1')
+  if (item.quantity !== undefined) q.set('quantity', String(item.quantity))
+  if (item.clearanceQuantity !== undefined)
+    q.set('clearanceQuantity', String(item.clearanceQuantity))
   return `/customer/orders/new?${q.toString()}`
+}
+
+function nonNegativeInt(value: string | null): number | undefined {
+  return value !== null && /^\d+$/.test(value) ? Number(value) : undefined
 }
 
 function positiveInt(value: string | null): number | undefined {
@@ -52,9 +67,9 @@ export function parseCheckout(q: URLSearchParams): CheckoutItem | null {
   const productName = q.get('productName')?.trim()
   if (!storeId || !productId || !price || !storeName || !productName) return null
 
-  const availableRaw = q.get('available')
-  const available =
-    availableRaw !== null && /^\d+$/.test(availableRaw) ? Number(availableRaw) : undefined
+  const available = nonNegativeInt(q.get('available'))
+  const quantity = positiveInt(q.get('quantity'))
+  const clearanceQuantity = nonNegativeInt(q.get('clearanceQuantity'))
   return {
     storeId,
     storeName,
@@ -63,6 +78,8 @@ export function parseCheckout(q: URLSearchParams): CheckoutItem | null {
     price,
     ...(available !== undefined && { available }),
     ...(q.get('firstCome') === '1' && { firstCome: true }),
+    ...(quantity !== undefined && { quantity }),
+    ...(clearanceQuantity !== undefined && { clearanceQuantity }),
   }
 }
 
