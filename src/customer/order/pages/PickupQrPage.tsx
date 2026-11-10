@@ -11,7 +11,8 @@ import { usePickupQr } from '../usePickupQr'
 export function PickupQrPage() {
   const qr = usePickupQr(window.location.origin)
   const waiting = usePickupWaitingOrders(!qr.noOrders)
-  const orders = waiting.data?.content ?? []
+  // 받아 갈 수 있는 건 준비 완료 주문만이다 (order-service PickupPassService, 픽업 신청 11/10)
+  const orders = (waiting.data?.content ?? []).filter((o) => o.status === 'READY_FOR_PICKUP')
 
   return (
     <section className="space-y-5">
@@ -75,9 +76,7 @@ export function PickupQrPage() {
                 <span className="min-w-0 truncate text-slate-900">
                   {o.storeName} · {o.productName} {o.quantity}개
                 </span>
-                <span className="shrink-0 text-xs text-slate-500">
-                  {o.status === 'READY_FOR_PICKUP' ? '준비 완료' : '준비 중'}
-                </span>
+                <span className="shrink-0 text-xs text-emerald-700">준비 완료</span>
               </li>
             ))}
           </ul>

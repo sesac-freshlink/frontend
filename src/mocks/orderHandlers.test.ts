@@ -40,7 +40,9 @@ describe('주문 목록 가짜 API (OR-06·OR-04 tab)', () => {
   it('고객 구분은 서버 CustomerOrderTab 과 같은 상태만 내린다', async () => {
     const only = async (tab: string) =>
       new Set((await customer(`tab=${tab}&size=50`)).content.map((o) => o.status))
-    expect(await only('PICKUP_WAITING')).toEqual(new Set(['PAID', 'READY_FOR_PICKUP']))
+    expect(await only('PICKUP_WAITING')).toEqual(
+      new Set(['PAID', 'PICKUP_REQUESTED', 'READY_FOR_PICKUP']),
+    )
     expect(await only('PICKED_UP')).toEqual(new Set(['PICKED_UP']))
     expect(await only('CANCELED')).toEqual(new Set(['EXPIRED', 'CANCELED', 'REFUNDED', 'PAID']))
   })
@@ -91,7 +93,9 @@ describe('주문 목록 가짜 API (OR-06·OR-04 tab)', () => {
   it('점주 목록은 tab 이 없으면 결제 완료 배열, 있으면 구분별 페이지다', async () => {
     const legacy = (await (await call('/api/owner/orders')).json()) as OwnerOrder[]
     expect(Array.isArray(legacy)).toBe(true)
-    expect(legacy.every((o) => o.status === 'PAID' || o.status === 'READY_FOR_PICKUP')).toBe(true)
+    expect(
+      legacy.every((o) => ['PAID', 'PICKUP_REQUESTED', 'READY_FOR_PICKUP'].includes(o.status)),
+    ).toBe(true)
 
     const waiting = await owner('tab=PICKUP_WAITING&size=50')
     expect(waiting.totalElements).toBe(legacy.length)
@@ -192,5 +196,53 @@ describe('선착순 대기열 가짜 API', () => {
     const res = await call('/api/orders/queue/1?storeId=1', { method: 'POST' })
     expect(res.status).toBe(404)
     expect(await res.json()).toMatchObject({ code: 'NOT_FIRST_COME' })
+  })
+})
+
+describe('픽업 신청 가짜 API', () => {
+  beforeEach(() => resetOrders())
+
+  const post = (path: string) => call(path, { method: 'POST' })
+
+  it('결제 완료 주문을 신청하면 신청됨이 되고 기한이 오늘 23:59:59로 당겨진다. 두 번 눌러도 그대로다', async () => {
+    const target = (await customer('tab=PICKUP_WAITING&size=50')).content.find(
+      (o) => o.status === 'PAID',
+    )
+    if (!target) throw new Error('결제 완료 주문 없음')
+    const res = await post(`/api/orders/${target.orderId}/pickup-request`)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as CustomerOrderSummary
+    expect(body.status).toBe('PICKUP_REQUESTED')
+    expect(body.pickupDeadline).toMatch(/T23:59:59\+09:00$/)
+    expect(Date.parse(body.pickupDeadline ?? '')).toBeLessThanOrEqual(
+      Date.parse(target.pickupDeadline ?? ''),
+    )
+    const again = await post(`/api/orders/${target.orderId}/pickup-request`)
+    expect(again.status).toBe(200)
+  })
+
+  it('신청 전 주문은 [준비 완료]가 409 ORDER_NOT_READYABLE, 신청하면 준비 완료로 바뀐다', async () => {
+    const target = (await customer('tab=PICKUP_WAITING&size=50')).content.find(
+      (o) => o.status === 'PAID',
+    )
+    if (!target) throw new Error('결제 완료 주문 없음')
+    const before = await post(`/api/owner/orders/${target.orderId}/ready`)
+    expect(before.status).toBe(409)
+    expect(await before.json()).toMatchObject({ code: 'ORDER_NOT_READYABLE' })
+    await post(`/api/orders/${target.orderId}/pickup-request`)
+    const after = await post(`/api/owner/orders/${target.orderId}/ready`)
+    expect(after.status).toBe(200)
+  })
+
+  it('픽업 완료·기한 경과·환불 중 주문은 409 ORDER_NOT_PICKUP_REQUESTABLE', async () => {
+    const all = (await customer('size=50')).content
+    const picked = all.find((o) => o.status === 'PICKED_UP')
+    const refunding = all.find((o) => o.status === 'PAID' && o.refundStatus !== 'NONE')
+    for (const o of [picked, refunding]) {
+      if (!o) throw new Error('예시 주문 없음')
+      const res = await post(`/api/orders/${o.orderId}/pickup-request`)
+      expect(res.status).toBe(409)
+      expect(await res.json()).toMatchObject({ code: 'ORDER_NOT_PICKUP_REQUESTABLE' })
+    }
   })
 })

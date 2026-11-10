@@ -4,16 +4,22 @@ import { cn } from '@/shared/ui/cn'
 
 interface ConfirmDialogProps {
   title: string
+  /** 제목 아래 안내 한 줄 (픽업 신청) */
+  description?: string
   confirmLabel: string
+  /** danger: 취소처럼 되돌릴 수 없는 일(빨강), primary: 신청(초록) */
+  tone?: 'danger' | 'primary'
   pending: boolean
   onConfirm(): void
   onClose(): void
 }
 
-/** 한 번 더 묻는 작은 확인 모달 (A7 결제 전 취소). 처리 중에는 닫히지 않는다 */
+/** 한 번 더 묻는 작은 확인 모달 (A7 결제 전 취소, 픽업 신청). 처리 중에는 닫히지 않는다 */
 export function ConfirmDialog({
   title,
+  description,
   confirmLabel,
+  tone = 'danger',
   pending,
   onConfirm,
   onClose,
@@ -54,6 +60,7 @@ export function ConfirmDialog({
       <h2 id="confirm-dialog-title" className="text-lg font-bold text-slate-900">
         {title}
       </h2>
+      {description && <p className="text-sm text-slate-600">{description}</p>}
       <div className="flex justify-end gap-2">
         <button
           type="button"
@@ -68,7 +75,10 @@ export function ConfirmDialog({
           onClick={onConfirm}
           disabled={pending}
           aria-busy={pending}
-          className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className={cn(
+            'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50',
+            tone === 'danger' ? 'bg-red-600' : 'bg-emerald-600',
+          )}
         >
           {pending && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
           {confirmLabel}

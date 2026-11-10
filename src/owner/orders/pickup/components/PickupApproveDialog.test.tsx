@@ -82,11 +82,12 @@ beforeEach(() => {
 })
 
 describe('PickupApproveDialog (A16)', () => {
-  it('처음엔 아무것도 체크하지 않고, 준비 전 주문은 고를 수 없다', async () => {
+  it('처음엔 아무것도 체크하지 않고, 준비 전 주문은 목록에 없다', async () => {
     renderDialog()
     const ready = await screen.findByRole('checkbox', { name: /FL-2/ })
     expect(ready).not.toBeChecked()
-    expect(screen.getByRole('checkbox', { name: /FL-1/ })).toBeDisabled()
+    expect(screen.queryByRole('checkbox', { name: /FL-1/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('준비 전')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '픽업 승인' })).toBeDisabled()
     expect(get).toHaveBeenCalledWith('/owner/orders/pickup-pass/tok')
   })
