@@ -304,6 +304,54 @@ describe('고객 상품 상세 (U-10)', () => {
       expect(router.state.location.pathname).toBe('/customer/stores/4/products/12'),
     )
   })
+
+  it('근처 점포 정보는 지금 점포 지역의 점포 목록에서 한 번에 읽고, 목록에 없는 점포만 상세를 읽는다', async () => {
+    const soldOut = { ...milk, availableQuantity: 0, soldOut: true, nearestExpiry: null }
+    const place = (storeId: number, name: string, region: string) => ({
+      storeId,
+      storeCode: `S${storeId}`,
+      name,
+      address: '주소',
+      region,
+      latitude: 37.5 + storeId / 100,
+      longitude: 127,
+    })
+    const responses: Record<string, unknown> = {
+      '/products/12/stores': [
+        { storeId: 2, availableQuantity: 1, nearestExpiry: '2026-11-08T23:59:59+09:00' },
+        { storeId: 3, availableQuantity: 9, nearestExpiry: '2026-11-08T23:59:59+09:00' },
+        { storeId: 4, availableQuantity: 5, nearestExpiry: '2026-11-08T23:59:59+09:00' },
+      ],
+      '/stores/1': { ...place(1, '프레시 강남점', 'SEOUL'), description: null, imageUrl: null },
+      '/stores/3': { ...place(3, '프레시 해운대점', 'BUSAN'), description: null, imageUrl: null },
+      '/stores': [
+        place(1, '프레시 강남점', 'SEOUL'),
+        place(2, '프레시 역삼점', 'SEOUL'),
+        place(4, '프레시 서초점', 'SEOUL'),
+      ],
+      '/notifications/restock/12': { storeId: 1, productId: 12, subscribed: false },
+      '/stores/1/products': [],
+    }
+    get.mockImplementation((url: string) =>
+      Promise.resolve({ data: url in responses ? responses[url] : soldOut }),
+    )
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    const section = await screen.findByRole('region', { name: '근처 점포에 있어요' })
+    await waitFor(() =>
+      expect(
+        within(section)
+          .getAllByRole('listitem')
+          .map((li) => li.querySelector('a span')?.textContent),
+      ).toEqual(['프레시 서초점', '프레시 역삼점']),
+    )
+    expect(get).toHaveBeenCalledWith('/stores', { params: { region: 'SEOUL' } })
+    // 다른 지역 점포(해운대)만 상세를 읽는다
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/stores/3'))
+    const urls = get.mock.calls.map((call) => call[0])
+    expect(urls).not.toContain('/stores/2')
+    expect(urls).not.toContain('/stores/4')
+  })
 })
 
 describe('마감세일 구매 시트', () => {

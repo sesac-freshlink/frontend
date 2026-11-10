@@ -1,4 +1,4 @@
-import type { StoreDetail, StoreStock } from './api'
+import type { StorePlace, StoreStock } from './api'
 
 /** 근처 점포 재고에서 보여 줄 점포 수 */
 export const NEARBY_STORE_COUNT = 5
@@ -35,7 +35,7 @@ export function distanceKm(a: LatLng, b: LatLng): number {
  */
 export function nearbyStores(
   stocks: StoreStock[] | undefined,
-  details: ReadonlyMap<number, StoreDetail>,
+  details: ReadonlyMap<number, StorePlace>,
   currentStoreId: number,
   origin: LatLng | null,
   count: number = NEARBY_STORE_COUNT,

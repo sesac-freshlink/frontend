@@ -1,6 +1,6 @@
 import { MapPin } from 'lucide-react'
 import { Link } from 'react-router'
-import { useProductStores, useStoreDetails } from '../api'
+import { useProductStores, useStorePlaces } from '../api'
 import { formatDistance, nearbyStores } from '../nearby'
 import { useCurrentPosition } from '../useCurrentPosition'
 
@@ -13,14 +13,14 @@ export function NearbyStoreStock({ storeId, productId }: { storeId: number; prod
   const stocks = useProductStores(productId, true)
   const position = useCurrentPosition(true)
   const list = Array.isArray(stocks.data) ? stocks.data : []
-  const details = useStoreDetails([
+  const places = useStorePlaces(
     storeId,
-    ...list.map((s) => s.storeId).filter((id) => id !== storeId),
-  ])
+    list.map((s) => s.storeId),
+  )
   const origin = position.status === 'ok' ? position.position : null
-  const items = nearbyStores(list, details, storeId, origin)
+  const items = nearbyStores(list, places.places, storeId, origin)
 
-  if (!stocks.isSuccess || position.status === 'pending') return null
+  if (!stocks.isSuccess || position.status === 'pending' || places.isPending) return null
 
   return (
     <section aria-labelledby="nearby-title" className="space-y-2">

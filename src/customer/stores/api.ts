@@ -204,21 +204,64 @@ export function useProductStores(productId: number, enabled: boolean) {
   })
 }
 
+/** 주변 점포 재고에 쓰는 점포 정보: 이름·지역·좌표. 점포 목록 한 줄이나 점포 상세에서 얻는다 */
+export type StorePlace = Pick<StoreDetail, 'storeId' | 'name' | 'region' | 'latitude' | 'longitude'>
+
+/** 점포 목록 한 줄이나 상세에 좌표 칸이 있는지. 좌표가 들어오기 전(member #34 전) 목록이면 상세를 읽는다 */
+function isStorePlace(value: unknown): value is StorePlace {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'storeId' in value &&
+    'latitude' in value &&
+    'longitude' in value
+  )
+}
+
+export interface UseStorePlacesReturn {
+  /** 읽은 점포만 담는다 */
+  places: ReadonlyMap<number, StorePlace>
+  /** 목록·상세를 아직 읽는 중. 끝나기 전에 "재고 없음"을 보이지 않게 쓴다 */
+  isPending: boolean
+}
+
 /**
- * 여러 점포의 상세(이름·지역·좌표)를 한 번에 읽는다. useStoreDetail 과 같은 queryKey 라 이미 읽은 점포는 다시 묻지 않는다.
- * 점포 목록 API 에 좌표가 생기면 그걸 쓰도록 바꾼다. 읽은 점포만 Map 으로 돌려준다
+ * 주변 점포 재고(U-10)용으로 여러 점포의 이름·지역·좌표를 읽는다.
+ * 지금 점포의 상세로 지역을 알고, 그 지역 점포 목록(ST-01, 11/10부터 좌표가 있다)을 한 번 읽는다.
+ * 목록에 없는 점포(다른 지역)나 좌표 칸이 없는 목록이면 그 점포만 상세를 읽는다.
+ * 상세는 useStoreDetail 과, 목록은 점포 검색(useStores)의 빈 검색어와 같은 queryKey 라 이미 읽은 것은 다시 묻지 않는다
  */
-export function useStoreDetails(storeIds: number[]): ReadonlyMap<number, StoreDetail> {
-  const results = useQueries({
-    queries: storeIds.map((storeId) => ({
+export function useStorePlaces(currentStoreId: number, storeIds: number[]): UseStorePlacesReturn {
+  const current = useStoreDetail(currentStoreId)
+  const region = isStorePlace(current.data) ? current.data.region : undefined
+  const regionStores = useQuery({
+    queryKey: ['customer', 'stores', region, ''],
+    queryFn: async () => (await api.get<StoreSummary[]>('/stores', { params: { region } })).data,
+    enabled: region !== undefined,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const listed = new Map<number, StorePlace>()
+  if (Array.isArray(regionStores.data)) {
+    for (const row of regionStores.data as unknown[]) {
+      if (isStorePlace(row)) listed.set(row.storeId, row)
+    }
+  }
+  // 목록을 다 읽기 전에는 상세를 묻지 않는다. 목록을 못 읽으면(지역을 모름·오류) 상세로 읽는다
+  const waiting = region === undefined ? current.isPending : regionStores.isPending
+  const detailIds = waiting ? [] : storeIds.filter((id) => id !== currentStoreId && !listed.has(id))
+  const details = useQueries({
+    queries: detailIds.map((storeId) => ({
       queryKey: ['customer', 'stores', storeId, 'detail'],
       queryFn: async () => (await api.get<StoreDetail>(`/stores/${storeId}`)).data,
       staleTime: 5 * 60 * 1000,
     })),
   })
-  const map = new Map<number, StoreDetail>()
-  results.forEach((r, i) => {
-    if (r.data && typeof r.data === 'object' && 'storeId' in r.data) map.set(storeIds[i], r.data)
+
+  const places = new Map<number, StorePlace>(listed)
+  if (isStorePlace(current.data)) places.set(currentStoreId, current.data)
+  details.forEach((r, i) => {
+    if (isStorePlace(r.data)) places.set(detailIds[i], r.data)
   })
-  return map
+  return { places, isPending: waiting || details.some((r) => r.isPending) }
 }
