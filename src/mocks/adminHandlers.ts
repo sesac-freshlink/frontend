@@ -57,9 +57,12 @@ export function findActiveStore(storeId: number): AdminStore | undefined {
 }
 
 /** 가짜 S3 업로드 주소 (MSW가 PUT 을 받는다) */
-const MOCK_S3 = 'https://freshlink-mock-frontend.s3.ap-northeast-2.amazonaws.com'
+export const MOCK_S3 = 'https://freshlink-mock-frontend.s3.ap-northeast-2.amazonaws.com'
 /** 점포 이미지 형식 → 키 확장자 (member StoreImageUploads 와 같다) */
-const MOCK_IMAGE_EXTENSIONS: Record<string, string> = { 'image/jpeg': '.jpg', 'image/png': '.png' }
+export const MOCK_IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+}
 
 function seedStores(): AdminStore[] {
   return Array.from({ length: 21 }, (_, i) => seedStore(21 - i))

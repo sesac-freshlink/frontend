@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { RegionCode } from '@/auth/regions'
 import { api } from '@/shared/api/client'
+import type { StoreImageType } from '@/shared/storeImage'
 
 /** 점포 상태 (member-service API 명세 0장) */
 export type StoreStatus = 'PENDING' | 'ACTIVE' | 'INACTIVE'
@@ -54,14 +55,6 @@ export interface StoreImageUploadUrl {
   /** 서명에 들어간 형식. PUT 때 이 Content-Type 을 그대로 보내야 한다 */
   contentType: string
   expiresAt: string
-}
-
-/** 점포 이미지 형식. 고른 파일 형식을 업로드 주소 요청에 보내면 서버가 .jpg·.png 키로 그 Content-Type 을 서명한다 */
-export const STORE_IMAGE_TYPES = ['image/jpeg', 'image/png'] as const
-export type StoreImageType = (typeof STORE_IMAGE_TYPES)[number]
-
-export function isStoreImageType(type: string): type is StoreImageType {
-  return (STORE_IMAGE_TYPES as readonly string[]).includes(type)
 }
 
 /** 페이지 응답 형식 (member-service API 명세 0장) */

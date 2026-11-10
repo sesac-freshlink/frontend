@@ -1,13 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ImagePlus, LoaderCircle } from 'lucide-react'
-import {
-  type ChangeEvent,
-  type SyntheticEvent,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
+import { type ChangeEvent, type SyntheticEvent, useLayoutEffect, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { FormField } from '@/auth/components/FormField'
@@ -15,13 +8,8 @@ import { describedBy, inputClass } from '@/auth/components/fieldStyles'
 import { REGIONS } from '@/auth/regions'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
-import {
-  type AdminStore,
-  STORE_IMAGE_TYPES,
-  isStoreImageType,
-  useUpdateAdminStore,
-  useUploadStoreImage,
-} from '../api'
+import { isStoreImageType, readAsDataUrl, STORE_IMAGE_TYPES } from '@/shared/storeImage'
+import { type AdminStore, useUpdateAdminStore, useUploadStoreImage } from '../api'
 import {
   buildStorePatch,
   type StoreEditForm,
@@ -80,12 +68,6 @@ export function StoreEditModal({ store, onClose }: StoreEditModalProps) {
       ),
     ).length === 0
 
-  // 미리보기 임시 주소는 바뀌거나 모달을 닫을 때 지운다
-  useEffect(() => {
-    if (!image) return
-    return () => URL.revokeObjectURL(image.previewUrl)
-  }, [image])
-
   const onPickImage = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -98,7 +80,7 @@ export function StoreEditModal({ store, onClose }: StoreEditModalProps) {
     }
     try {
       const issued = await upload.mutateAsync({ storeId: store.storeId, file, contentType })
-      setImage({ imageKey: issued.imageKey, previewUrl: URL.createObjectURL(file) })
+      setImage({ imageKey: issued.imageKey, previewUrl: await readAsDataUrl(file) })
     } catch {
       setImageError('이미지를 올리지 못했어요. 다시 시도해 주세요')
     }
@@ -246,6 +228,7 @@ export function StoreEditModal({ store, onClose }: StoreEditModalProps) {
           <p className="text-sm font-medium text-slate-700">점포 이미지</p>
           <div className="flex items-center gap-3">
             <ProductThumb
+              key={image?.previewUrl ?? store.imageUrl ?? 'none'}
               src={image?.previewUrl ?? store.imageUrl}
               name={`${store.name} 점포`}
               className="size-16"

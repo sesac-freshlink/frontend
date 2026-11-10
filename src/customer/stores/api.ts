@@ -1,4 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
+import { useQueries } from '@tanstack/react-query'
 import type { RegionCode } from '@/auth/regions'
 import { api } from '@/shared/api/client'
 
@@ -73,6 +75,15 @@ export interface StoreProduct {
   firstCome: boolean
   /** 먼저 받게 될 상품의 유통기한(+09:00). 유통기한 빠른 것부터 준다. 품절이면 null */
   nearestExpiry: string | null
+  /**
+   * 마감세일(유통기한 24시간 안, 30% 할인) 수량. 판매 시간(06~23시) 밖이거나 선착순 상품이면 0.
+   * availableQuantity 는 마감세일을 뺀 기본 수량이다. inventory 가 마감세일을 배포하기 전에는 오지 않는다
+   */
+  clearanceQuantity?: number
+  /** 마감세일 단가(원). clearanceQuantity 가 0이면 null */
+  clearancePrice?: number | null
+  /** 마감세일 상품의 유통기한(+09:00). clearanceQuantity 가 0이면 null */
+  clearanceExpiry?: string | null
 }
 
 /** U-10 상품 상세. inventory-service StoreProductDetailResponse 와 같은 모양(목록 한 줄과 필드가 같다) */
@@ -118,6 +129,30 @@ export function storeProductParams(filter: StoreProductFilter): Record<string, s
   return params
 }
 
+/** U-10 무한 스크롤 한 묶음 크기 */
+export const PRODUCT_PAGE_SIZE = 20
+
+/**
+ * U-10 상품 목록을 묶음(PRODUCT_PAGE_SIZE개)씩 불러온다. 서버가 거르고 정렬한 결과를 page·size로 잘라 준다.
+ * 받은 개수가 묶음 크기보다 적으면 마지막 묶음이라 더 부르지 않는다. 조건이 바뀌면 처음 묶음부터 다시 읽는다
+ */
+export function useStoreProductPages(storeId: number, filter: StoreProductFilter = {}) {
+  const params = storeProductParams(filter)
+  return useInfiniteQuery({
+    queryKey: ['customer', 'stores', storeId, 'products', 'pages', params],
+    queryFn: async ({ pageParam }) =>
+      (
+        await api.get<StoreProduct[]>(`/stores/${storeId}/products`, {
+          params: { ...params, page: pageParam, size: PRODUCT_PAGE_SIZE },
+        })
+      ).data,
+    initialPageParam: 0,
+    getNextPageParam: (last, all) => (last.length < PRODUCT_PAGE_SIZE ? undefined : all.length),
+    // 조건을 바꾸는 동안 이전 결과를 그대로 둬서 목록이 깜빡이지 않게 한다
+    placeholderData: keepPreviousData,
+  })
+}
+
 /**
  * U-10 점포 상품 목록 (inventory-service, 로그인 없이도 된다). 기본은 상품 전부, 상품명순.
  * 검색어(q)·카테고리·추천상품만·신상품만·추천순 정렬은 서버가 처리한다.
@@ -149,4 +184,41 @@ export function useStoreCategories(storeId: number) {
     queryKey: ['customer', 'stores', storeId, 'categories'],
     queryFn: async () => (await api.get<string[]>(`/stores/${storeId}/products/categories`)).data,
   })
+}
+
+/** 주변 점포 재고 한 줄. inventory-service StoreStockResponse 와 같은 모양 */
+export interface StoreStock {
+  storeId: number
+  /** 그 점포에서 지금 살 수 있는 수량(1 이상) */
+  availableQuantity: number
+  /** 먼저 받게 될 상품의 유통기한(+09:00) */
+  nearestExpiry: string
+}
+
+/** 주변 점포 재고: 이 상품을 지금 살 수 있는 점포와 수량(공개). 품절 상세에서만 읽는다 */
+export function useProductStores(productId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ['customer', 'products', productId, 'stores'],
+    queryFn: async () => (await api.get<StoreStock[]>(`/products/${productId}/stores`)).data,
+    enabled,
+  })
+}
+
+/**
+ * 여러 점포의 상세(이름·지역·좌표)를 한 번에 읽는다. useStoreDetail 과 같은 queryKey 라 이미 읽은 점포는 다시 묻지 않는다.
+ * 점포 목록 API 에 좌표가 생기면 그걸 쓰도록 바꾼다. 읽은 점포만 Map 으로 돌려준다
+ */
+export function useStoreDetails(storeIds: number[]): ReadonlyMap<number, StoreDetail> {
+  const results = useQueries({
+    queries: storeIds.map((storeId) => ({
+      queryKey: ['customer', 'stores', storeId, 'detail'],
+      queryFn: async () => (await api.get<StoreDetail>(`/stores/${storeId}`)).data,
+      staleTime: 5 * 60 * 1000,
+    })),
+  })
+  const map = new Map<number, StoreDetail>()
+  results.forEach((r, i) => {
+    if (r.data && typeof r.data === 'object' && 'storeId' in r.data) map.set(storeIds[i], r.data)
+  })
+  return map
 }

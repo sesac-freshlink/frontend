@@ -114,6 +114,19 @@ describe('loginNoticeMessage', () => {
     expect(loginNoticeMessage(null, 'EMAIL_SIGNUP_EXISTS')).toBe(EMAIL_SIGNUP_EXISTS_MESSAGE)
   })
 
+  it('회원탈퇴 뒤 안내 (A6)', () => {
+    expect(loginNoticeMessage(null, 'WITHDRAWN')).toBe(
+      '탈퇴했어요. 그동안 FreshLink를 이용해 주셔서 고마워요.',
+    )
+  })
+
+  it('비밀번호를 바꾼 뒤 다시 로그인 안내 (A4)', () => {
+    expect(loginNoticeMessage(null, 'PASSWORD_CHANGED')).toBe('새 비밀번호로 다시 로그인해 주세요')
+    expect(loginNoticeMessage(null, 'PASSWORD_CHANGED_OTHERS_ACTIVE')).toBe(
+      '비밀번호는 바꿨어요. 다른 기기 로그아웃은 실패했어요. 다른 기기가 걱정되면 다시 로그인한 뒤 비밀번호를 한 번 더 바꿔 주세요.',
+    )
+  })
+
   it('안내가 없으면 undefined', () => {
     expect(loginNoticeMessage(null, null)).toBeUndefined()
     expect(loginNoticeMessage('other', null)).toBeUndefined()

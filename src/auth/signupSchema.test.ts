@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { profileSchema, signupSchema } from './signupSchema'
+import {
+  passwordChangeSchema,
+  profileRegisterSchema,
+  profileSchema,
+  signupSchema,
+} from './signupSchema'
 
 const valid = {
   email: 'kim@test.com',
@@ -8,6 +13,8 @@ const valid = {
   name: '김경우',
   nickname: 'Fresh01',
   region: 'SEOUL',
+  termsAgreed: true,
+  privacyAgreed: true,
 }
 
 function errorPaths(input: unknown) {
@@ -62,5 +69,79 @@ describe('profileSchema', () => {
     expect(
       profileSchema.safeParse({ name: '김경우', nickname: 'Fresh01', region: 'BUSAN' }).success,
     ).toBe(true)
+  })
+})
+
+describe('약관 동의 (A16)', () => {
+  it('가입 입력은 필수 약관 두 개에 모두 동의해야 한다', () => {
+    expect(errorPaths({ ...valid, termsAgreed: false })).toEqual(['termsAgreed'])
+    expect(errorPaths({ ...valid, privacyAgreed: false })).toEqual(['privacyAgreed'])
+  })
+
+  it('프로필 등록 단계(구글 첫 로그인)도 같은 동의가 필요하고, 회원정보 수정 규칙에는 없다', () => {
+    const profile = { name: '김경우', nickname: 'Fresh01', region: 'SEOUL' }
+    expect(
+      profileRegisterSchema.safeParse({ ...profile, termsAgreed: true, privacyAgreed: true })
+        .success,
+    ).toBe(true)
+    expect(
+      profileRegisterSchema.safeParse({ ...profile, termsAgreed: true, privacyAgreed: false })
+        .success,
+    ).toBe(false)
+    expect(profileSchema.safeParse(profile).success).toBe(true)
+  })
+})
+
+describe('passwordChangeSchema (A4)', () => {
+  const change = {
+    currentPassword: 'Old-pass1',
+    newPassword: 'Abcd123!',
+    newPasswordConfirm: 'Abcd123!',
+  }
+  const paths = (input: unknown) => {
+    const result = passwordChangeSchema.safeParse(input)
+    return result.success ? [] : result.error.issues.map((i) => i.path.join('.'))
+  }
+
+  it('지금 비밀번호를 넣고 새 비밀번호가 가입 규칙에 맞으면 통과', () => {
+    expect(paths(change)).toEqual([])
+  })
+
+  it('비밀번호는 256자까지 받고 넘으면 그 칸을 막는다 (gateway 와 같은 길이)', () => {
+    const ok = `Abcd123!${'a'.repeat(248)}`
+    const long = `${ok}a`
+    expect(ok).toHaveLength(256)
+    expect(paths({ ...change, newPassword: ok, newPasswordConfirm: ok })).toEqual([])
+    expect(paths({ ...change, currentPassword: ok })).toEqual([])
+    expect(paths({ ...change, newPassword: long, newPasswordConfirm: long })).toEqual([
+      'newPassword',
+    ])
+    expect(paths({ ...change, currentPassword: long })).toEqual(['currentPassword'])
+  })
+
+  it('새 비밀번호가 지금 비밀번호와 같으면 새 비밀번호 칸을 막는다', () => {
+    expect(
+      paths({
+        currentPassword: 'Abcd123!',
+        newPassword: 'Abcd123!',
+        newPasswordConfirm: 'Abcd123!',
+      }),
+    ).toEqual(['newPassword'])
+  })
+
+  it('지금 비밀번호가 비면 막는다', () => {
+    expect(paths({ ...change, currentPassword: '' })).toEqual(['currentPassword'])
+  })
+
+  it('새 비밀번호는 가입과 같은 규칙이다', () => {
+    for (const newPassword of ['Abc12!', 'abcd123!', 'ABCD123!', 'Abcdefg!', 'Abcd1234']) {
+      expect(paths({ ...change, newPassword, newPasswordConfirm: newPassword })).toContain(
+        'newPassword',
+      )
+    }
+  })
+
+  it('새 비밀번호 확인이 다르면 막는다', () => {
+    expect(paths({ ...change, newPasswordConfirm: 'Abcd123@' })).toEqual(['newPasswordConfirm'])
   })
 })

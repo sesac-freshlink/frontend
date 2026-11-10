@@ -2,13 +2,38 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
 import type { CustomerOrderSummary } from '../api'
 import { OrderHistoryPage } from './OrderHistoryPage'
 
 vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 const get = vi.mocked(api.get)
+
+// jsdom 에는 HTMLDialogElement 의 showModal/close 가 없다. OrderCancel.test 와 같은 방식으로 흉내 낸다 ([픽업 신청] 확인 창)
+const dialogProto = HTMLDialogElement.prototype as Partial<HTMLDialogElement>
+const originalShowModal = dialogProto.showModal
+const originalClose = dialogProto.close
+
+beforeAll(() => {
+  if (!originalShowModal) {
+    dialogProto.showModal = function showModal(this: HTMLDialogElement) {
+      this.setAttribute('open', '')
+    }
+  }
+  if (!originalClose) {
+    dialogProto.close = function close(this: HTMLDialogElement) {
+      if (!this.hasAttribute('open')) return
+      this.removeAttribute('open')
+      setTimeout(() => this.dispatchEvent(new Event('close')), 0)
+    }
+  }
+})
+
+afterAll(() => {
+  dialogProto.showModal = originalShowModal
+  dialogProto.close = originalClose
+})
 
 const paid: CustomerOrderSummary = {
   orderId: 123,
@@ -25,6 +50,12 @@ const paid: CustomerOrderSummary = {
 }
 
 /** A3 페이지 응답 한 장 */
+/** 요청의 tab (픽업 QR 버튼용 픽업 대기 조회를 가린다) */
+function tabOf(config?: { params?: unknown }): unknown {
+  const params = config?.params
+  return typeof params === 'object' && params !== null && 'tab' in params ? params.tab : undefined
+}
+
 function pageOf(
   content: CustomerOrderSummary[],
   extra: { page?: number; size?: number; totalPages?: number } = {},
@@ -189,12 +220,84 @@ describe('고객 주문 내역 (A3)', () => {
   })
 
   it('[새로 고침]을 누르면 다시 읽고, 실패하면 오류 문구를 보여 준다', async () => {
-    get.mockResolvedValueOnce(pageOf([paid])).mockRejectedValue(new Error('network'))
+    // [픽업 QR] 버튼용 픽업 대기 조회(A16)는 따로 답하고, 화면 목록(전체) 조회만 센다
+    let listCalls = 0
+    get.mockImplementation(async (_url: string, config?: { params?: unknown }) => {
+      if (tabOf(config) === 'PICKUP_WAITING') return pageOf([])
+      listCalls += 1
+      if (listCalls === 1) return pageOf([paid])
+      throw new Error('network')
+    })
     renderPage()
     await screen.findByText('FL-20261020-000123')
     await userEvent.click(screen.getByRole('button', { name: '새로 고침' }))
     expect(await screen.findByText('주문 내역을 불러오지 못했어요.')).toBeInTheDocument()
-    expect(get).toHaveBeenCalledTimes(2)
+    expect(listCalls).toBe(2)
+  })
+
+  it('준비 완료된 주문이 있을 때만 [픽업 QR 보여 주기]가 있다 (A16)', async () => {
+    get.mockImplementation(async (_url: string, config?: { params?: unknown }) =>
+      tabOf(config) === 'PICKUP_WAITING'
+        ? pageOf([paid, { ...paid, orderId: 124, status: 'READY_FOR_PICKUP' }])
+        : pageOf([paid]),
+    )
+    renderPage()
+    expect(await screen.findByRole('link', { name: /픽업 QR 보여 주기/ })).toHaveAttribute(
+      'href',
+      '/customer/orders/pickup-qr',
+    )
+  })
+
+  it('결제 완료·픽업 신청 주문만 있으면 [픽업 QR 보여 주기]가 없다 (A16)', async () => {
+    get.mockImplementation(async (_url: string, config?: { params?: unknown }) =>
+      tabOf(config) === 'PICKUP_WAITING'
+        ? pageOf([paid, { ...paid, orderId: 124, status: 'PICKUP_REQUESTED' }])
+        : pageOf([paid]),
+    )
+    renderPage()
+    await screen.findByText('FL-20261020-000123')
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('link', { name: /픽업 QR 보여 주기/ })).not.toBeInTheDocument()
+  })
+
+  it('기한이 남은 결제 완료 줄에만 [픽업 신청]이 있고, 한 번 더 물은 뒤 신청한다', async () => {
+    const future = '2099-12-31T23:59:59+09:00'
+    get.mockResolvedValue(
+      pageOf([
+        { ...paid, pickupDeadline: future },
+        {
+          ...paid,
+          orderId: 124,
+          orderNo: 'FL-20261020-000124',
+          status: 'PICKUP_REQUESTED',
+          pickupDeadline: future,
+        },
+        { ...paid, orderId: 125, orderNo: 'FL-20261020-000125' },
+      ]),
+    )
+    vi.mocked(api.post).mockResolvedValue({ data: {} })
+    renderPage()
+    const button = await screen.findByRole('button', { name: 'FL-20261020-000123 픽업 신청' })
+    expect(
+      screen.queryByRole('button', { name: 'FL-20261020-000124 픽업 신청' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'FL-20261020-000125 픽업 신청' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('픽업 신청됨')).toBeInTheDocument()
+    await userEvent.click(button)
+    const dialog = screen.getByRole('dialog', { name: '픽업 신청할까요?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: '픽업 신청' }))
+    expect(api.post).toHaveBeenCalledWith('/orders/123/pickup-request')
+  })
+
+  it('받아 갈 주문이 없으면 [픽업 QR 보여 주기]가 없다 (A16)', async () => {
+    get.mockImplementation(async (_url: string, config?: { params?: unknown }) =>
+      tabOf(config) === 'PICKUP_WAITING' ? pageOf([]) : pageOf([paid]),
+    )
+    renderPage()
+    await screen.findByText('FL-20261020-000123')
+    expect(screen.queryByRole('link', { name: /픽업 QR 보여 주기/ })).not.toBeInTheDocument()
   })
 
   it('상태 배지는 주문마다 짧은 이름으로 보여 준다', async () => {

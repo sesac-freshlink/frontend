@@ -11,7 +11,10 @@ export interface CreateOrderRequest {
   storeId: number
   storeName: string
   productId: number
+  /** 전체 수량 1~5 */
   quantity: number
+  /** 그중 마감세일 수량 (마감세일 함께 사기). 0이면 보내지 않아도 된다 */
+  clearanceQuantity?: number
 }
 
 /** OR-01 응답 (201 새 주문 / 200 같은 키로 이미 만든 주문) */
@@ -46,8 +49,15 @@ export interface Order {
   productId: number
   productName: string | null
   quantity: number
+  /** 전체 수량 중 마감세일 수량 (마감세일 함께 사기). 옛 서버는 보내지 않는다 */
+  clearanceQuantity?: number
   unitPrice: number | null
   amount: number | null
+  /** 줄(마감세일·기본). 재고를 잡기 전이면 빈 배열 */
+  lines?: OrderLine[]
+  /** 재고 확보 실패 때 기본·마감세일 남은 수 */
+  availableQuantity?: number | null
+  clearanceAvailableQuantity?: number | null
   paymentExpiresAt: string | null
   paidAt: string | null
   createdAt: string
@@ -96,6 +106,14 @@ export const ORDER_PAGE_SIZES = [10, 20, 50] as const
 export type OrderPageSize = (typeof ORDER_PAGE_SIZES)[number]
 export const DEFAULT_ORDER_PAGE_SIZE: OrderPageSize = 20
 
+/** 주문 한 줄 (마감세일 함께 사기). 마감세일 줄이 먼저 온다. amount = unitPrice × quantity */
+export interface OrderLine {
+  clearance: boolean
+  quantity: number
+  unitPrice: number
+  amount: number
+}
+
 /** A3 고객 주문 내역 한 줄. 시각은 +09:00 */
 export interface CustomerOrderSummary {
   orderId: number
@@ -105,7 +123,9 @@ export interface CustomerOrderSummary {
   storeName: string
   productName: string | null
   quantity: number
+  clearanceQuantity?: number
   amount: number | null
+  lines?: OrderLine[]
   createdAt: string
   pickupDeadline: string | null
   /** 결제 후 취소·환불 상태 (A8·A9) */
@@ -249,5 +269,37 @@ export function useLeaveQueue(storeId: number, productId: number) {
     mutationFn: async () => {
       await api.delete(`${queuePath(productId)}/me`, { params: { storeId } })
     },
+  })
+}
+
+/** OR-07 고객 픽업 QR (추가 명세 A16). token 은 QR 안에, code 는 카메라가 안 될 때 점주가 손으로 넣는 6자리 */
+export interface PickupPass {
+  token: string
+  code: string
+  /** +09:00, 만든 뒤 5분 */
+  expiresAt: string
+  /** 기한이 남은 미픽업 주문 수 (모든 점포) */
+  orderCount: number
+}
+
+/** OR-07 픽업 QR 만들기. 예전 QR은 서버가 지운다. 미픽업 주문이 없으면 409 NO_PICKUP_WAITING_ORDER */
+export function useIssuePickupPass() {
+  return useMutation({
+    mutationFn: async () => (await api.post<PickupPass>('/orders/pickup-pass')).data,
+  })
+}
+
+/** 픽업 QR 화면의 픽업 대기 목록. 점주가 승인하면 줄어든 것을 보여 주려고 5초마다 다시 읽는다 */
+export function usePickupWaitingOrders(enabled = true) {
+  return useQuery({
+    queryKey: ['customer', 'orders', 'PICKUP_WAITING', 'pickup-qr'],
+    queryFn: async () =>
+      (
+        await api.get<OrderPage<CustomerOrderSummary>>('/orders', {
+          params: { tab: 'PICKUP_WAITING', page: 0, size: 50 },
+        })
+      ).data,
+    enabled,
+    refetchInterval: POLL_MS.pickupQr,
   })
 }

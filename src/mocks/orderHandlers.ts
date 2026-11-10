@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse, sse } from 'msw'
 import type {
   ConfirmPaymentRequest,
   ConfirmPaymentResponse,
@@ -24,6 +24,13 @@ import {
   hasRefundStarted,
 } from '@/customer/order/refund'
 import type { OwnerOrder, OwnerOrderTab, PickupResponse, ReadyResponse } from '@/owner/orders/api'
+import type {
+  PickupApproveResult,
+  PickupOutcome,
+  PickupPassOrders,
+  PickupScanResult,
+} from '@/owner/orders/pickup/api'
+import type { PickupPass } from '@/customer/order/api'
 
 /**
  * order-service 가짜 API (김경우): OR-01~03 고객 주문·결제, OR-04 점주 주문 목록(A6 구분), OR-05 픽업 확인, OR-06 고객 주문 내역(A3).
@@ -69,9 +76,38 @@ function pickupDeadline(days: number) {
   return `${kstDate}T23:59:59+09:00`
 }
 
+/** 마감세일 단가: 정가 30% 할인, 10원 단위 내림 (이태우 11/6) */
+function clearancePriceOf(price: number) {
+  return Math.floor((price * 0.7) / 10) * 10
+}
+
+/** 마감세일 판매 시간: KST 06:00 이상 23:00 미만 */
+function clearanceOnSale(ms = Date.now()) {
+  const hour = new Date(ms + 9 * HOUR).getUTCHours()
+  return hour >= 6 && hour < 23
+}
+
+/**
+ * 마감세일이 그새 다 팔린 주문 흉내: 상품 998, 또는 마감세일을 4개 고른 주문(삼각김밥 마감세일 4개를 다 사려는 사이
+ * 다른 사람이 사 간 것으로 본다). 마감세일 0, 기본 2 남음
+ */
+const CLEARANCE_SOLD_OUT_PRODUCT = 998
+const CLEARANCE_SOLD_OUT_QUANTITY = 4
+
 /** 진짜처럼 1.5초 뒤 재고 결과(RESERVED·RESERVE_FAILED)가 온 것으로 본다 */
 function advance(order: Order & { createdMs: number }) {
   if (order.status !== 'RESERVING' || Date.now() - order.createdMs < 1500) return
+  const clearance = order.clearanceQuantity ?? 0
+  if (
+    clearance > 0 &&
+    (order.productId === CLEARANCE_SOLD_OUT_PRODUCT || clearance === CLEARANCE_SOLD_OUT_QUANTITY)
+  ) {
+    order.status = 'OUT_OF_STOCK'
+    order.failureReason = 'CLEARANCE_SOLD_OUT'
+    order.availableQuantity = 2
+    order.clearanceAvailableQuantity = 0
+    return
+  }
   const product = products[order.productId]
   if (!product) {
     order.status = 'OUT_OF_STOCK'
@@ -81,9 +117,34 @@ function advance(order: Order & { createdMs: number }) {
   order.status = 'PAYMENT_WAITING'
   order.productName = product.name
   order.unitPrice = product.price
-  order.amount = product.price * order.quantity
+  const clearancePrice = clearancePriceOf(product.price)
+  const regular = order.quantity - clearance
+  order.lines = [
+    ...(clearance > 0
+      ? [
+          {
+            clearance: true,
+            quantity: clearance,
+            unitPrice: clearancePrice,
+            amount: clearancePrice * clearance,
+          },
+        ]
+      : []),
+    ...(regular > 0
+      ? [
+          {
+            clearance: false,
+            quantity: regular,
+            unitPrice: product.price,
+            amount: product.price * regular,
+          },
+        ]
+      : []),
+  ]
+  order.amount = order.lines.reduce((sum, line) => sum + line.amount, 0)
   order.paymentExpiresAt = new Date(Date.now() + 10 * 60_000).toISOString()
-  order.pickupDeadline = pickupDeadline(2)
+  // 마감세일이 섞이면 당일 픽업 (오늘 23:59:59)
+  order.pickupDeadline = pickupDeadline(clearance > 0 ? 0 : 2)
 }
 
 function publicOrder({
@@ -110,10 +171,10 @@ type Seed = [
 const SEED: Seed[] = [
   [1, 'PAID', 1, 2],
   [3, 'READY_FOR_PICKUP', 2, 1],
-  [5, 'PAID', 3, 1],
+  [5, 'PICKUP_REQUESTED', 3, 1],
   [8, 'PAID', 1, 1],
   [20, 'READY_FOR_PICKUP', 2, 3],
-  [22, 'PAID', 3, 2],
+  [22, 'PICKUP_REQUESTED', 3, 2],
   [26, 'PAID', 1, 4],
   [30, 'PAID', 2, 2],
   [44, 'PAID', 3, 1],
@@ -158,16 +219,19 @@ function seedOrder(
   const createdMs = Date.now() - hoursAgo * HOUR
   const paid =
     status === 'PAID' ||
+    status === 'PICKUP_REQUESTED' ||
     status === 'READY_FOR_PICKUP' ||
     status === 'PICKED_UP' ||
     status === 'PICKUP_EXPIRED' ||
     status === 'REFUNDED'
   const paidAt = paid ? kstIso(createdMs + 2 * 60_000) : null
-  // 픽업 대기는 앞으로 1~3일, 나머지는 주문일 다음 날 (기한 경과는 이미 지났다)
+  // 결제 완료는 앞으로 1~3일, 픽업 신청·준비 완료는 신청한 오늘, 나머지는 주문일 다음 날 (기한 경과는 이미 지났다)
   const deadline =
-    status === 'PAID' || status === 'READY_FOR_PICKUP'
+    status === 'PAID'
       ? pickupDeadline(1 + (id % 3))
-      : `${kstDate(createdMs + DAY)}T23:59:59+09:00`
+      : status === 'PICKUP_REQUESTED' || status === 'READY_FOR_PICKUP'
+        ? pickupDeadline(0)
+        : `${kstDate(createdMs + DAY)}T23:59:59+09:00`
   const failureReason =
     status === 'OUT_OF_STOCK'
       ? 'OUT_OF_STOCK'
@@ -264,7 +328,23 @@ export function resetOrders() {
 }
 resetOrders()
 
-const AWAITING_PICKUP: readonly OrderStatus[] = ['PAID', 'READY_FOR_PICKUP']
+const AWAITING_PICKUP: readonly OrderStatus[] = ['PAID', 'PICKUP_REQUESTED', 'READY_FOR_PICKUP']
+
+/** 취소·환불을 받는 상태 (order-service Order.isRefundable). 준비 완료부터는 받지 않는다 */
+const REFUNDABLE: readonly OrderStatus[] = ['PAID', 'PICKUP_REQUESTED']
+
+/** 회원탈퇴 가짜용: 진행 중 주문 수 (추가 명세 0.4: 재고 확보 중·결제 대기·승인 중·결제 완료·픽업 신청·준비 완료) */
+export function activeMockOrderCount(): number {
+  const active: readonly OrderStatus[] = [
+    'RESERVING',
+    'PAYMENT_WAITING',
+    'PAYMENT_APPROVING',
+    'PAID',
+    'PICKUP_REQUESTED',
+    'READY_FOR_PICKUP',
+  ]
+  return [...orders.values()].filter((o) => active.includes(o.status)).length
+}
 
 /**
  * 결제 완료·준비 완료 주문은 환불 상태로 나눈다 (order-service CustomerOrderTab·OwnerOrderTab 과 같다).
@@ -280,12 +360,13 @@ function inTab(o: MockOrder, statuses: readonly OrderStatus[], canceledTab: bool
 const CUSTOMER_TABS: Record<CustomerOrderTab, readonly OrderStatus[]> = {
   PICKUP_WAITING: AWAITING_PICKUP,
   PICKED_UP: ['PICKED_UP'],
-  CANCELED: ['EXPIRED', 'CANCELED', 'REFUNDED', 'PAID'],
+  CANCELED: ['EXPIRED', 'CANCELED', 'REFUNDED', 'PAID', 'PICKUP_REQUESTED'],
   ALL: [
     'RESERVING',
     'PAYMENT_WAITING',
     'PAYMENT_APPROVING',
     'PAID',
+    'PICKUP_REQUESTED',
     'READY_FOR_PICKUP',
     'PICKED_UP',
     'EXPIRED',
@@ -300,10 +381,10 @@ const OWNER_TABS: Record<
   OwnerOrderTab,
   { statuses: readonly OrderStatus[]; sortBy: (o: MockOrder) => string }
 > = {
-  PICKUP_WAITING: { statuses: ['PAID', 'READY_FOR_PICKUP'], sortBy: (o) => o.paidAt ?? '' },
+  PICKUP_WAITING: { statuses: AWAITING_PICKUP, sortBy: (o) => o.paidAt ?? '' },
   PICKED_UP: { statuses: ['PICKED_UP'], sortBy: (o) => o.pickedUpAt ?? '' },
   CANCELED: {
-    statuses: ['PAID', 'REFUNDED'],
+    statuses: ['PAID', 'PICKUP_REQUESTED', 'REFUNDED'],
     sortBy: (o) => o.cancelRequestedAt ?? '',
   },
   PICKUP_EXPIRED: { statuses: ['PICKUP_EXPIRED'], sortBy: (o) => o.pickupDeadline ?? '' },
@@ -375,7 +456,9 @@ function ownerOrder(o: MockOrder): OwnerOrder {
     status: o.status,
     productName: o.productName ?? '',
     quantity: o.quantity,
+    clearanceQuantity: o.clearanceQuantity ?? 0,
     amount: o.amount ?? 0,
+    lines: o.lines ?? [],
     paidAt: o.paidAt ?? '',
     pickupDeadline: o.pickupDeadline,
     pickedUpAt: o.pickedUpAt,
@@ -395,7 +478,9 @@ function customerOrder(o: MockOrder): CustomerOrderSummary {
     storeName: o.storeName,
     productName: o.productName,
     quantity: o.quantity,
+    clearanceQuantity: o.clearanceQuantity ?? 0,
     amount: o.amount,
+    lines: o.lines ?? [],
     createdAt: o.createdAt,
     pickupDeadline: o.pickupDeadline,
     refundStatus: o.refundStatus,
@@ -468,7 +553,125 @@ const queueHandlers = [
   }),
 ]
 
+/**
+ * 픽업 QR 가짜 (추가 명세 A16, OR-07~OR-11). 가짜 로그인은 고객·점주가 한 명씩이라 지금 표 하나만 둔다.
+ * 6자리 코드 000000 은 늘 틀린 코드다. 컴퓨터 알림 SSE 는 같은 탭 안에서만 전달된다(브라우저에서만 넣는다)
+ */
+let pickupPass: (PickupPass & { expiresMs: number }) | null = null
+type PickupStreamClient = { send(m: { event: 'pickup-scan'; data: string }): void }
+const pickupStreamClients = new Set<PickupStreamClient>()
+
+/** 테스트용: 픽업 QR 표를 지운다 */
+export function resetPickupPass(): void {
+  pickupPass = null
+}
+
+function livePickupPass(key: string): PickupPass | null {
+  if (!pickupPass || Date.now() > pickupPass.expiresMs) return null
+  return key === pickupPass.token || key === pickupPass.code ? pickupPass : null
+}
+
+/** 픽업 QR 대상: 준비 완료 주문만 (order-service PickupPassService.WAITING) */
+function pickupWaiting(): MockOrder[] {
+  return [...orders.values()]
+    .filter((o) => o.status === 'READY_FOR_PICKUP' && o.refundStatus === 'NONE')
+    .filter((o) => !o.pickupDeadline || Date.now() <= Date.parse(o.pickupDeadline))
+    .sort((a, b) => (a.paidAt ?? '').localeCompare(b.paidAt ?? ''))
+}
+
+const passNotFound = () =>
+  HttpResponse.json(
+    {
+      code: 'PICKUP_PASS_NOT_FOUND',
+      message: 'QR이 만료됐거나 없습니다. 고객에게 새 QR을 보여 달라고 해 주세요',
+    },
+    { status: 404 },
+  )
+
+const pickupStreamHandlers =
+  typeof EventSource === 'undefined'
+    ? []
+    : [
+        sse<{ 'pickup-scan': string }>('/api/owner/orders/pickup-stream', ({ client }) => {
+          pickupStreamClients.add(client)
+        }),
+      ]
+
+const pickupPassHandlers = [
+  http.post('/api/orders/pickup-pass', () => {
+    const count = pickupWaiting().length
+    if (count === 0) {
+      return HttpResponse.json(
+        { code: 'NO_PICKUP_WAITING_ORDER', message: '받아 갈 주문이 없습니다' },
+        { status: 409 },
+      )
+    }
+    const expiresMs = Date.now() + 5 * 60_000
+    const token = crypto.randomUUID().replace(/-/g, '')
+    const code = String(Math.floor(100_000 + Math.random() * 900_000))
+    pickupPass = { token, code, expiresAt: kstIso(expiresMs), orderCount: count, expiresMs }
+    const body: PickupPass = { token, code, expiresAt: pickupPass.expiresAt, orderCount: count }
+    return HttpResponse.json(body)
+  }),
+  http.post('/api/owner/orders/pickup-scan', async ({ request }) => {
+    const { token } = (await request.json()) as { token?: string }
+    if (!token || !livePickupPass(token)) return passNotFound()
+    for (const client of pickupStreamClients) {
+      client.send({ event: 'pickup-scan', data: JSON.stringify({ token }) })
+    }
+    const body: PickupScanResult = { screens: pickupStreamClients.size }
+    return HttpResponse.json(body)
+  }),
+  http.get('/api/owner/orders/pickup-pass/:key', ({ params }) => {
+    const pass = livePickupPass(String(params.key))
+    if (!pass) return passNotFound()
+    const body: PickupPassOrders = {
+      token: pass.token,
+      orders: pickupWaiting().map((o) => ({
+        orderId: o.orderId,
+        orderNo: o.orderNo,
+        status: o.status,
+        productName: o.productName,
+        quantity: o.quantity,
+        amount: o.amount,
+        paidAt: o.paidAt,
+        pickupDeadline: o.pickupDeadline,
+        selectable: o.status === 'READY_FOR_PICKUP',
+      })),
+    }
+    return HttpResponse.json(body)
+  }),
+  http.post('/api/owner/orders/pickup', async ({ request }) => {
+    const { token, orderIds } = (await request.json()) as { token?: string; orderIds?: number[] }
+    if (!orderIds || orderIds.length === 0 || orderIds.length > 20) {
+      return HttpResponse.json(
+        { code: 'VALIDATION_ERROR', message: 'orderIds: 1~20건이어야 합니다' },
+        { status: 400 },
+      )
+    }
+    if (!token || !livePickupPass(token)) return passNotFound()
+    const results = [...new Set(orderIds)].map((orderId) => {
+      const o = orders.get(orderId)
+      let result: PickupOutcome
+      if (!o) result = 'NOT_FOUND'
+      else if (o.status !== 'READY_FOR_PICKUP' || o.refundStatus !== 'NONE') result = 'NOT_PICKABLE'
+      else if (o.pickupDeadline && Date.now() > Date.parse(o.pickupDeadline))
+        result = 'DEADLINE_PASSED'
+      else {
+        o.status = 'PICKED_UP'
+        o.pickedUpAt = kstIso(Date.now())
+        result = 'PICKED_UP'
+      }
+      return { orderId, result }
+    })
+    const body: PickupApproveResult = { results }
+    return HttpResponse.json(body)
+  }),
+]
+
 export const orderHandlers = [
+  ...pickupPassHandlers,
+  ...pickupStreamHandlers,
   ...queueHandlers,
   http.post('/api/orders', async ({ request }) => {
     const key = request.headers.get('Idempotency-Key')
@@ -479,12 +682,29 @@ export const orderHandlers = [
       )
     }
     const req = (await request.json()) as CreateOrderRequest
+    const clearance = req.clearanceQuantity ?? 0
+    if (clearance > req.quantity || clearance < 0) {
+      return HttpResponse.json(
+        {
+          code: 'VALIDATION_ERROR',
+          message: 'clearanceQuantityWithinQuantity: 전체 수량 이하여야 합니다',
+        },
+        { status: 400 },
+      )
+    }
+    if (clearance > 0 && !clearanceOnSale()) {
+      return HttpResponse.json(
+        { code: 'CLEARANCE_NOT_ON_SALE', message: '마감세일은 06:00~23:00에만 살 수 있어요' },
+        { status: 400 },
+      )
+    }
     const existing = orderIdByKey.get(key)
     if (existing !== undefined) {
       const o = orders.get(existing)!
       if (
         o.productId !== req.productId ||
         o.quantity !== req.quantity ||
+        (o.clearanceQuantity ?? 0) !== clearance ||
         o.storeId !== req.storeId
       ) {
         return HttpResponse.json({ code: 'IDEMPOTENCY_KEY_REUSED', message: '' }, { status: 409 })
@@ -504,8 +724,12 @@ export const orderHandlers = [
       productId: req.productId,
       productName: null,
       quantity: req.quantity,
+      clearanceQuantity: clearance,
       unitPrice: null,
       amount: null,
+      lines: [],
+      availableQuantity: null,
+      clearanceAvailableQuantity: null,
       paymentExpiresAt: null,
       paidAt: null,
       createdAt: kstIso(now.getTime()),
@@ -577,7 +801,8 @@ export const orderHandlers = [
       return HttpResponse.json({ code: 'PICKUP_DEADLINE_PASSED', message: '' }, { status: 409 })
     }
     if (o.status === 'PAYMENT_WAITING') {
-      o.status = 'PAID'
+      // 마감세일이 섞인 주문은 결제하면 바로 픽업 신청이다 (order-service PaymentResultWriter)
+      o.status = (o.clearanceQuantity ?? 0) > 0 ? 'PICKUP_REQUESTED' : 'PAID'
       o.paidAt = kstIso(Date.now())
       o.paymentKey = req.paymentKey
       // 짝수 주문은 영수증 주소가 없는 경우를 흉내 낸다 (결제는 그대로 완료)
@@ -632,7 +857,7 @@ export const orderHandlers = [
         { code: 'ORDER_NOT_FOUND', message: '주문이 없습니다' },
         { status: 404 },
       )
-    if (o.status !== 'PAID' && o.status !== 'READY_FOR_PICKUP') {
+    if (o.status !== 'PICKUP_REQUESTED' && o.status !== 'READY_FOR_PICKUP') {
       return HttpResponse.json(
         { code: 'ORDER_NOT_READYABLE', message: '픽업 준비 완료로 바꿀 수 없는 주문입니다' },
         { status: 409 },
@@ -683,6 +908,28 @@ export const orderHandlers = [
     }
     return HttpResponse.json(body)
   }),
+  // 픽업 신청: 결제 완료·환불 없음·기한 이내만. 이미 신청했거나 준비 완료면 그대로 200.
+  // 기한은 신청한 날 23:59:59로 당긴다 (원래 기한이 더 이르면 그대로)
+  http.post('/api/orders/:orderId/pickup-request', ({ params }) => {
+    const o = orders.get(Number(params.orderId))
+    if (!o) return notFound()
+    advance(o)
+    if (o.status === 'PICKUP_REQUESTED' || o.status === 'READY_FOR_PICKUP') {
+      return HttpResponse.json({ ...publicOrder(o), serverTime: new Date().toISOString() })
+    }
+    if (o.status !== 'PAID' || o.refundStatus !== 'NONE') {
+      return conflict('ORDER_NOT_PICKUP_REQUESTABLE', '픽업 신청할 수 없는 주문입니다')
+    }
+    if (o.pickupDeadline && Date.now() > Date.parse(o.pickupDeadline)) {
+      return conflict('PICKUP_DEADLINE_PASSED', '픽업 기한이 지난 주문입니다')
+    }
+    const today = pickupDeadline(0)
+    if (!o.pickupDeadline || Date.parse(today) < Date.parse(o.pickupDeadline)) {
+      o.pickupDeadline = today
+    }
+    o.status = 'PICKUP_REQUESTED'
+    return HttpResponse.json({ ...publicOrder(o), serverTime: new Date().toISOString() })
+  }),
   // A7 결제 전 취소: 결제 대기 주문만, 사유 없이. 환불금액 0원
   http.post('/api/orders/:orderId/payment/cancel', ({ params }) => {
     const o = orders.get(Number(params.orderId))
@@ -731,9 +978,9 @@ function cancelPaid(orderId: number, requester: CancelRequester, req: CancelOrde
   if (o.refundStatus === 'REQUESTED' || o.refundStatus === 'CHECKING') {
     return conflict('REFUND_IN_PROGRESS', '환불을 처리하고 있습니다')
   }
-  // 준비 완료 주문은 취소를 받지 않는다 (order-service Order.canStartRefund: 결제 완료만)
+  // 준비 완료 주문은 취소를 받지 않는다 (order-service Order.canStartRefund: 결제 완료·픽업 신청만)
   const startable =
-    o.status === 'PAID' && (o.refundStatus === 'NONE' || o.refundStatus === 'FAILED')
+    REFUNDABLE.includes(o.status) && (o.refundStatus === 'NONE' || o.refundStatus === 'FAILED')
   if (!startable) return conflict('ORDER_NOT_CANCELABLE', '취소할 수 없는 주문입니다')
   if (o.refundStatus === 'NONE' && o.pickupDeadline && Date.now() > Date.parse(o.pickupDeadline)) {
     return conflict('PICKUP_DEADLINE_PASSED', '픽업 기한이 지난 주문입니다')

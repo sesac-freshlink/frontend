@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AxiosError, AxiosHeaders, type AxiosRequestConfig } from 'axios'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
 import type { InventoryItem, InventoryListPage, InventoryLotItem } from '../api'
@@ -109,13 +110,17 @@ function serverError(status: number, code: string, message: string) {
   })
 }
 
-function renderPage() {
+function renderPage(path = '/owner/inventory') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const router = createMemoryRouter([{ path: '/owner/inventory', element: <InventoryPage /> }], {
+    initialEntries: [path],
+  })
   render(
     <QueryClientProvider client={queryClient}>
-      <InventoryPage />
+      <RouterProvider router={router} />
     </QueryClientProvider>,
   )
+  return router
 }
 
 type Params = Record<string, string | number | boolean>
@@ -504,9 +509,36 @@ describe('검색·필터·페이지 (서버가 거르고 자른다)', () => {
     await userEvent.click(screen.getByRole('button', { name: '부족' }))
 
     await waitFor(() => expect(shownNames()).toEqual(['흰 우유 500ml']))
+    // 누른 순서와 상관없이 칩 순서(부족·임박·경과·품절)로 보낸다. 서버는 모두 만족하는 상품만 준다
     expect(get).toHaveBeenCalledWith('/owner/inventory', {
-      params: { status: 'IMMINENT,LOW_STOCK', page: 0, size: 20 },
+      params: { status: 'LOW_STOCK,IMMINENT', page: 0, size: 20 },
     })
+  })
+
+  it('주소에 status가 있으면 그 필터를 건 채로 연다', async () => {
+    get.mockImplementation(serveInventory(items))
+    renderPage('/owner/inventory?status=LOW_STOCK')
+
+    expect(await screen.findByRole('button', { name: '부족' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(get).toHaveBeenCalledWith('/owner/inventory', {
+      params: { status: 'LOW_STOCK', page: 0, size: 20 },
+    })
+  })
+
+  it('칩을 누르면 주소의 status도 바뀌고, 다 끄면 주소에서 빠진다', async () => {
+    get.mockImplementation(serveInventory(items))
+    const router = renderPage()
+
+    await userEvent.click(await screen.findByRole('button', { name: '경과' }))
+    expect(router.state.location.search).toBe('?status=EXPIRED')
+    await userEvent.click(screen.getByRole('button', { name: '부족' }))
+    expect(router.state.location.search).toBe('?status=LOW_STOCK%2CEXPIRED')
+    await userEvent.click(screen.getByRole('button', { name: '부족' }))
+    await userEvent.click(screen.getByRole('button', { name: '경과' }))
+    expect(router.state.location.search).toBe('')
   })
 
   it('다음 페이지를 누르면 page=1 로 묻고, 조건을 바꾸면 첫 페이지로 돌아간다', async () => {

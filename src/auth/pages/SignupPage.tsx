@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { Link, Navigate } from 'react-router'
 import { toast } from 'sonner'
 import { homePathFor, useAuthStore } from '@/shared/auth'
@@ -8,13 +8,14 @@ import { useCheckNickname, useMyProfile } from '../api'
 import { describedBy, inputClass, primaryButtonClass } from '../components/fieldStyles'
 import { FormField } from '../components/FormField'
 import { ProfileFields } from '../components/ProfileFields'
+import { TermsAgreement } from '../components/TermsAgreement'
 import {
   codeSchema,
-  profileSchema,
+  profileRegisterSchema,
   signupSchema,
   type CodeForm,
-  type ProfileForm,
-  type ProfileValues,
+  type ProfileRegisterForm,
+  type ProfileRegisterValues,
   type SignupForm,
   type SignupValues,
 } from '../signupSchema'
@@ -62,20 +63,20 @@ function SignupSteps() {
 }
 
 function SignupFormStep({ onSubmit }: { onSubmit(values: SignupValues): Promise<void> }) {
-  const { register, handleSubmit, formState, setError, getValues, trigger } = useForm<
-    SignupForm,
-    unknown,
-    SignupValues
-  >({
-    resolver: zodResolver(signupSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-      passwordConfirm: '',
-      name: '',
-      nickname: '',
-    },
-  })
+  const { register, handleSubmit, formState, setError, getValues, trigger, control, setValue } =
+    useForm<SignupForm, unknown, SignupValues>({
+      resolver: zodResolver(signupSchema),
+      defaultValues: {
+        email: '',
+        password: '',
+        passwordConfirm: '',
+        name: '',
+        nickname: '',
+        termsAgreed: false,
+        privacyAgreed: false,
+      },
+    })
+  const [termsAgreed, privacyAgreed] = useWatch({ control, name: ['termsAgreed', 'privacyAgreed'] })
   const checkNickname = useCheckNickname()
 
   const onCheckNickname = async () => {
@@ -152,7 +153,19 @@ function SignupFormStep({ onSubmit }: { onSubmit(values: SignupValues): Promise<
         onCheckNickname={() => void onCheckNickname()}
         checkingNickname={checkNickname.isPending}
       />
-      <button type="submit" disabled={formState.isSubmitting} className={primaryButtonClass}>
+      <TermsAgreement
+        value={{ termsAgreed, privacyAgreed }}
+        onChange={(next) => {
+          setValue('termsAgreed', next.termsAgreed, { shouldValidate: true })
+          setValue('privacyAgreed', next.privacyAgreed, { shouldValidate: true })
+        }}
+        error={errors.termsAgreed?.message ?? errors.privacyAgreed?.message}
+      />
+      <button
+        type="submit"
+        disabled={formState.isSubmitting || !termsAgreed || !privacyAgreed}
+        className={primaryButtonClass}
+      >
         가입하기
       </button>
     </form>
@@ -208,20 +221,21 @@ function ProfileStep({
   onSubmit,
   onBack,
 }: {
-  defaults: ProfileValues | undefined
-  onSubmit(values: ProfileValues): Promise<void>
+  defaults: ProfileRegisterValues | undefined
+  onSubmit(values: ProfileRegisterValues): Promise<void>
   onBack(): Promise<void>
 }) {
   const user = useAuthStore((s) => s.user)
   const profile = useMyProfile()
-  const { register, handleSubmit, formState, setError } = useForm<
-    ProfileForm,
+  const { register, handleSubmit, formState, setError, control, setValue } = useForm<
+    ProfileRegisterForm,
     unknown,
-    ProfileValues
+    ProfileRegisterValues
   >({
-    resolver: zodResolver(profileSchema),
-    defaultValues: defaults ?? { name: '', nickname: '' },
+    resolver: zodResolver(profileRegisterSchema),
+    defaultValues: defaults ?? { name: '', nickname: '', termsAgreed: false, privacyAgreed: false },
   })
+  const [termsAgreed, privacyAgreed] = useWatch({ control, name: ['termsAgreed', 'privacyAgreed'] })
 
   const submit = handleSubmit(async (values) => {
     try {
@@ -241,7 +255,19 @@ function ProfileStep({
     <form onSubmit={submit} className="space-y-4" noValidate>
       <p className="text-sm text-slate-600">마지막으로 프로필을 등록하면 가입이 끝나요.</p>
       <ProfileFields register={register} errors={formState.errors} />
-      <button type="submit" disabled={formState.isSubmitting} className={primaryButtonClass}>
+      <TermsAgreement
+        value={{ termsAgreed, privacyAgreed }}
+        onChange={(next) => {
+          setValue('termsAgreed', next.termsAgreed, { shouldValidate: true })
+          setValue('privacyAgreed', next.privacyAgreed, { shouldValidate: true })
+        }}
+        error={formState.errors.termsAgreed?.message ?? formState.errors.privacyAgreed?.message}
+      />
+      <button
+        type="submit"
+        disabled={formState.isSubmitting || !termsAgreed || !privacyAgreed}
+        className={primaryButtonClass}
+      >
         프로필 등록
       </button>
       <button

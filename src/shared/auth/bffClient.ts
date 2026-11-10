@@ -1,11 +1,18 @@
 import axios, { type AxiosInstance } from 'axios'
 import { createApiInstance } from '@/shared/api/http'
 import { isRole } from './claims'
-import type { AuthClient, AuthUser, ConfirmRequest, LoginRequest } from './types'
+import type {
+  AuthClient,
+  AuthUser,
+  ConfirmRequest,
+  LoginRequest,
+  PasswordChangeRequest,
+} from './types'
 
 /**
  * C-02 응답 본문(AuthUserResponse)을 검사해 AuthUser 로 바꾼다.
  * role 이 모르는 값이거나 userId 가 없으면 null. null 인 storeId·email 은 빼고(undefined) 돌려준다.
+ * passwordLogin 이 없으면(옛 gateway) undefined — 화면은 비밀번호 로그인 계정으로 본다.
  */
 export function toAuthUser(data: unknown): AuthUser | null {
   if (typeof data !== 'object' || data === null) return null
@@ -13,6 +20,7 @@ export function toAuthUser(data: unknown): AuthUser | null {
   if (!('role' in data) || !isRole(data.role)) return null
   const storeId = 'storeId' in data ? data.storeId : undefined
   const email = 'email' in data ? data.email : undefined
+  const passwordLogin = 'passwordLogin' in data ? data.passwordLogin : undefined
   return {
     userId: data.userId,
     role: data.role,
@@ -23,6 +31,7 @@ export function toAuthUser(data: unknown): AuthUser | null {
           ? String(storeId)
           : undefined,
     email: typeof email === 'string' ? email : undefined,
+    passwordLogin: typeof passwordLogin === 'boolean' ? passwordLogin : undefined,
   }
 }
 
@@ -88,5 +97,17 @@ export function createBffClient(http: AxiosInstance = createApiInstance()): Auth
       }
     },
     refresh,
+    async changePassword(currentPassword, newPassword) {
+      const body: PasswordChangeRequest = { currentPassword, newPassword }
+      const res = await http.post<unknown>('/auth/password', body)
+      // 204(본문 없음)면 다 됐다. 200 {otherDevicesSignedOut: false}일 때만 다른 기기가 남아 있다
+      const data: unknown = res.data
+      const othersActive =
+        typeof data === 'object' &&
+        data !== null &&
+        'otherDevicesSignedOut' in data &&
+        data.otherDevicesSignedOut === false
+      return { otherDevicesSignedOut: !othersActive }
+    },
   }
 }

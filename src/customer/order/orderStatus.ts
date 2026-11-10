@@ -14,6 +14,8 @@ export const ORDER_STATUSES = [
   'PICKED_UP',
   'PICKUP_EXPIRED',
   'READY_FOR_PICKUP',
+  /** 고객이 픽업 신청을 했다. 점주가 준비 완료를 누를 수 있다 */
+  'PICKUP_REQUESTED',
   'CANCELED',
   'REFUNDED',
 ] as const
@@ -27,6 +29,8 @@ export type FailureReason =
   | 'PAYMENT_FAILED'
   | 'EXPIRED'
   | 'PICKUP_DEADLINE'
+  /** 마감세일 재고가 모자람 (마감세일 함께 사기) */
+  | 'CLEARANCE_SOLD_OUT'
 
 /**
  * loading: 기다리기만 한다 (로딩 표시)
@@ -45,6 +49,7 @@ export interface CustomerMessage {
 
 const OUT_OF_STOCK_MESSAGES: Record<string, string> = {
   OUT_OF_STOCK: '재고가 부족해 주문이 취소됐어요.',
+  CLEARANCE_SOLD_OUT: '마감세일이 끝나 주문이 취소됐어요.',
   PRODUCT_NOT_FOUND: '상품을 찾을 수 없어 주문이 취소됐어요.',
   INVALID_QUANTITY: '주문 수량이 올바르지 않아 주문이 취소됐어요.',
 }
@@ -62,6 +67,8 @@ export function customerMessage(
       return { title: '결제 결과를 확인하고 있어요', tone: 'loading' }
     case 'PAID':
       return { title: '결제 완료', tone: 'done' }
+    case 'PICKUP_REQUESTED':
+      return { title: '픽업 신청됨', tone: 'done' }
     case 'READY_FOR_PICKUP':
       return { title: '픽업 준비 완료 · 가게에서 받아 가세요', tone: 'done' }
     case 'OUT_OF_STOCK':
@@ -99,6 +106,8 @@ export function orderStatusLabel(status: OrderStatus, failureReason: FailureReas
       return '결제 확인 중'
     case 'PAID':
       return '픽업 대기'
+    case 'PICKUP_REQUESTED':
+      return '픽업 신청됨'
     case 'READY_FOR_PICKUP':
       return '픽업 준비 완료'
     case 'PICKED_UP':

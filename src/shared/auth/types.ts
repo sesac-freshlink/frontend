@@ -7,6 +7,8 @@ export interface AuthUser {
   /** 점주만 있다 (custom:storeId). 문자열 */
   storeId?: string
   email?: string
+  /** 이메일·비밀번호로 가입한 계정이면 true, 구글 가입 계정이면 false (비밀번호 변경 메뉴를 숨긴다, A4) */
+  passwordLogin?: boolean
 }
 
 /** C-01 가입 입력. 역할은 보내지 않는다 (가입 확인 Lambda 가 직접 가입은 항상 CUSTOMER 로 넣는다) */
@@ -27,16 +29,29 @@ export interface ConfirmRequest {
   code: string
 }
 
+/** POST /api/auth/password 요청 (A4 비밀번호 변경) */
+/** A4 비밀번호 변경 결과. 다른 기기 로그아웃까지 됐는지 */
+export interface PasswordChangeResult {
+  otherDevicesSignedOut: boolean
+}
+
+export interface PasswordChangeRequest {
+  currentPassword: string
+  newPassword: string
+}
+
 /** C-02 login·refresh·me 공통 응답 (gateway AuthUser 그대로). 토큰은 쿠키에만 있고 본문에는 없다 */
 export interface AuthUserResponse {
   userId: string
   role: Role
   storeId: string | null
   email: string | null
+  passwordLogin: boolean
 }
 
 /** 로그아웃 뒤 로그인 화면에 고정으로 띄울 안내 */
-export type LoginNotice = 'EMAIL_SIGNUP_EXISTS'
+export type LoginNotice =
+  'EMAIL_SIGNUP_EXISTS' | 'WITHDRAWN' | 'PASSWORD_CHANGED' | 'PASSWORD_CHANGED_OTHERS_ACTIVE'
 
 /**
  * 화면·store 는 이 인터페이스만 쓴다 (테스트에서 바꿔 끼운다).
@@ -56,4 +71,10 @@ export interface AuthClient {
    * 401 이면 세션 만료로 null. 그 밖의 실패(429·502·네트워크 오류)는 그 오류로 reject 한다
    */
   refresh(): Promise<AuthUser | null>
+  /**
+   * A4 비밀번호 변경 (POST /auth/password). 바꾸면 gateway 가 모든 기기에서 로그아웃하고 쿠키를 지운다(204).
+   * 모든 기기 로그아웃이 끝내 실패하면 200 {otherDevicesSignedOut: false} — 비밀번호는 바뀌었다.
+   * 실패는 gateway 오류(400 WRONG_CURRENT_PASSWORD·INVALID_PASSWORD, 403 PASSWORD_LOGIN_ONLY, 429, 401)로 reject 한다
+   */
+  changePassword(currentPassword: string, newPassword: string): Promise<PasswordChangeResult>
 }

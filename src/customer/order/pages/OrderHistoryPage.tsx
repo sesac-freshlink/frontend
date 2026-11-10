@@ -1,4 +1,4 @@
-import { ChevronRight, LoaderCircle, RefreshCw } from 'lucide-react'
+import { ChevronRight, LoaderCircle, QrCode, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { type DatePeriod, EMPTY_PERIOD, isReversedPeriod } from '@/shared/api/period'
@@ -13,8 +13,11 @@ import {
   type OrderPageSize,
   useCustomerOrders,
 } from '../api'
+import { quantityText } from '../clearance'
 import { formatDateTime, formatPickupDate, formatWon } from '../format'
 import { orderStatusLabel } from '../orderStatus'
+import { canRequestPickup } from '../pickupRequest'
+import { PickupRequestButton } from '../components/PickupRequestButton'
 import { hasRefundStarted, refundStatusLabel } from '../refund'
 
 const TABS: { tab: CustomerOrderTab; label: string }[] = [
@@ -41,7 +44,17 @@ export function OrderHistoryPage() {
   const [page, setPage] = useState(0)
   const [size, setSize] = useState<OrderPageSize>(DEFAULT_ORDER_PAGE_SIZE)
   const [period, setPeriod] = useState<DatePeriod>(EMPTY_PERIOD)
+  // [픽업 신청] 기한 판단용 화면 진입 시각. 기한은 서버가 신청 때 다시 확인한다
+  const [nowMs] = useState(() => Date.now())
   const orders = useCustomerOrders({ tab, page, size, period })
+  // [픽업 QR]은 준비 완료된 주문이 있을 때만 (추가 명세 A16, 픽업 신청 11/10). 픽업 대기는 50건이면 충분하다
+  const waiting = useCustomerOrders({
+    tab: 'PICKUP_WAITING',
+    page: 0,
+    size: 50,
+    period: EMPTY_PERIOD,
+  })
+  const hasWaiting = waiting.data?.content.some((o) => o.status === 'READY_FOR_PICKUP') ?? false
   const reversed = isReversedPeriod(period)
   const filtered = period.from !== '' || period.to !== ''
 
@@ -59,6 +72,15 @@ export function OrderHistoryPage() {
           <RefreshCw className={cn('size-4', orders.isFetching && 'animate-spin')} />
         </button>
       </div>
+      {hasWaiting && (
+        <Link
+          to="/customer/orders/pickup-qr"
+          className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3 font-medium text-white"
+        >
+          <QrCode className="size-5" />
+          픽업 QR 보여 주기
+        </Link>
+      )}
 
       <div role="tablist" className="flex gap-1 rounded-lg bg-slate-100 p-1 text-sm">
         {TABS.map((t) => (
@@ -103,7 +125,7 @@ export function OrderHistoryPage() {
         <>
           <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
             {orders.data.content.map((o) => (
-              <OrderRow key={o.orderId} order={o} />
+              <OrderRow key={o.orderId} order={o} nowMs={nowMs} />
             ))}
           </ul>
           <PageNav
@@ -124,7 +146,7 @@ export function OrderHistoryPage() {
   )
 }
 
-function OrderRow({ order }: { order: CustomerOrderSummary }) {
+function OrderRow({ order, nowMs }: { order: CustomerOrderSummary; nowMs: number }) {
   // 결제 완료·준비 완료라도 환불이 시작됐으면 픽업 대신 환불 상태를 보여 준다 (A8·A9)
   const refunding = hasRefundStarted(order.refundStatus)
   const done = order.status === 'PICKED_UP' || order.status === 'REFUNDED'
@@ -153,12 +175,14 @@ function OrderRow({ order }: { order: CustomerOrderSummary }) {
             <span className="truncate text-xs text-slate-400">{order.orderNo}</span>
           </div>
           <p className="truncate font-medium text-slate-900">
-            {order.productName ?? '상품 확인 중'} · {order.quantity}개
+            {order.productName ?? '상품 확인 중'} · {quantityText(order)}
           </p>
           <p className="truncate text-xs text-slate-500">
             {order.storeName} · {formatDateTime(order.createdAt)}
           </p>
-          {(order.status === 'PAID' || order.status === 'READY_FOR_PICKUP') &&
+          {(order.status === 'PAID' ||
+            order.status === 'PICKUP_REQUESTED' ||
+            order.status === 'READY_FOR_PICKUP') &&
             !refunding &&
             order.pickupDeadline && (
               <p className="text-xs text-emerald-700">
@@ -171,6 +195,12 @@ function OrderRow({ order }: { order: CustomerOrderSummary }) {
         </p>
         <ChevronRight className="size-4 shrink-0 text-slate-400" aria-hidden="true" />
       </Link>
+      {/* 줄 전체가 링크라 버튼은 링크 밖에 둔다. 서버도 신청 때 기한·상태를 다시 확인한다 */}
+      {canRequestPickup(order, nowMs) && (
+        <div className="flex justify-end px-4 pb-3">
+          <PickupRequestButton orderId={order.orderId} orderNo={order.orderNo} size="compact" />
+        </div>
+      )}
     </li>
   )
 }

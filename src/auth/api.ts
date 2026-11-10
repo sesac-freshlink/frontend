@@ -10,11 +10,13 @@ export interface NicknameAvailability {
   available: boolean
 }
 
-/** MB-02 요청 */
+/** MB-02 요청. 필수 약관 두 개에 모두 동의해야 한다 (추가 명세 A16) */
 export interface RegisterProfileRequest {
   name: string
   nickname: string
   region: RegionCode
+  termsAgreed: boolean
+  privacyAgreed: boolean
 }
 
 /** MB-02 응답 */

@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { useAuthStore } from '@/shared/auth'
 import { apiErrorCode, useCheckNickname, useRegisterProfile } from './api'
 import { isCodeMismatch, signInErrorMessage, signUpErrorMessage } from './authErrors'
-import type { ProfileValues, SignupValues } from './signupSchema'
+import type { ProfileRegisterValues, SignupValues } from './signupSchema'
 
 export type SignupStep = 'form' | 'code' | 'profile'
 
@@ -40,13 +40,13 @@ export const NICKNAME_TAKEN = '이미 사용 중인 닉네임이에요'
 export interface UseSignupFlowReturn {
   step: SignupStep
   email: string | undefined
-  /** 프로필 등록 단계에 미리 채울 값 (가입 화면에서 입력한 값) */
-  profileDefaults: ProfileValues | undefined
+  /** 프로필 등록 단계에 미리 채울 값 (가입 화면에서 입력한 값과 약관 동의) */
+  profileDefaults: ProfileRegisterValues | undefined
   /** 인증 직후 가입 때 넣은 값으로 프로필을 자동 저장하는 중. 이때는 입력 창 대신 저장 중 안내만 보여 준다 */
   autoSaving: boolean
   submitForm(values: SignupValues): Promise<void>
   submitCode(code: string): Promise<void>
-  submitProfile(values: ProfileValues): Promise<void>
+  submitProfile(values: ProfileRegisterValues): Promise<void>
   /** 프로필 등록을 그만두고 로그아웃한 뒤 로그인 화면으로 간다 (구글로 잘못 들어온 경우 다른 계정을 고를 수 있게) */
   leaveProfile(): Promise<void>
 }
@@ -72,10 +72,11 @@ export function useSignupFlow(): UseSignupFlowReturn {
     isSignupLocationState(locationState) ? locationState.email : undefined,
   )
   const [password, setPassword] = useState<string>()
-  const [profileDefaults, setProfileDefaults] = useState<ProfileValues>()
+  const [profileDefaults, setProfileDefaults] = useState<ProfileRegisterValues>()
   const [autoSaving, setAutoSaving] = useState(false)
 
-  async function saveProfile(values: ProfileValues) {
+  /** MB-02. 약관 동의는 가입 입력 단계나 프로필 등록 단계에서 두 개 모두 체크해야 여기까지 온다 (A16) */
+  async function saveProfile(values: ProfileRegisterValues) {
     try {
       await registerProfile.mutateAsync(values)
     } catch (e) {
@@ -110,7 +111,13 @@ export function useSignupFlow(): UseSignupFlowReturn {
       }
       setEmail(values.email)
       setPassword(values.password)
-      setProfileDefaults({ name: values.name, nickname: values.nickname, region: values.region })
+      setProfileDefaults({
+        name: values.name,
+        nickname: values.nickname,
+        region: values.region,
+        termsAgreed: values.termsAgreed,
+        privacyAgreed: values.privacyAgreed,
+      })
       setStep('code')
     },
 

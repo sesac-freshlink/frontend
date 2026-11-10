@@ -244,4 +244,143 @@ describe('고객 상품 상세 (U-10)', () => {
       imageUrl: 'https://img.example/P012.jpg',
     })
   })
+
+  it('품절이면 같은 지역의 다른 점포 재고를 많이 남은 순으로 보여 주고, 누르면 그 점포 상품으로 간다', async () => {
+    const soldOut = { ...milk, availableQuantity: 0, soldOut: true, nearestExpiry: null }
+    const storeOf = (storeId: number, name: string, region: string) => ({
+      storeId,
+      storeCode: `S${storeId}`,
+      name,
+      address: '주소',
+      region,
+      latitude: 37.5 + storeId / 100,
+      longitude: 127,
+      description: null,
+      imageUrl: null,
+    })
+    const stores: Record<string, unknown> = {
+      '/stores/1': storeOf(1, '프레시 강남점', 'SEOUL'),
+      '/stores/2': storeOf(2, '프레시 역삼점', 'SEOUL'),
+      '/stores/3': storeOf(3, '프레시 해운대점', 'BUSAN'),
+      '/stores/4': storeOf(4, '프레시 서초점', 'SEOUL'),
+    }
+    get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data:
+          url === '/products/12/stores'
+            ? [
+                { storeId: 2, availableQuantity: 1, nearestExpiry: '2026-11-08T23:59:59+09:00' },
+                { storeId: 3, availableQuantity: 9, nearestExpiry: '2026-11-08T23:59:59+09:00' },
+                { storeId: 4, availableQuantity: 5, nearestExpiry: '2026-11-08T23:59:59+09:00' },
+              ]
+            : url in stores
+              ? stores[url]
+              : url === '/notifications/restock/12'
+                ? { storeId: 1, productId: 12, subscribed: false }
+                : url === '/stores/1/products'
+                  ? []
+                  : soldOut,
+      }),
+    )
+    const router = renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    const section = await screen.findByRole('region', { name: '근처 점포에 있어요' })
+    // 테스트 환경은 위치를 못 써서 같은 지역(서울)만, 많이 남은 순
+    expect(
+      within(section).getByText('위치를 쓸 수 없어 같은 지역 점포를 보여 드려요.'),
+    ).toBeInTheDocument()
+    const names = within(section)
+      .getAllByRole('listitem')
+      .map((li) => li.querySelector('a span')?.textContent)
+    expect(names).toEqual(['프레시 서초점', '프레시 역삼점'])
+    expect(within(section).queryByText('프레시 해운대점')).not.toBeInTheDocument()
+    expect(within(section).getByRole('link', { name: '프레시 서초점 위치 보기' })).toHaveAttribute(
+      'href',
+      '/customer/stores/4/info',
+    )
+
+    await userEvent.click(within(section).getByRole('link', { name: /프레시 서초점.*5개 남음/ }))
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/customer/stores/4/products/12'),
+    )
+  })
+})
+
+describe('마감세일 구매 시트', () => {
+  const clearanceMilk: StoreProductDetail = {
+    ...milk,
+    clearanceQuantity: 2,
+    clearancePrice: 1330,
+    clearanceExpiry: '2026-10-25T23:59:59+09:00',
+  }
+
+  beforeEach(() => {
+    get.mockReset()
+    sessionStorage.clear()
+  })
+
+  it('기본·마감세일 두 줄에서 수량을 골라 주문 화면으로 넘긴다', async () => {
+    get.mockResolvedValue({ data: clearanceMilk })
+    const router = renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    const sheet = await screen.findByRole('region', { name: '마감세일 30%' })
+    expect(screen.getByText('마감세일 남은 수량').nextSibling).toHaveTextContent('2개')
+    // 처음에는 마감세일 1개
+    expect(within(sheet).getByLabelText('마감세일 1개')).toBeInTheDocument()
+    expect(within(sheet).getByLabelText('일반 0개')).toBeInTheDocument()
+    expect(within(sheet).getByText('1,330원', { selector: '[aria-live]' })).toBeInTheDocument()
+
+    await userEvent.click(within(sheet).getByRole('button', { name: '마감세일 한 개 더하기' }))
+    // 마감세일은 2개만 남아 더 고를 수 없다
+    expect(within(sheet).getByRole('button', { name: '마감세일 한 개 더하기' })).toBeDisabled()
+    await userEvent.click(within(sheet).getByRole('button', { name: '일반 한 개 더하기' }))
+    expect(within(sheet).getByText('4,560원')).toBeInTheDocument()
+
+    await userEvent.click(within(sheet).getByRole('link', { name: '구매하기' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/customer/orders/new'))
+    const q = new URLSearchParams(router.state.location.search)
+    expect(q.get('quantity')).toBe('3')
+    expect(q.get('clearanceQuantity')).toBe('2')
+    expect(q.get('available')).toBe('7')
+    expect(q.get('price')).toBe('1900')
+  })
+
+  it('합계는 5개까지이고, 합계가 0이 되게 빼지는 못한다', async () => {
+    get.mockResolvedValue({ data: { ...clearanceMilk, clearanceQuantity: 5 } })
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    const sheet = await screen.findByRole('region', { name: '마감세일 30%' })
+    expect(within(sheet).getByRole('button', { name: '마감세일 한 개 빼기' })).toBeDisabled()
+    for (let i = 0; i < 4; i++) {
+      await userEvent.click(within(sheet).getByRole('button', { name: '일반 한 개 더하기' }))
+    }
+    expect(within(sheet).getByRole('button', { name: '일반 한 개 더하기' })).toBeDisabled()
+    expect(within(sheet).getByRole('button', { name: '마감세일 한 개 더하기' })).toBeDisabled()
+    expect(within(sheet).getByText(/합계 5개/)).toBeInTheDocument()
+  })
+
+  it('기본 수량이 0이어도 마감세일만 살 수 있다', async () => {
+    get.mockResolvedValue({ data: { ...clearanceMilk, availableQuantity: 0, nearestExpiry: null } })
+    const router = renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    const sheet = await screen.findByRole('region', { name: '마감세일 30%' })
+    expect(within(sheet).getByRole('button', { name: '일반 한 개 더하기' })).toBeDisabled()
+    await userEvent.click(within(sheet).getByRole('link', { name: '구매하기' }))
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/customer/orders/new'))
+    const q = new URLSearchParams(router.state.location.search)
+    expect(q.get('quantity')).toBe('1')
+    expect(q.get('clearanceQuantity')).toBe('1')
+  })
+
+  it('마감세일이 없으면 시트 없이 구매하기만 보인다', async () => {
+    get.mockResolvedValue({
+      data: { ...clearanceMilk, clearanceQuantity: 0, clearancePrice: null },
+    })
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+
+    expect(await screen.findByRole('link', { name: '구매하기' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '마감세일 30%' })).not.toBeInTheDocument()
+    expect(screen.queryByText('마감세일 남은 수량')).not.toBeInTheDocument()
+  })
 })

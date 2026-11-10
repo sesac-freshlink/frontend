@@ -388,8 +388,6 @@ describe('점포 상세 값·이미지 (A-02 수정 모달)', () => {
 
   beforeAll(() => {
     // jsdom 에는 미리보기 임시 주소가 없다
-    URL.createObjectURL = vi.fn(() => 'blob:preview')
-    URL.revokeObjectURL = vi.fn()
   })
 
   it('좌표·설명을 넣으면 숫자·앞뒤 공백 뺀 글자로 보낸다', async () => {
@@ -447,9 +445,11 @@ describe('점포 상세 값·이미지 (A-02 수정 모달)', () => {
         body: file,
       }),
     )
-    expect(await dialog.findByRole('img', { name: '프레시 강남점 점포' })).toHaveAttribute(
-      'src',
-      'blob:preview',
+    // CSP 가 blob: 을 막으므로 미리 보기는 data: 주소다
+    await waitFor(() =>
+      expect(dialog.getByRole('img', { name: '프레시 강남점 점포' }).getAttribute('src')).toMatch(
+        /^data:image\/jpeg;base64,/,
+      ),
     )
     await userEvent.click(dialog.getByRole('button', { name: '저장' }))
     await waitFor(() =>

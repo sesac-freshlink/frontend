@@ -66,12 +66,12 @@ export interface TodaySales {
  * 점주 실시간 매출 SSE (order-service GET /owner/orders/sales/stream). 결제가 완료되면 서버가 오늘 합계를 sales 이벤트로 보낸다.
  * 받으면 매출 조회를 다시 읽어 오늘·이번 주 카드와 그래프·표를 맞춘다. 처음 연결했을 때 오는 첫 이벤트는
  * 화면이 막 읽은 값과 같아서 넘긴다. 끊기면 EventSource 가 다시 붙고, 그 뒤 첫 이벤트로 놓친 결제를 반영한다.
- * 점주가 아니면 서버가 403 을 주고 EventSource 는 다시 붙지 않는다
+ * 점주가 아니면 서버가 403 을 주고 EventSource 는 다시 붙지 않는다. enabled 가 false 면 연결하지 않는다
  */
-export function useSalesStream() {
+export function useSalesStream(enabled = true) {
   const queryClient = useQueryClient()
   useEffect(() => {
-    if (typeof EventSource === 'undefined') return
+    if (!enabled || typeof EventSource === 'undefined') return
     const source = new EventSource(SALES_STREAM_PATH, { withCredentials: true })
     let first = true
     const onSales = () => {
@@ -86,5 +86,5 @@ export function useSalesStream() {
       source.removeEventListener('sales', onSales)
       source.close()
     }
-  }, [queryClient])
+  }, [queryClient, enabled])
 }

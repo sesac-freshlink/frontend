@@ -1,16 +1,42 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
 import type { Order } from '../api'
 import { checkoutPath } from '../checkout'
+import { PICKUP_REQUEST_NOTICE } from '../pickupRequest'
 import { OrderDetailPage } from './OrderDetailPage'
 
 vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
+
+// jsdom 에는 HTMLDialogElement 의 showModal/close 가 없다. OrderCancel.test 와 같은 방식으로 흉내 낸다 ([픽업 신청] 확인 창)
+const dialogProto = HTMLDialogElement.prototype as Partial<HTMLDialogElement>
+const originalShowModal = dialogProto.showModal
+const originalClose = dialogProto.close
+
+beforeAll(() => {
+  if (!originalShowModal) {
+    dialogProto.showModal = function showModal(this: HTMLDialogElement) {
+      this.setAttribute('open', '')
+    }
+  }
+  if (!originalClose) {
+    dialogProto.close = function close(this: HTMLDialogElement) {
+      if (!this.hasAttribute('open')) return
+      this.removeAttribute('open')
+      setTimeout(() => this.dispatchEvent(new Event('close')), 0)
+    }
+  }
+})
+
+afterAll(() => {
+  dialogProto.showModal = originalShowModal
+  dialogProto.close = originalClose
+})
 
 const base: Order = {
   orderId: 123,
@@ -49,6 +75,7 @@ function renderAt(path: string) {
     [
       { path: '/customer/orders/:id', element: <OrderDetailPage /> },
       { path: '/customer/stores/:storeId', element: <p>상품 목록</p> },
+      { path: '/customer/stores/:storeId/products/:productId', element: <p>상품 상세</p> },
       { path: '/customer', element: <p>고객 홈</p> },
     ],
     { initialEntries: [path] },
@@ -178,12 +205,12 @@ describe('주문 상세 (U-22·U-31)', () => {
     expect(screen.queryByRole('link', { name: '영수증 보기' })).not.toBeInTheDocument()
   })
 
-  it('픽업 기한이 있으면 결제 대기 화면에 날짜와 취소·환불 안내를 보여 준다 (A4)', async () => {
+  it('픽업 기한이 있으면 결제 대기 화면에 날짜와 픽업 신청 안내를 보여 준다 (A4)', async () => {
     orderReturns({ status: 'PAYMENT_WAITING', pickupDeadline: '2026-10-22T23:59:59+09:00' })
     renderAt('/customer/orders/123')
     expect(await screen.findByText('픽업 기한')).toBeInTheDocument()
     expect(screen.getByText('10월 22일(목)까지')).toBeInTheDocument()
-    expect(screen.getByText('픽업 기한이 지나면 취소·환불할 수 없어요')).toBeInTheDocument()
+    expect(screen.getByText(PICKUP_REQUEST_NOTICE)).toBeInTheDocument()
   })
 
   it('픽업 기한이 없으면(서버가 아직 안 줌) 기한 줄과 안내를 숨긴다', async () => {
@@ -191,7 +218,7 @@ describe('주문 상세 (U-22·U-31)', () => {
     renderAt('/customer/orders/123')
     expect(await screen.findByRole('timer')).toBeInTheDocument()
     expect(screen.queryByText('픽업 기한')).not.toBeInTheDocument()
-    expect(screen.queryByText('픽업 기한이 지나면 취소·환불할 수 없어요')).not.toBeInTheDocument()
+    expect(screen.queryByText(PICKUP_REQUEST_NOTICE)).not.toBeInTheDocument()
   })
 
   it('결제 완료 화면에도 픽업 기한을 보여 준다 (A4)', async () => {
@@ -204,8 +231,54 @@ describe('주문 상세 (U-22·U-31)', () => {
     renderAt('/customer/orders/123')
     expect(await screen.findByText('결제 완료')).toBeInTheDocument()
     expect(screen.getByText('10월 22일(목)까지')).toBeInTheDocument()
-    expect(screen.getByText('매장에서 주문번호를 보여 주고 픽업하세요')).toBeInTheDocument()
-    expect(screen.getByText('픽업 기한이 지나면 취소·환불할 수 없어요')).toBeInTheDocument()
+    expect(screen.getByText('픽업 신청을 하면 매장에서 준비해요')).toBeInTheDocument()
+    expect(screen.getByText(PICKUP_REQUEST_NOTICE)).toBeInTheDocument()
+  })
+
+  it('결제 완료 화면의 [픽업 신청]은 한 번 더 묻고, 확인하면 신청 API 를 부른다', async () => {
+    orderReturns({
+      status: 'PAID',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: paidPayment,
+      pickupDeadline: '2026-10-22T23:59:59+09:00',
+    })
+    post.mockResolvedValue({ data: {} })
+    renderAt('/customer/orders/123')
+    await userEvent.click(await screen.findByRole('button', { name: '픽업 신청' }))
+    expect(screen.getByRole('dialog', { name: '픽업 신청할까요?' })).toBeInTheDocument()
+    expect(screen.getByText('오늘 23:59까지 받아 가셔야 해요')).toBeInTheDocument()
+    expect(post).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '픽업 신청' }))
+    expect(post).toHaveBeenCalledWith('/orders/123/pickup-request')
+  })
+
+  it('픽업 기한이 지났거나 환불이 시작된 결제 완료 주문에는 [픽업 신청]이 없다', async () => {
+    orderReturns({
+      status: 'PAID',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: paidPayment,
+      pickupDeadline: '2026-10-20T10:00:00+09:00',
+    })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByText('결제 완료')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '픽업 신청' })).not.toBeInTheDocument()
+  })
+
+  it('픽업 신청 화면은 신청됨을 보여 주고 [픽업 신청] 없이 [주문 취소]는 남는다', async () => {
+    orderReturns({
+      status: 'PICKUP_REQUESTED',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: paidPayment,
+      pickupDeadline: '2026-10-20T23:59:59+09:00',
+    })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByRole('heading', { name: '픽업 신청됨' })).toBeInTheDocument()
+    expect(
+      screen.getByText('오늘 받아 가실 수 있게 준비해요. 준비되면 알려 드려요'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '픽업 신청' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '주문 취소' })).toBeInTheDocument()
   })
 
   it('준비 완료 화면은 취소 안내 대신 기한이 지나면 받아 갈 수 없고 환불도 안 된다고 알린다', async () => {
@@ -347,5 +420,176 @@ describe('주문·결제 화면 (U-21)', () => {
     expect(
       screen.getByText('상품 정보를 찾을 수 없어요. 상품을 다시 골라 주세요.'),
     ).toBeInTheDocument()
+  })
+})
+
+describe('마감세일 함께 사기', () => {
+  beforeEach(() => {
+    get.mockReset()
+    post.mockReset()
+  })
+
+  // 시트(이태우)는 고른 수량만 주소로 넘긴다. 가격·남은 수는 주문 화면이 상품 API로 직접 읽는다
+  const clearancePath = (quantity: number, clearanceQuantity: number) =>
+    checkoutPath({
+      storeId: 1,
+      storeName: '프레시 강남점',
+      productId: 31,
+      productName: '꿀밤고구마 800g',
+      price: 4990,
+      available: 10,
+      quantity,
+      clearanceQuantity,
+    })
+
+  const product = {
+    productId: 31,
+    name: '꿀밤고구마 800g',
+    category: '채소',
+    price: 4990,
+    imageUrl: null,
+    availableQuantity: 10,
+    soldOut: false,
+    recommended: false,
+    newArrival: false,
+    firstCome: false,
+    nearestExpiry: null,
+    clearanceQuantity: 2,
+    clearancePrice: 3490,
+    clearanceExpiry: null,
+  }
+
+  /** 상품 API는 product, 주문 조회는 order 로 답한다 */
+  function answers(productBody: object | Error, order?: Partial<Order>) {
+    get.mockImplementation(async (url: string) => {
+      if (url === '/stores/1/products/31') {
+        if (productBody instanceof Error) throw productBody
+        return { data: productBody }
+      }
+      return { data: { ...base, ...order } }
+    })
+  }
+
+  it('주문 화면이 상품 API로 가격·남은 수를 읽어 두 줄과 합계, 당일 픽업 안내를 보여 주고 마감세일 수량을 보낸다', async () => {
+    post.mockResolvedValue({ data: { orderId: 123, orderNo: base.orderNo, status: 'RESERVING' } })
+    answers(product, { status: 'RESERVING', productName: null, amount: null })
+    renderAt(clearancePath(2, 1))
+
+    expect(await screen.findByText('8,480원')).toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/stores/1/products/31')
+    expect(screen.getByRole('note')).toHaveTextContent('오늘 23:59까지 픽업해 주세요')
+    await userEvent.click(screen.getByRole('button', { name: '마감세일 수량 더하기' }))
+    expect(screen.getByText('11,970원')).toBeInTheDocument()
+    // 상품 API의 마감세일 남은 수(2)에 닿으면 더 못 늘린다
+    expect(screen.getByRole('button', { name: '마감세일 수량 더하기' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: '결제하기' }))
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/orders',
+        {
+          storeId: 1,
+          storeName: '프레시 강남점',
+          productId: 31,
+          quantity: 3,
+          clearanceQuantity: 2,
+        },
+        expect.anything(),
+      ),
+    )
+  })
+
+  it('두 줄을 모두 0으로 줄이면 결제하기가 꺼지고, 마감세일이 0이면 당일 안내를 숨긴다', async () => {
+    answers(product)
+    renderAt(clearancePath(2, 1))
+    await userEvent.click(await screen.findByRole('button', { name: '마감세일 수량 빼기' }))
+    expect(screen.getByRole('note')).toHaveTextContent(PICKUP_REQUEST_NOTICE)
+    await userEvent.click(screen.getByRole('button', { name: '기본 수량 빼기' }))
+    expect(screen.getByRole('button', { name: '결제하기' })).toBeDisabled()
+  })
+
+  it('고른 마감세일이 지금 남은 수보다 많으면 남은 수로 줄이고 알려 준다', async () => {
+    answers(product)
+    renderAt(clearancePath(3, 3))
+    expect(await screen.findByText('마감세일 상품이 2개 남아 2개로 줄였어요.')).toBeInTheDocument()
+    expect(screen.getByText('6,980원')).toBeInTheDocument()
+  })
+
+  it('그새 마감세일이 끝났으면 마감세일 줄을 숨기고 기본으로 고르게 한다', async () => {
+    answers({ ...product, clearanceQuantity: 0, clearancePrice: null })
+    renderAt(clearancePath(2, 1))
+    expect(
+      await screen.findByText('마감세일이 끝났어요. 기본 상품으로 골라 주세요.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '마감세일 수량 더하기' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '수량 더하기' })).toBeInTheDocument()
+  })
+
+  it('상품을 못 읽으면 마감세일 안내를 띄우고 기본 결제는 그대로 된다', async () => {
+    answers(new Error('network'))
+    renderAt(clearancePath(2, 1))
+    expect(
+      await screen.findByText(
+        '마감세일 정보를 불러오지 못했어요. 기본 상품은 그대로 살 수 있어요.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '결제하기' })).toBeEnabled()
+  })
+
+  it('마감세일 시트에서 오지 않았으면 지금처럼 수량 한 줄', () => {
+    renderAt(
+      checkoutPath({
+        storeId: 1,
+        storeName: '프레시 강남점',
+        productId: 15,
+        productName: '매운 컵라면 115g',
+        price: 1700,
+      }),
+    )
+    expect(screen.getByRole('button', { name: '수량 더하기' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '마감세일 수량 더하기' })).not.toBeInTheDocument()
+  })
+
+  it('결제 대기 상세에 두 줄과 당일 픽업 안내를 보여 준다', async () => {
+    orderReturns({
+      status: 'PAYMENT_WAITING',
+      productName: '꿀밤고구마 800g',
+      quantity: 2,
+      clearanceQuantity: 1,
+      unitPrice: 4990,
+      amount: 8480,
+      pickupDeadline: '2026-10-20T23:59:59+09:00',
+      lines: [
+        { clearance: true, quantity: 1, unitPrice: 3490, amount: 3490 },
+        { clearance: false, quantity: 1, unitPrice: 4990, amount: 4990 },
+      ],
+    })
+    renderAt('/customer/orders/123')
+
+    expect(await screen.findByText('마감세일 1개 3,490원')).toBeInTheDocument()
+    expect(screen.getByText('기본 1개 4,990원')).toBeInTheDocument()
+    expect(screen.getByText(/오늘 23:59까지 픽업해 주세요/)).toBeInTheDocument()
+  })
+
+  it('마감세일이 끝나 실패하면 남은 수를 알려 주고 다시 고르기는 상품 상세로 간다', async () => {
+    orderReturns({
+      status: 'OUT_OF_STOCK',
+      failureReason: 'CLEARANCE_SOLD_OUT',
+      productId: 31,
+      quantity: 2,
+      clearanceQuantity: 1,
+      productName: null,
+      amount: null,
+      unitPrice: null,
+      availableQuantity: 2,
+      clearanceAvailableQuantity: 0,
+    })
+    const router = renderAt('/customer/orders/123')
+
+    expect(
+      await screen.findByText('마감세일이 끝났어요. 기본 상품은 2개 남았어요. 다시 골라 주세요.'),
+    ).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('link', { name: '다시 고르기' }))
+    expect(router.state.location.pathname).toBe('/customer/stores/1/products/31')
   })
 })
