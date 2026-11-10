@@ -7,6 +7,7 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
 import {
@@ -19,6 +20,7 @@ import {
 import { LotDetailPanel } from '../components/LotDetailPanel'
 import { MemoDialog } from '../components/MemoDialog'
 import { MemoList } from '../components/MemoList'
+import { formatStatuses, parseStatuses } from '../statusParam'
 import { ProductExposureSettings } from '../components/ProductExposureSettings'
 import { SafetyStockSettings } from '../components/SafetyStockSettings'
 import { TabButton } from '../components/TabButton'
@@ -49,12 +51,14 @@ const STATUS_FILTERS: { value: InventoryStatusFilter; label: string }[] = [
  * 검색(상품명·코드)·상태 필터·메모 필터·페이지는 서버가 한다(GET /owner/inventory?q&status&memo&page&size).
  * 행을 고르면 오른쪽에 S-11 lot 상세 패널이 열린다 (포스기 가로 화면).
  * 구매 가능 수량이 안전재고보다 적은 상품은 "부족" 배지와 상단 건수(점포 전체)로 알리고, 안전재고는 옆 탭(S-40)에서 정한다.
- * 행마다 메모 버튼으로 상품 메모를 쓰고, 메모 탭에서 메모만 모아 본다
+ * 행마다 메모 버튼으로 상품 메모를 쓰고, 메모 탭에서 메모만 모아 본다.
+ * 상태 필터는 주소의 status(예: ?status=LOW_STOCK)에 둔다. 새로고침해도 남고, 다른 화면이 필터를 건 채로 보낼 수 있다
  */
 export function InventoryPage() {
   const [searchText, setSearchText] = useState('')
   const q = useDebounced(searchText, SEARCH_DELAY_MS)
-  const [statuses, setStatuses] = useState<InventoryStatusFilter[]>([])
+  const [searchParams, setSearchParams] = useSearchParams()
+  const statuses = parseStatuses(searchParams.get('status'))
   const [memoOnly, setMemoOnly] = useState(false)
   const [page, setPage] = useState(0)
   const query: InventoryQuery = { q, statuses, memoOnly, page, size: PAGE_SIZE }
@@ -74,7 +78,19 @@ export function InventoryPage() {
   }
   // 조건이 바뀌면 첫 페이지부터 본다
   const toggleStatus = (value: InventoryStatusFilter) => {
-    setStatuses((now) => (now.includes(value) ? now.filter((s) => s !== value) : [...now, value]))
+    const next = statuses.includes(value)
+      ? statuses.filter((s) => s !== value)
+      : [...statuses, value]
+    setSearchParams(
+      (now) => {
+        const params = new URLSearchParams(now)
+        const formatted = formatStatuses(next)
+        if (formatted === null) params.delete('status')
+        else params.set('status', formatted)
+        return params
+      },
+      { replace: true },
+    )
     setPage(0)
   }
 
