@@ -55,6 +55,9 @@ const paidOrder: OwnerOrder = {
   refund: null,
 }
 
+/** 고객이 픽업 신청한 주문. [준비 완료]는 이 상태에서만 보인다 */
+const requestedOrder: OwnerOrder = { ...paidOrder, status: 'PICKUP_REQUESTED' }
+
 /** 점주가 [준비 완료]를 누른 주문 (N-02). [픽업 확인]은 이 상태에서만 보인다 */
 const readyOrder: OwnerOrder = { ...paidOrder, status: 'READY_FOR_PICKUP' }
 
@@ -378,8 +381,21 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     expect(get).toHaveBeenCalledTimes(calls)
   })
 
-  it('결제 완료 주문은 [준비 완료]만 보이고, 누르면 N-02 API 를 부르고 알린 뒤 목록을 다시 읽는다', async () => {
-    get.mockResolvedValueOnce(pageOf([paidOrder])).mockResolvedValue(pageOf([readyOrder]))
+  it('결제 완료 주문은 고객 신청 전이라 [준비 완료]가 없고 [취소]만 있다', async () => {
+    get.mockResolvedValue(pageOf([paidOrder]))
+    renderPage()
+
+    expect(
+      await screen.findByRole('button', { name: 'FL-20261020-000123 주문 취소' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('고객 신청 전')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'FL-20261020-000123 픽업 준비 완료' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('픽업 신청 주문은 [준비 완료]만 보이고, 누르면 N-02 API 를 부르고 알린 뒤 목록을 다시 읽는다', async () => {
+    get.mockResolvedValueOnce(pageOf([requestedOrder])).mockResolvedValue(pageOf([readyOrder]))
     post.mockResolvedValue({
       data: {
         orderId: 123,
@@ -408,7 +424,7 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
   })
 
   it('[준비 완료]가 409 면 서버 code 에 맞는 문구를 띄운다', async () => {
-    get.mockResolvedValue(pageOf([paidOrder]))
+    get.mockResolvedValue(pageOf([requestedOrder]))
     post.mockRejectedValue(axiosError(409, 'PICKUP_DEADLINE_PASSED'))
     renderPage()
     await userEvent.click(

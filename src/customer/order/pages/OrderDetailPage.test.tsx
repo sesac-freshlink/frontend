@@ -1,16 +1,42 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
 import type { Order } from '../api'
 import { checkoutPath } from '../checkout'
+import { PICKUP_REQUEST_NOTICE } from '../pickupRequest'
 import { OrderDetailPage } from './OrderDetailPage'
 
 vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 const get = vi.mocked(api.get)
 const post = vi.mocked(api.post)
+
+// jsdom 에는 HTMLDialogElement 의 showModal/close 가 없다. OrderCancel.test 와 같은 방식으로 흉내 낸다 ([픽업 신청] 확인 창)
+const dialogProto = HTMLDialogElement.prototype as Partial<HTMLDialogElement>
+const originalShowModal = dialogProto.showModal
+const originalClose = dialogProto.close
+
+beforeAll(() => {
+  if (!originalShowModal) {
+    dialogProto.showModal = function showModal(this: HTMLDialogElement) {
+      this.setAttribute('open', '')
+    }
+  }
+  if (!originalClose) {
+    dialogProto.close = function close(this: HTMLDialogElement) {
+      if (!this.hasAttribute('open')) return
+      this.removeAttribute('open')
+      setTimeout(() => this.dispatchEvent(new Event('close')), 0)
+    }
+  }
+})
+
+afterAll(() => {
+  dialogProto.showModal = originalShowModal
+  dialogProto.close = originalClose
+})
 
 const base: Order = {
   orderId: 123,
@@ -179,12 +205,12 @@ describe('주문 상세 (U-22·U-31)', () => {
     expect(screen.queryByRole('link', { name: '영수증 보기' })).not.toBeInTheDocument()
   })
 
-  it('픽업 기한이 있으면 결제 대기 화면에 날짜와 취소·환불 안내를 보여 준다 (A4)', async () => {
+  it('픽업 기한이 있으면 결제 대기 화면에 날짜와 픽업 신청 안내를 보여 준다 (A4)', async () => {
     orderReturns({ status: 'PAYMENT_WAITING', pickupDeadline: '2026-10-22T23:59:59+09:00' })
     renderAt('/customer/orders/123')
     expect(await screen.findByText('픽업 기한')).toBeInTheDocument()
     expect(screen.getByText('10월 22일(목)까지')).toBeInTheDocument()
-    expect(screen.getByText('픽업 기한이 지나면 취소·환불할 수 없어요')).toBeInTheDocument()
+    expect(screen.getByText(PICKUP_REQUEST_NOTICE)).toBeInTheDocument()
   })
 
   it('픽업 기한이 없으면(서버가 아직 안 줌) 기한 줄과 안내를 숨긴다', async () => {
@@ -192,7 +218,7 @@ describe('주문 상세 (U-22·U-31)', () => {
     renderAt('/customer/orders/123')
     expect(await screen.findByRole('timer')).toBeInTheDocument()
     expect(screen.queryByText('픽업 기한')).not.toBeInTheDocument()
-    expect(screen.queryByText('픽업 기한이 지나면 취소·환불할 수 없어요')).not.toBeInTheDocument()
+    expect(screen.queryByText(PICKUP_REQUEST_NOTICE)).not.toBeInTheDocument()
   })
 
   it('결제 완료 화면에도 픽업 기한을 보여 준다 (A4)', async () => {
@@ -205,8 +231,54 @@ describe('주문 상세 (U-22·U-31)', () => {
     renderAt('/customer/orders/123')
     expect(await screen.findByText('결제 완료')).toBeInTheDocument()
     expect(screen.getByText('10월 22일(목)까지')).toBeInTheDocument()
-    expect(screen.getByText('매장에서 주문번호를 보여 주고 픽업하세요')).toBeInTheDocument()
-    expect(screen.getByText('픽업 기한이 지나면 취소·환불할 수 없어요')).toBeInTheDocument()
+    expect(screen.getByText('픽업 신청을 하면 매장에서 준비해요')).toBeInTheDocument()
+    expect(screen.getByText(PICKUP_REQUEST_NOTICE)).toBeInTheDocument()
+  })
+
+  it('결제 완료 화면의 [픽업 신청]은 한 번 더 묻고, 확인하면 신청 API 를 부른다', async () => {
+    orderReturns({
+      status: 'PAID',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: paidPayment,
+      pickupDeadline: '2026-10-22T23:59:59+09:00',
+    })
+    post.mockResolvedValue({ data: {} })
+    renderAt('/customer/orders/123')
+    await userEvent.click(await screen.findByRole('button', { name: '픽업 신청' }))
+    expect(screen.getByRole('dialog', { name: '픽업 신청할까요?' })).toBeInTheDocument()
+    expect(screen.getByText('오늘 23:59까지 받아 가셔야 해요')).toBeInTheDocument()
+    expect(post).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '픽업 신청' }))
+    expect(post).toHaveBeenCalledWith('/orders/123/pickup-request')
+  })
+
+  it('픽업 기한이 지났거나 환불이 시작된 결제 완료 주문에는 [픽업 신청]이 없다', async () => {
+    orderReturns({
+      status: 'PAID',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: paidPayment,
+      pickupDeadline: '2026-10-20T10:00:00+09:00',
+    })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByText('결제 완료')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '픽업 신청' })).not.toBeInTheDocument()
+  })
+
+  it('픽업 신청 화면은 신청됨을 보여 주고 [픽업 신청] 없이 [주문 취소]는 남는다', async () => {
+    orderReturns({
+      status: 'PICKUP_REQUESTED',
+      paidAt: '2026-10-20T15:35:10+09:00',
+      payment: paidPayment,
+      pickupDeadline: '2026-10-20T23:59:59+09:00',
+    })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByRole('heading', { name: '픽업 신청됨' })).toBeInTheDocument()
+    expect(
+      screen.getByText('오늘 받아 가실 수 있게 준비해요. 준비되면 알려 드려요'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '픽업 신청' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '주문 취소' })).toBeInTheDocument()
   })
 
   it('준비 완료 화면은 취소 안내 대신 기한이 지나면 받아 갈 수 없고 환불도 안 된다고 알린다', async () => {
@@ -431,7 +503,7 @@ describe('마감세일 함께 사기', () => {
     answers(product)
     renderAt(clearancePath(2, 1))
     await userEvent.click(await screen.findByRole('button', { name: '마감세일 수량 빼기' }))
-    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(PICKUP_REQUEST_NOTICE)
     await userEvent.click(screen.getByRole('button', { name: '기본 수량 빼기' }))
     expect(screen.getByRole('button', { name: '결제하기' })).toBeDisabled()
   })

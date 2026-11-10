@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { OrderSummary } from '../components/OrderSummary'
 import { MAX_QUANTITY, MIN_QUANTITY } from '../checkout'
 import { lineMax, SAME_DAY_PICKUP_NOTICE } from '../clearance'
+import { PICKUP_REQUEST_NOTICE } from '../pickupRequest'
 import { formatWon } from '../format'
 import { useCheckout } from '../useCheckout'
 
@@ -123,9 +124,13 @@ export function OrderCheckoutView() {
         <span className="text-lg font-bold text-slate-900">{formatWon(total)}</span>
       </div>
 
-      {lines && lines.clearance > 0 && (
+      {lines && lines.clearance > 0 ? (
         <p role="note" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
           {SAME_DAY_PICKUP_NOTICE}
+        </p>
+      ) : (
+        <p role="note" className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+          {PICKUP_REQUEST_NOTICE}
         </p>
       )}
 

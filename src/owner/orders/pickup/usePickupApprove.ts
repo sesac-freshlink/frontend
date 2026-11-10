@@ -38,7 +38,8 @@ export function usePickupApprove(pickupKey: string): UsePickupApproveReturn {
   const [results, setResults] = useState<PickupApproveResult['results']>([])
 
   return {
-    orders: list.data?.orders ?? [],
+    // 준비 완료(selectable)만 보여 준다. order-service도 준비 완료만 내려 준다 (픽업 신청 11/10)
+    orders: (list.data?.orders ?? []).filter((o) => o.selectable),
     loading: list.isPending,
     loadError: list.isError
       ? pickupPassErrorMessage(list.error, '주문을 불러오지 못했어요. 다시 시도해 주세요.')

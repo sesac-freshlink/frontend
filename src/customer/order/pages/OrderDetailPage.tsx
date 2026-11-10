@@ -8,11 +8,13 @@ import { useOrder, type Order } from '../api'
 import { CancelReasonDialog } from '../components/CancelReasonDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { OrderSummary, type SummaryRow } from '../components/OrderSummary'
+import { PickupRequestButton } from '../components/PickupRequestButton'
 import { ReceiptLink } from '../components/ReceiptLink'
 import { isSameDayPickup, lineText, SAME_DAY_PICKUP_NOTICE, shortageMessage } from '../clearance'
 import { formatRemaining } from '../countdown'
 import { formatDateTime, formatHHmm, formatPickupDate, formatWon } from '../format'
 import { customerMessage, paymentInterruptedMessage } from '../orderStatus'
+import { canRequestPickup, PICKUP_REQUEST_NOTICE } from '../pickupRequest'
 import {
   cancelErrorMessage,
   isRefundInProgress,
@@ -124,6 +126,7 @@ function pickupRows(order: Order): SummaryRow[] {
 
 /**
  * 결제 전·완료 화면의 픽업 기한 안내 (추가 명세 A4).
+ * 결제 대기·결제 완료는 픽업 신청을 하라고 알린다. 신청하지 않거나 받아 가지 않으면 기한이 지나 환불되지 않는다.
  * 준비 완료 주문은 기한 안이어도 취소를 받지 않으므로(order-service) 기한이 지났을 때 일만 알린다
  */
 function PickupNotice({ order }: { order: Order }) {
@@ -135,7 +138,9 @@ function PickupNotice({ order }: { order: Order }) {
     <p className="text-sm text-slate-500">
       {order.status === 'READY_FOR_PICKUP'
         ? '픽업 기한이 지나면 받아 갈 수 없고 환불도 되지 않아요'
-        : '픽업 기한이 지나면 취소·환불할 수 없어요'}
+        : order.status === 'PICKUP_REQUESTED'
+          ? '픽업 기한이 지나면 취소·환불할 수 없어요'
+          : PICKUP_REQUEST_NOTICE}
     </p>
   )
 }
@@ -266,8 +271,8 @@ function refundRows(order: Order): SummaryRow[] {
 }
 
 /**
- * A8 결제 후 취소·A9 환불 상태. 결제 완료·준비 완료 화면 아래에 둔다.
- * 결제 완료·환불 없음·기한 이내면 [주문 취소] (준비 완료는 order-service가 취소를 받지 않아 버튼이 없다), 처리·확인 중이면 안내(2초마다 다시 읽음), 실패면 [환불 다시 신청](사유를 새로 받는다)
+ * A8 결제 후 취소·A9 환불 상태. 결제 완료·픽업 신청·준비 완료 화면 아래에 둔다.
+ * 결제 완료·픽업 신청·환불 없음·기한 이내면 [주문 취소] (준비 완료는 order-service가 취소를 받지 않아 버튼이 없다), 처리·확인 중이면 안내(2초마다 다시 읽음), 실패면 [환불 다시 신청](사유를 새로 받는다)
  */
 function RefundSection({ order }: { order: Order }) {
   const cancel = useCancelOrder(order.orderId)
@@ -275,7 +280,7 @@ function RefundSection({ order }: { order: Order }) {
   const [error, setError] = useState<string | null>(null)
   const status = order.refundStatus
   const canStart =
-    order.status === 'PAID' &&
+    (order.status === 'PAID' || order.status === 'PICKUP_REQUESTED') &&
     (status === 'FAILED' || (status === 'NONE' && !deadlinePassed(order)))
   const retry = status === 'FAILED'
 
@@ -370,12 +375,14 @@ function Refunded({ order }: { order: Order }) {
 
 function Paid({ order }: { order: Order }) {
   const ready = order.status === 'READY_FOR_PICKUP'
+  const requested = order.status === 'PICKUP_REQUESTED'
+  const requestable = canRequestPickup(order, Date.parse(order.serverTime))
   return (
     <section className="space-y-4">
       <div className="flex flex-col items-center gap-2 py-6">
         <CircleCheck className="size-12 text-emerald-600" />
         <h1 className="text-xl font-bold text-slate-900">
-          {ready ? '픽업 준비 완료' : '결제 완료'}
+          {ready ? '픽업 준비 완료' : requested ? '픽업 신청됨' : '결제 완료'}
         </h1>
         <p className="text-sm text-slate-500">
           주문번호 <span className="font-medium text-slate-900">{order.orderNo}</span>
@@ -388,10 +395,13 @@ function Paid({ order }: { order: Order }) {
         <p className="text-sm text-slate-500">
           {ready
             ? '준비가 끝났어요. 매장에서 주문번호를 보여 주고 받아 가세요'
-            : '매장에서 주문번호를 보여 주고 픽업하세요'}
+            : requested
+              ? '오늘 받아 가실 수 있게 준비해요. 준비되면 알려 드려요'
+              : '픽업 신청을 하면 매장에서 준비해요'}
         </p>
         <PickupNotice order={order} />
       </div>
+      {requestable && <PickupRequestButton orderId={order.orderId} orderNo={order.orderNo} />}
       <RefundSection order={order} />
       <Link
         to="/customer"

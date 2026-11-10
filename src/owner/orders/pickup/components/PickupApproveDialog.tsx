@@ -66,12 +66,7 @@ export function PickupApproveDialog({ pickupKey, onClose }: Props) {
             <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
               {flow.orders.map((o) => (
                 <li key={o.orderId}>
-                  <label
-                    className={cn(
-                      'flex items-center gap-3 px-4 py-3 text-sm',
-                      !o.selectable && 'text-slate-400',
-                    )}
-                  >
+                  <label className="flex items-center gap-3 px-4 py-3 text-sm">
                     <input
                       type="checkbox"
                       checked={flow.selected.includes(o.orderId)}
@@ -83,8 +78,8 @@ export function PickupApproveDialog({ pickupKey, onClose }: Props) {
                       {o.orderNo} · {o.productName} {o.quantity}개
                     </span>
                     <span className="shrink-0">{o.amount === null ? '' : formatWon(o.amount)}</span>
-                    <span className="w-16 shrink-0 text-right text-xs">
-                      {o.selectable ? '준비 완료' : '준비 전'}
+                    <span className="w-16 shrink-0 text-right text-xs text-emerald-700">
+                      준비 완료
                     </span>
                   </label>
                 </li>

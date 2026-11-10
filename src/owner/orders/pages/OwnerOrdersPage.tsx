@@ -338,8 +338,13 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
             </button>
           ) : (
             <>
-              <ReadyButton order={o} />
-              {/* 결제 완료 주문만 취소할 수 있다. 준비 완료는 order-service가 취소를 받지 않는다(409) */}
+              {/* [준비 완료]는 고객이 픽업 신청한 주문만 (order-service Order.markReadyForPickup) */}
+              {o.status === 'PICKUP_REQUESTED' ? (
+                <ReadyButton order={o} />
+              ) : (
+                <span className="self-center px-1 text-xs text-slate-500">고객 신청 전</span>
+              )}
+              {/* 결제 완료·픽업 신청 주문만 취소할 수 있다. 준비 완료는 order-service가 취소를 받지 않는다(409) */}
               <button
                 type="button"
                 onClick={() => setCancelOrderId(o.orderId)}
