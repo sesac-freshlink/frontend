@@ -141,7 +141,8 @@ describe('고객 상품 상세 (U-10)', () => {
 
     expect(await screen.findByRole('link', { name: '구매하기' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /재입고/ })).not.toBeInTheDocument()
-    expect(get).toHaveBeenCalledTimes(1)
+    // 상품 상세와 같은 카테고리 상품 목록만 읽고, 재입고 알림 신청 상태는 묻지 않는다
+    expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/^\/notifications\/restock/))
   })
 
   it('점포 이름을 모르면 구매를 막고 점포 찾기로 안내한다', async () => {
@@ -177,7 +178,7 @@ describe('고객 상품 상세 (U-10)', () => {
     expect(get).not.toHaveBeenCalled()
   })
 
-  it('팔고 있으면 같은 카테고리 상품은 버튼을 눌러야 읽고, 지금 상품과 품절은 빼고 보여 준다', async () => {
+  it('같은 카테고리 상품은 버튼 없이 바로 펼쳐 보이고, 지금 상품과 품절은 빼고 보여 준다', async () => {
     const others = [
       milk,
       { ...milk, productId: 13, name: '딸기 우유 200ml' },
@@ -188,8 +189,9 @@ describe('고객 상품 상세 (U-10)', () => {
     )
     renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
 
-    await userEvent.click(await screen.findByRole('button', { name: /같은 카테고리 상품 보기/ }))
-
+    expect(
+      screen.queryByRole('button', { name: /같은 카테고리 상품 보기/ }),
+    ).not.toBeInTheDocument()
     const section = await screen.findByRole('region', { name: '같은 카테고리 상품' })
     expect(get).toHaveBeenCalledWith('/stores/1/products', {
       params: { category: '유제품', sort: 'POPULAR' },
@@ -200,6 +202,21 @@ describe('고객 상품 상세 (U-10)', () => {
     )
     expect(within(section).queryByText('흰 우유 500ml')).not.toBeInTheDocument()
     expect(within(section).queryByText('초코 우유 200ml')).not.toBeInTheDocument()
+  })
+
+  it('같은 카테고리에 보여 줄 다른 상품이 없으면 그 칸을 숨긴다', async () => {
+    get.mockImplementation((url: string) =>
+      Promise.resolve({ data: url === '/stores/1/products' ? [milk] : milk }),
+    )
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+    expect(await screen.findByRole('link', { name: '구매하기' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/stores/1/products', {
+        params: { category: '유제품', sort: 'POPULAR' },
+      }),
+    )
+    expect(screen.queryByRole('region', { name: '같은 카테고리 상품' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/같은 카테고리에 다른 상품이 없어요/)).not.toBeInTheDocument()
   })
 
   it('품절이면 대신 살 같은 카테고리 상품을 바로 보여 준다', async () => {
@@ -243,6 +260,53 @@ describe('고객 상품 상세 (U-10)', () => {
       available: '7',
       imageUrl: 'https://img.example/P012.jpg',
     })
+  })
+
+  it('팔고 있는 상품에도 구매 가능한 다른 점포를 늘 펼쳐 보인다', async () => {
+    const storeOf = (storeId: number, name: string) => ({
+      storeId,
+      storeCode: `S${storeId}`,
+      name,
+      address: '주소',
+      region: 'SEOUL',
+      latitude: 37.5 + storeId / 100,
+      longitude: 127,
+      description: null,
+      imageUrl: null,
+    })
+    const others: unknown[] = [
+      { storeId: 2, availableQuantity: 4, nearestExpiry: '2026-11-08T23:59:59+09:00' },
+    ]
+    get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data:
+          url === '/products/12/stores'
+            ? others
+            : url === '/stores/1'
+              ? storeOf(1, '프레시 강남점')
+              : url === '/stores/2'
+                ? storeOf(2, '프레시 역삼점')
+                : url === '/stores/1/products'
+                  ? []
+                  : milk,
+      }),
+    )
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+    const section = await screen.findByRole('region', { name: '구매 가능한 다른 점포' })
+    expect(within(section).getByText('프레시 역삼점')).toBeInTheDocument()
+  })
+
+  it('팔고 있는데 다른 점포에도 재고가 없으면 그 칸을 숨긴다', async () => {
+    get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url === '/products/12/stores' ? [] : url === '/stores/1/products' ? [] : milk,
+      }),
+    )
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+    expect(await screen.findByRole('link', { name: '구매하기' })).toBeInTheDocument()
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/products/12/stores'))
+    expect(screen.queryByRole('region', { name: '구매 가능한 다른 점포' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '근처 점포에 있어요' })).not.toBeInTheDocument()
   })
 
   it('품절이면 같은 지역의 다른 점포 재고를 많이 남은 순으로 보여 주고, 누르면 그 점포 상품으로 간다', async () => {

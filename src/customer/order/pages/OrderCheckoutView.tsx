@@ -1,5 +1,6 @@
 import { LoaderCircle, Minus, Plus } from 'lucide-react'
 import { Link } from 'react-router'
+import { BackLink } from '../components/BackLink'
 import { OrderSummary } from '../components/OrderSummary'
 import { MAX_QUANTITY, MIN_QUANTITY } from '../checkout'
 import { lineMax, SAME_DAY_PICKUP_NOTICE } from '../clearance'
@@ -60,7 +61,14 @@ export function OrderCheckoutView() {
 
   return (
     <section className="space-y-5">
-      <h1 className="text-xl font-bold text-slate-900">주문·결제</h1>
+      <div className="space-y-1">
+        <BackLink
+          to={`/customer/stores/${item.storeId}/products/${item.productId}`}
+          state={{ storeName: item.storeName }}
+          label="상품"
+        />
+        <h1 className="text-xl font-bold text-slate-900">주문·결제</h1>
+      </div>
       <OrderSummary
         rows={[
           { label: '점포', value: item.storeName },

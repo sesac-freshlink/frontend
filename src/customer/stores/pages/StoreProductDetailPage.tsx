@@ -1,3 +1,4 @@
+import { BuyBar } from '../components/BuyBar'
 import { BellRing, CalendarClock, ChevronLeft, LoaderCircle, Store } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -53,7 +54,8 @@ function ProductDetail({ storeId, productId }: { storeId: number; productId: num
   const { ref: pullRef, pull, ready } = usePullToRefresh<HTMLElement>(() => void product.refetch())
 
   return (
-    <section ref={pullRef} className="space-y-4">
+    // pb-28: 아래 고정 [구매하기] 띠가 맨 아래 내용(같은 카테고리 상품)을 가리지 않게
+    <section ref={pullRef} className="space-y-4 pb-28">
       <PullIndicator pull={pull} ready={ready} />
       <Link
         to={`/customer/stores/${storeId}`}
@@ -175,17 +177,20 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
         <ClearanceSheet product={product} item={item} />
       ) : buyPath ? (
         <div className="space-y-2">
-          <Link
-            to={buyPath}
-            className="block rounded-lg bg-emerald-600 py-3 text-center text-sm font-medium text-white"
-          >
-            구매하기
-          </Link>
           {product.firstCome && (
             <p className="text-center text-sm text-slate-500">
               선착순 상품이라 줄을 선 뒤 차례대로 살 수 있어요.
             </p>
           )}
+          {/* [구매하기]는 화면 아래 고정 띠에 둔다(내리지 않아도 보이게) */}
+          <BuyBar>
+            <Link
+              to={buyPath}
+              className="block rounded-lg bg-emerald-700 py-3 text-center text-sm font-medium text-white"
+            >
+              구매하기
+            </Link>
+          </BuyBar>
         </div>
       ) : (
         <div className="space-y-2 text-center">
@@ -208,13 +213,13 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
         </div>
       )}
 
-      {product.soldOut && <NearbyStoreStock storeId={storeId} productId={product.productId} />}
+      {/* 구매 가능한 다른 점포: 품절이 아니어도 늘 펼쳐 둔다(11/11 경우 결정). 다른 점포에 재고가 없으면 숨긴다 */}
+      <NearbyStoreStock storeId={storeId} productId={product.productId} soldOut={product.soldOut} />
 
       <SimilarProducts
         storeId={storeId}
         productId={product.productId}
         category={product.category}
-        autoOpen={product.soldOut}
       />
     </div>
   )

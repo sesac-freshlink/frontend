@@ -1,3 +1,4 @@
+import { BuyBar } from './BuyBar'
 import { Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
@@ -84,22 +85,25 @@ export function ClearanceSheet({
         </span>
       </p>
 
-      {item ? (
-        <Link
-          to={clearanceCheckoutPath(item, selection)}
-          className="block rounded-lg bg-emerald-600 py-3 text-center text-sm font-medium text-white"
-        >
-          구매하기
-        </Link>
-      ) : (
-        <button
-          type="button"
-          disabled
-          className="w-full rounded-lg bg-emerald-600 py-3 text-sm font-medium text-white opacity-40"
-        >
-          구매하기
-        </button>
-      )}
+      {/* [구매하기]는 화면 아래 고정 띠에 둔다. 고른 수량이 그대로 넘어간다 */}
+      <BuyBar>
+        {item ? (
+          <Link
+            to={clearanceCheckoutPath(item, selection)}
+            className="block rounded-lg bg-emerald-700 py-3 text-center text-sm font-medium text-white"
+          >
+            구매하기
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="w-full rounded-lg bg-emerald-700 py-3 text-sm font-medium text-white opacity-40"
+          >
+            구매하기
+          </button>
+        )}
+      </BuyBar>
     </section>
   )
 }

@@ -158,14 +158,20 @@ describe('고객 주문 내역 (A3)', () => {
     expect(router.state.location.pathname).toBe('/customer/orders/123')
   })
 
-  it('기간을 고르면 from·to 를 같이 보내고 첫 페이지로 돌아가며, [기간 지우기]로 뺀다', async () => {
-    get.mockResolvedValue(pageOf([paid], { totalPages: 2 }))
+  it('기간 칸은 [기간으로 찾기] 안에 접혀 있다', async () => {
+    get.mockResolvedValue(pageOf([paid]))
+    renderPage()
+    await screen.findByText('FL-20261020-000123')
+    const details = screen.getByText('기간으로 찾기').closest('details')!
+    expect(details).not.toHaveAttribute('open')
+    expect(details).toContainElement(screen.getByLabelText('시작 날짜'))
+  })
+
+  it('기간을 고르면 from·to 를 같이 보내고 처음 묶음부터 다시 읽으며, [기간 지우기]로 뺀다', async () => {
+    get.mockResolvedValue(pageOf([paid]))
     renderPage()
     await screen.findByText('FL-20261020-000123')
     expect(screen.getByRole('button', { name: '기간 지우기' })).toBeDisabled()
-
-    await userEvent.click(screen.getByRole('button', { name: '다음' }))
-    await waitFor(() => expect(lastParams()).toMatchObject({ page: 1 }))
 
     get.mockResolvedValue(pageOf([]))
     fireEvent.change(screen.getByLabelText('시작 날짜'), { target: { value: '2026-10-01' } })
@@ -208,15 +214,61 @@ describe('고객 주문 내역 (A3)', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('한 페이지 개수를 바꾸면 그 개수로 첫 페이지부터 다시 읽는다', async () => {
-    get.mockResolvedValue(pageOf([paid], { totalPages: 3 }))
+  it('페이지 번호·개수 고르기 없이 20개씩 읽고, 끝의 [더 보기]로 다음 묶음을 이어 붙인다', async () => {
+    const second = { ...paid, orderId: 999, orderNo: 'FL-20261020-000999' }
+    get.mockImplementation(async (_url: string, config?: { params?: unknown }) => {
+      if (tabOf(config) === 'PICKUP_WAITING') return pageOf([])
+      const page = (config?.params as { page?: number } | undefined)?.page ?? 0
+      return page === 0
+        ? pageOf([paid], { page: 0, totalPages: 2 })
+        : pageOf([second], { page: 1, totalPages: 2 })
+    })
     renderPage()
     await screen.findByText('FL-20261020-000123')
-    await userEvent.click(screen.getByRole('button', { name: '다음' }))
-    await waitFor(() => expect(lastParams()).toMatchObject({ page: 1 }))
+    expect(screen.queryByRole('combobox', { name: '한 페이지에' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '다음' })).not.toBeInTheDocument()
 
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: '한 페이지에' }), '50')
-    await waitFor(() => expect(lastParams()).toEqual({ tab: 'ALL', page: 0, size: 50 }))
+    await userEvent.click(screen.getByRole('button', { name: '더 보기' }))
+    expect(await screen.findByText('FL-20261020-000999')).toBeInTheDocument()
+    expect(screen.getByText('FL-20261020-000123')).toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/orders', { params: { tab: 'ALL', page: 1, size: 20 } })
+    // 마지막 묶음이면 [더 보기]가 사라진다
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument(),
+    )
+  })
+
+  it('상품명으로 찾으면 q 를 같이 보내고, 없으면 안내하며, 지우면 다시 전체를 읽는다', async () => {
+    get.mockResolvedValue(pageOf([paid]))
+    renderPage()
+    await screen.findByText('FL-20261020-000123')
+
+    get.mockResolvedValue(pageOf([]))
+    await userEvent.type(screen.getByRole('textbox', { name: '주문한 상품 검색' }), '  우유 ')
+    await userEvent.click(screen.getByRole('button', { name: '검색' }))
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/orders', {
+        params: { tab: 'ALL', page: 0, size: 20, q: '우유' },
+      }),
+    )
+    expect(await screen.findByText('‘우유’이(가) 들어간 주문이 없어요.')).toBeInTheDocument()
+
+    get.mockResolvedValue(pageOf([paid]))
+    await userEvent.click(screen.getByRole('button', { name: '검색어 지우기' }))
+    expect(await screen.findByText('FL-20261020-000123')).toBeInTheDocument()
+  })
+
+  it('맨 위에서 당겼다 놓으면 다시 읽는다', async () => {
+    get.mockResolvedValue(pageOf([paid]))
+    renderPage()
+    await screen.findByText('FL-20261020-000123')
+    const area = screen.getByRole('heading', { name: '주문 내역' }).closest('section')!
+    const before = get.mock.calls.length
+    fireEvent.touchStart(area, { touches: [{ clientX: 10, clientY: 0 }] })
+    fireEvent.touchMove(area, { touches: [{ clientX: 10, clientY: 200 }] })
+    expect(screen.getByText('놓으면 새로고침')).toBeInTheDocument()
+    fireEvent.touchEnd(area)
+    await waitFor(() => expect(get.mock.calls.length).toBeGreaterThan(before))
   })
 
   it('[새로 고침]을 누르면 다시 읽고, 실패하면 오류 문구를 보여 준다', async () => {

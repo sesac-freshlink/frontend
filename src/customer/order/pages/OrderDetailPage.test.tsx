@@ -107,6 +107,15 @@ describe('주문 상세 (U-22·U-31)', () => {
     expect(get).toHaveBeenCalledWith('/orders/123')
   })
 
+  it('위에 주문 내역으로 돌아가는 링크가 있다', async () => {
+    orderReturns({ status: 'PAYMENT_WAITING' })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByRole('link', { name: '주문 내역' })).toHaveAttribute(
+      'href',
+      '/customer/orders',
+    )
+  })
+
   it('결제 대기면 결제 수단과 10분 안내를 보여 준다', async () => {
     orderReturns({ status: 'PAYMENT_WAITING' })
     renderAt('/customer/orders/123')
@@ -354,6 +363,14 @@ describe('주문·결제 화면 (U-21)', () => {
   beforeEach(() => {
     get.mockReset()
     post.mockReset()
+  })
+
+  it('위에 그 상품 상세로 돌아가는 링크가 있다', async () => {
+    renderAt(path)
+    expect(await screen.findByRole('link', { name: '상품' })).toHaveAttribute(
+      'href',
+      '/customer/stores/1/products/15',
+    )
   })
 
   function idempotencyKeys() {

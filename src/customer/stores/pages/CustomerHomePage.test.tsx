@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -364,8 +364,32 @@ describe('고객 홈 (U-01)', () => {
     expect(await within(section).findByText(/위치를 알 수 없어/)).toBeInTheDocument()
     expect(within(section).getByRole('link', { name: '점포 검색으로 가기' })).toHaveAttribute(
       'href',
-      '/customer/stores',
+      '/customer/stores?pick=1',
     )
+  })
+
+  it('홈 맨 위에서 당겼다 놓으면 상품 줄·점포 목록·배너를 다시 읽는다', async () => {
+    pickGangnam()
+    mockApi()
+    renderHome()
+    const rail = await screen.findByRole('region', { name: '오늘 마감세일' })
+    await within(rail).findAllByRole('link', { name: /도시락|김밥/ })
+    const area = screen.getByRole('heading', { name: 'freshLink 홈' }).parentElement!
+    const count = (url: string) => get.mock.calls.filter(([u]) => u === url).length
+    const before = {
+      products: count('/stores/1/products'),
+      stores: count('/stores'),
+      banners: count('/members/banners'),
+    }
+
+    fireEvent.touchStart(area, { touches: [{ clientX: 10, clientY: 0 }] })
+    fireEvent.touchMove(area, { touches: [{ clientX: 10, clientY: 200 }] })
+    expect(screen.getByText('놓으면 새로고침')).toBeInTheDocument()
+    fireEvent.touchEnd(area)
+
+    await waitFor(() => expect(count('/stores/1/products')).toBeGreaterThan(before.products))
+    await waitFor(() => expect(count('/stores')).toBeGreaterThan(before.stores))
+    await waitFor(() => expect(count('/members/banners')).toBeGreaterThan(before.banners))
   })
 
   it('프로필이 없으면 프로필 등록 마무리 화면으로 보낸다', async () => {
