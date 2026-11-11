@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { StoreSummary } from './api'
-import { favoriteRows, nearRows, pinLabel, recentRows } from './storeSearchTabs'
+import { favoriteRows, groupOverlapping, nearRows, pinLabel, recentRows } from './storeSearchTabs'
 
 const store = (
   storeId: number,
@@ -76,5 +76,26 @@ describe('점포 검색 탭 목록 (U-01 지도형)', () => {
   it('핀 이름은 앞의 "프레시 "를 뺀다', () => {
     expect(pinLabel('프레시 역삼점')).toBe('역삼점')
     expect(pinLabel('역삼 프레시점')).toBe('역삼 프레시점')
+  })
+})
+
+describe('겹치는 핀 묶기', () => {
+  const pin = (storeId: number) => ({ storeId })
+  it('화면에서 가로 72px·세로 36px 안이면 묶고, 고른 점포는 묶지 않는다', () => {
+    const items = [
+      { item: pin(1), x: 0, y: 0 },
+      { item: pin(2), x: 50, y: 10 },
+      { item: pin(3), x: 200, y: 0 },
+      { item: pin(4), x: 10, y: 5 },
+    ]
+    expect(groupOverlapping(items, null).map((g) => g.map((p) => p.storeId))).toEqual([
+      [1, 2, 4],
+      [3],
+    ])
+    expect(groupOverlapping(items, 2).map((g) => g.map((p) => p.storeId))).toEqual([
+      [1, 4],
+      [2],
+      [3],
+    ])
   })
 })

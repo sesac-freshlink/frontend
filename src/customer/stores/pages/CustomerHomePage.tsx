@@ -10,6 +10,7 @@ import { PRODUCT_KEYWORD_MAX, useClearanceProducts, useStoreProducts, useStores 
 import { CategoryGrid } from '../components/home/CategoryGrid'
 import { PullIndicator } from '../components/PullIndicator'
 import { HomeBanner } from '../components/home/HomeBanner'
+import { BestProducts } from '../components/home/BestProducts'
 import { NearbyStores } from '../components/home/NearbyStores'
 import { PickupStoreButton } from '../components/home/PickupStoreButton'
 import { ProductRail } from '../components/home/ProductRail'
@@ -131,7 +132,6 @@ function Home({
     origin,
   )
   const clearance = useClearanceProducts(storeId)
-  const recommended = useStoreProducts(storeId, { recommendedOnly: true })
   const newArrivals = useStoreProducts(storeId, { newOnly: true })
   // 화면 맨 위에서 당겼다 놓으면 상품 줄·카테고리 사진·점포 목록·배너를 다시 읽는다(태우님 usePullToRefresh 그대로 쓴다)
   const queryClient = useQueryClient()
@@ -141,8 +141,10 @@ function Home({
     ready,
   } = usePullToRefresh<HTMLDivElement>(() => {
     void clearance.refetch()
-    void recommended.refetch()
     void newArrivals.refetch()
+    void queryClient.invalidateQueries({
+      queryKey: ['customer', 'stores', storeId, 'products', 'best'],
+    })
     void stores.refetch()
     void queryClient.invalidateQueries({ queryKey: ['customer', 'banners'] })
   })
@@ -155,9 +157,10 @@ function Home({
       <HomeBanner />
       <CategoryGrid storeId={storeId} storeName={name} />
       <ProductSearch storeId={storeId} storeName={name} />
-      <ProductRail kind="clearance" storeId={storeId} storeName={name} query={clearance} />
-      <ProductRail kind="recommended" storeId={storeId} storeName={name} query={recommended} />
+      {/* 11/11 경우 시안: 신상품 → 오늘 마감세일 → 베스트 상품(세로 1~5위). 점주 추천 줄은 홈에서 빼고 점포 목록 조건 버튼에만 둔다 */}
       <ProductRail kind="new" storeId={storeId} storeName={name} query={newArrivals} />
+      <ProductRail kind="clearance" storeId={storeId} storeName={name} query={clearance} />
+      <BestProducts storeId={storeId} storeName={name} />
       <NearbyStores
         position={position}
         stores={stores}

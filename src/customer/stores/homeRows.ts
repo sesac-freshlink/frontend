@@ -75,6 +75,15 @@ export function categoryPhotos(products: StoreProduct[]): Record<HomeCategory, s
   return photos
 }
 
+/** 분류마다 사진이 있는 첫 상품의 imageUrl(분류 이름 → 주소). 사진이 하나도 없는 분류는 빠진다 */
+export function firstPhotoByCategory(products: StoreProduct[]): Record<string, string> {
+  const photos: Record<string, string> = {}
+  for (const p of products) {
+    if (p.imageUrl !== null && !(p.category in photos)) photos[p.category] = p.imageUrl
+  }
+  return photos
+}
+
 export interface NearbyHomeStore {
   store: StoreSummary
   distanceKm: number

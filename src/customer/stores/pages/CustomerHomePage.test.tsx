@@ -82,6 +82,8 @@ const recommendedProducts = [
 interface Setup {
   banners?: unknown
   productsError?: boolean
+  /** 베스트 상품(추천순) 요청을 실패시킨다 */
+  bestError?: boolean
   /** 내 지역 점포 목록(점포명순으로 온다고 본다) */
   stores?: unknown[]
 }
@@ -89,6 +91,7 @@ interface Setup {
 function mockApi({
   banners = notFound,
   productsError = false,
+  bestError = false,
   stores = [gangnam, yeoksam, noCoords],
 }: Setup = {}) {
   get.mockImplementation(async (url, config) => {
@@ -102,6 +105,10 @@ function mockApi({
     if (/^\/stores\/\d+\/products$/.test(String(url))) {
       if (params.recommended) return { data: recommendedProducts }
       if (params.newOnly) return { data: [] }
+      if (params.sort === 'POPULAR') {
+        if (bestError) throw new Error('404')
+        return { data: [...allProducts, ...recommendedProducts].slice(0, 5) }
+      }
       if (productsError) throw new Error('500')
       return { data: allProducts }
     }
@@ -172,7 +179,7 @@ describe('고객 홈 (U-01)', () => {
     expect(await screen.findByRole('region', { name: '오늘 마감세일' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: '카테고리' })).toBeInTheDocument()
     expect(get).toHaveBeenCalledWith('/stores/1/products')
-    expect(localStorage.getItem('freshlink.pickupStore')).toBeNull()
+    expect(localStorage.getItem('freshlink.pickupStore.s')).toBeNull()
     // 임시 점포에는 내 주변 점포 목록에서 "픽업 점포" 표시를 붙이지 않는다
     const nearby = screen.getByRole('region', { name: '내 주변 점포' })
     expect(await within(nearby).findByText('프레시 역삼점')).toBeInTheDocument()
@@ -186,7 +193,7 @@ describe('고객 홈 (U-01)', () => {
     const row = await screen.findByRole('link', { name: /^내 지역 점포 프레시 좌표없음점/ })
     expect(within(row).getByText('바꾸기')).toBeInTheDocument()
     await waitFor(() => expect(get).toHaveBeenCalledWith('/stores/3/products'))
-    expect(localStorage.getItem('freshlink.pickupStore')).toBeNull()
+    expect(localStorage.getItem('freshlink.pickupStore.s')).toBeNull()
   })
 
   it('주변 점포를 누르면 픽업 점포는 그대로 두고 그 점포 둘러보기로만 간다(11/11)', async () => {
@@ -195,7 +202,7 @@ describe('고객 홈 (U-01)', () => {
     const nearby = await screen.findByRole('region', { name: '내 주변 점포' })
     await userEvent.click(await within(nearby).findByRole('link', { name: /프레시 역삼점/ }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/customer/stores/2'))
-    expect(localStorage.getItem('freshlink.pickupStore')).toBeNull()
+    expect(localStorage.getItem('freshlink.pickupStore.s')).toBeNull()
   })
 
   it('위치 답을 기다리는 동안 빈 화면 대신 자리표시를 보인다', async () => {
@@ -257,17 +264,54 @@ describe('고객 홈 (U-01)', () => {
     )
   })
 
-  it('점주 추천·신상품 줄은 서버 조건으로 부르고, 비면 안내한다', async () => {
+  it('상품 줄 순서는 신상품 → 오늘 마감세일 → 베스트 상품이고, 점주 추천 줄은 없다(11/11)', async () => {
     pickGangnam()
     mockApi()
     renderHome()
-    const recommended = await screen.findByRole('region', { name: '점주 추천' })
-    expect(await within(recommended).findByText('바나나우유')).toBeInTheDocument()
-    expect(get).toHaveBeenCalledWith('/stores/1/products', { params: { recommended: true } })
-    const fresh = screen.getByRole('region', { name: '신상품' })
+    const fresh = await screen.findByRole('region', { name: '신상품' })
     expect(
       await within(fresh).findByText('이번 주에 새로 들어온 상품이 없어요.'),
     ).toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/stores/1/products', { params: { newOnly: true } })
+    const best = await screen.findByRole('region', { name: /베스트 상품/ })
+    const order = [...document.querySelectorAll('section[aria-labelledby]')].map((el) =>
+      el.getAttribute('aria-labelledby'),
+    )
+    expect(order.filter((id) => id?.startsWith('home-rail') || id === 'home-best')).toEqual([
+      'home-rail-new',
+      'home-rail-clearance',
+      'home-best',
+    ])
+    expect(screen.queryByRole('region', { name: '점주 추천' })).not.toBeInTheDocument()
+    expect(get).not.toHaveBeenCalledWith('/stores/1/products', { params: { recommended: true } })
+
+    // 베스트: 최근 7일 많이 팔린 순(추천순) 앞 5개를 묻고, 1~3위 초록·4~5위 회색 순위
+    expect(get).toHaveBeenCalledWith('/stores/1/products', {
+      params: { sort: 'POPULAR', page: 0, size: 5 },
+    })
+    // 가짜 데이터는 상품이 4개라 4위까지(서버는 5개까지 준다)
+    const items = within(best).getAllByRole('listitem')
+    expect(items).toHaveLength(4)
+    expect(within(items[0]).getByRole('link')).toHaveAccessibleName(/^1위, 참치김밥, /)
+    expect(within(items[0]).getByText('1')).toHaveClass('bg-emerald-700')
+    expect(within(items[3]).getByText('4')).toHaveClass('bg-slate-500')
+    expect(within(best).getByRole('link', { name: '베스트 상품 전체 보기' })).toHaveAttribute(
+      'href',
+      '/customer/stores/1?sort=POPULAR',
+    )
+  })
+
+  it('베스트 상품을 못 불러오면 칸을 숨긴다', async () => {
+    pickGangnam()
+    mockApi({ bestError: true })
+    renderHome()
+    await screen.findByRole('region', { name: '신상품' })
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/stores/1/products', {
+        params: { sort: 'POPULAR', page: 0, size: 5 },
+      }),
+    )
+    expect(screen.queryByRole('region', { name: /베스트 상품/ })).not.toBeInTheDocument()
   })
 
   it('상품 줄을 못 불러오면 다시 시도를 보인다', async () => {

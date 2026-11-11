@@ -1,3 +1,4 @@
+import { useAuthStore } from '@/shared/auth'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   FAVORITE_STORE_MAX,
@@ -10,7 +11,10 @@ const yeoksam = { storeId: 2, name: '프레시 역삼점', address: '서울 강�
 const gangnam = { storeId: 1, name: '프레시 강남점', address: '서울 강남구 테헤란로 1' }
 
 describe('단골 점포 (이 기기 저장)', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    useAuthStore.setState({ user: { userId: 'sub-a', role: 'CUSTOMER' }, restoring: false })
+  })
 
   it('누르면 맨 앞에 더하고, 다시 누르면 뺀다', () => {
     toggleFavoriteStore(gangnam)
@@ -30,9 +34,12 @@ describe('단골 점포 (이 기기 저장)', () => {
   })
 
   it('저장된 값이 깨졌거나 저장소를 못 쓰면 빈 목록으로 본다', () => {
-    localStorage.setItem('freshlink.favoriteStores', '{깨짐')
+    localStorage.setItem('freshlink.favoriteStores.sub-a', '{깨짐')
     expect(readFavoriteStores()).toEqual([])
-    localStorage.setItem('freshlink.favoriteStores', JSON.stringify([{ storeId: '1' }, gangnam]))
+    localStorage.setItem(
+      'freshlink.favoriteStores.sub-a',
+      JSON.stringify([{ storeId: '1' }, gangnam]),
+    )
     expect(readFavoriteStores()).toEqual([gangnam])
 
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {

@@ -3,7 +3,7 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { useQueries } from '@tanstack/react-query'
 import type { RegionCode } from '@/auth/regions'
 import { api } from '@/shared/api/client'
-import { categoryPhotos, clearanceRow } from './homeRows'
+import { categoryPhotos, clearanceRow, firstPhotoByCategory } from './homeRows'
 
 /** ST-01 응답 한 줄 */
 export interface StoreSummary {
@@ -201,6 +201,35 @@ export function useClearanceProducts(storeId: number) {
 /** 홈 카테고리 칸 사진(분류별 첫 상품 사진). 마감세일 줄과 같은 상품 전부 목록을 쓴다 */
 export function useCategoryPhotos(storeId: number) {
   return useQuery({ ...allProductsQuery(storeId), select: categoryPhotos })
+}
+
+/** 점포 상품 목록 분류 줄 사진(분류별 첫 상품 사진, 12개 분류 전부). 홈 줄과 같은 상품 전부 목록을 쓴다 */
+export function useStoreCategoryPhotos(storeId: number) {
+  return useQuery({ ...allProductsQuery(storeId), select: firstPhotoByCategory })
+}
+
+/** 홈 베스트 상품 개수(1~5위, 11/11 경우 시안) */
+export const BEST_PRODUCT_COUNT = 5
+
+/**
+ * 홈 베스트 상품 읽기(11/11). 고객용 판매 순위 API 가 따로 없어, U-10 목록의 추천순(sort=POPULAR = 최근 7일 순판매 많은 순,
+ * inventory StoreProductBadges POPULAR_WINDOW) 앞 5개를 쓴다. 판매 순위 API 가 새로 생기면 이 함수 하나만 바꾼다
+ */
+export async function fetchBestProducts(storeId: number): Promise<StoreProduct[]> {
+  return (
+    await api.get<StoreProduct[]>(`/stores/${storeId}/products`, {
+      params: { sort: 'POPULAR', page: 0, size: BEST_PRODUCT_COUNT },
+    })
+  ).data
+}
+
+/** 홈 베스트 상품. 실패하면 다시 묻지 않고(화면은 칸을 숨긴다) 들어올 때·당겨서 새로고침 때만 읽는다 */
+export function useBestProducts(storeId: number) {
+  return useQuery({
+    queryKey: ['customer', 'stores', storeId, 'products', 'best'],
+    queryFn: () => fetchBestProducts(storeId),
+    retry: false,
+  })
 }
 
 /** U-10 카테고리 칩. 상품 전체의 카테고리(가나다순). 들어올 때 한 번 읽는다 */

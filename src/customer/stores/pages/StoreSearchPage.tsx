@@ -77,6 +77,12 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
   const [tab, setTab] = useState<StoreSearchTab>('near')
   const [showMap, setShowMap] = useState(true)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  // 겹친 핀 묶음을 더 확대할 수 없을 때 지도 위에 보여 줄 점포들(목록 시트)
+  const [clusterIds, setClusterIds] = useState<number[] | null>(null)
+  const clearSelection = () => {
+    setSelectedId(null)
+    setClusterIds(null)
+  }
   const stores = useStores({ region, keyword })
   const [pickup, setPickup] = useState<PickupStore | null>(readPickupStore)
   const [favorites, setFavorites] = useState<FavoriteStore[]>(readFavoriteStores)
@@ -107,7 +113,7 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
   const onSearch = (e: FormEvent) => {
     e.preventDefault()
     setKeyword(draft)
-    setSelectedId(null)
+    clearSelection()
   }
   const pick = (store: PickupStore) => {
     savePickupStore(store)
@@ -121,7 +127,14 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
       toast.success('단골 점포에 넣었어요. [단골 점포] 탭에서 모아 볼 수 있어요.')
     }
   }
-  const onSelect = useCallback((storeId: number) => setSelectedId(storeId), [])
+  const onSelect = useCallback((storeId: number) => {
+    setClusterIds(null)
+    setSelectedId(storeId)
+  }, [])
+  const onClusterList = useCallback((storeIds: number[]) => {
+    setSelectedId(null)
+    setClusterIds(storeIds)
+  }, [])
   const onPinFocused = useCallback(() => setFocusPinId(null), [])
   const requestLocation = useCallback(() => {
     if (located.status === 'unavailable' && locating) {
@@ -132,7 +145,7 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
   }, [located.status, locating])
   const selectTab = (next: StoreSearchTab) => {
     setTab(next)
-    setSelectedId(null)
+    clearSelection()
     if (next === 'near') requestLocation()
   }
   // 탭 목록: 왼쪽·오른쪽 화살표, Home·End 로 옮기고 바로 고른다(WAI-ARIA 탭 패턴)
@@ -176,7 +189,7 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
               onChange={(e) => {
                 if (isRegionCode(e.target.value)) {
                   setRegion(e.target.value)
-                  setSelectedId(null)
+                  clearSelection()
                 }
               }}
               className="min-h-11 appearance-none bg-transparent pr-5 text-base outline-none sm:text-sm"
@@ -246,7 +259,7 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
             aria-pressed={!showMap}
             onClick={() => {
               setShowMap((v) => !v)
-              setSelectedId(null)
+              clearSelection()
             }}
             className={cn(
               'mb-0.5 flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-medium',
@@ -293,6 +306,7 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
           >
             {(rows) => {
               const selected = rows.find((r) => r.storeId === selectedId) ?? null
+              const clustered = clusterIds ? rows.filter((r) => clusterIds.includes(r.storeId)) : []
               return (
                 <>
                   {showMap && (
@@ -303,30 +317,43 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
                       position={position}
                       onSelect={onSelect}
                       onRequestLocation={requestLocation}
+                      onClusterList={onClusterList}
                       focusPinId={focusPinId}
                       onPinFocused={onPinFocused}
                       sheet={
-                        selected && (
-                          <SelectedStore
-                            row={selected}
-                            picking={picking}
-                            isPickup={selected.storeId === pickup?.storeId}
-                            isFavorite={favorites.some((f) => f.storeId === selected.storeId)}
+                        clustered.length > 1 ? (
+                          <ClusterSheet
+                            rows={clustered}
+                            onPick={onSelect}
                             onClose={() => {
-                              // 닫으면 그 점포 핀으로 포커스를 돌려준다
-                              setFocusPinId(selected.storeId)
-                              setSelectedId(null)
-                            }}
-                            onToggleFavorite={() => toggleFavorite(selected)}
-                            onPick={() => {
-                              pick({ storeId: selected.storeId, name: selected.name })
-                              if (picking) {
-                                void navigate('/customer')
-                                return
-                              }
-                              toast.success('픽업 점포로 정했어요')
+                              // 닫으면 그 묶음 핀으로 포커스를 돌려준다
+                              setFocusPinId(clustered[0].storeId)
+                              setClusterIds(null)
                             }}
                           />
+                        ) : (
+                          selected && (
+                            <SelectedStore
+                              row={selected}
+                              picking={picking}
+                              isPickup={selected.storeId === pickup?.storeId}
+                              isFavorite={favorites.some((f) => f.storeId === selected.storeId)}
+                              onClose={() => {
+                                // 닫으면 그 점포 핀으로 포커스를 돌려준다
+                                setFocusPinId(selected.storeId)
+                                setSelectedId(null)
+                              }}
+                              onToggleFavorite={() => toggleFavorite(selected)}
+                              onPick={() => {
+                                pick({ storeId: selected.storeId, name: selected.name })
+                                if (picking) {
+                                  void navigate('/customer')
+                                  return
+                                }
+                                toast.success('픽업 점포로 정했어요')
+                              }}
+                            />
+                          )
                         )
                       }
                     />
@@ -487,6 +514,75 @@ function RowsCaption({
       </p>
       {render(rows)}
     </div>
+  )
+}
+
+/** 겹친 핀 묶음을 더 확대할 수 없을 때(같은 자리 점포) 지도 위에 띄우는 점포 목록. 누르면 그 점포 칸을 연다 */
+function ClusterSheet({
+  rows,
+  onPick,
+  onClose,
+}: {
+  rows: StoreRow[]
+  onPick: (storeId: number) => void
+  onClose: () => void
+}) {
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    headingRef.current?.focus()
+  }, [])
+  return (
+    <section
+      aria-label="이 자리 점포 목록"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation()
+          onClose()
+        }
+      }}
+      className="absolute inset-x-2 bottom-2 z-20 space-y-1 rounded-2xl bg-white px-4 pt-2 pb-3 shadow-lg ring-1 ring-slate-200"
+    >
+      <span aria-hidden className="mx-auto block h-1 w-10 rounded-full bg-slate-300" />
+      <div className="flex items-center gap-1">
+        <h2
+          ref={headingRef}
+          tabIndex={-1}
+          className="flex-1 text-base font-bold text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-emerald-700"
+        >
+          이 자리 점포 {rows.length}곳
+        </h2>
+        <button
+          type="button"
+          aria-label="점포 목록 닫기"
+          onClick={onClose}
+          className="flex size-11 shrink-0 items-center justify-center rounded-full text-slate-600"
+        >
+          <X className="size-5" aria-hidden />
+        </button>
+      </div>
+      <ul className="max-h-40 divide-y divide-slate-200 overflow-y-auto">
+        {rows.map((r) => (
+          <li key={r.storeId}>
+            <button
+              type="button"
+              onClick={() => onPick(r.storeId)}
+              className="flex min-h-11 w-full items-center gap-2 py-1 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-slate-900">{r.name}</span>
+                <span className="block truncate text-xs text-slate-600">{r.address}</span>
+              </span>
+              {r.distanceKm !== null && (
+                <span className="shrink-0 text-sm text-slate-600 tabular-nums">
+                  {formatDistance(r.distanceKm)}
+                </span>
+              )}
+              <ChevronRight className="size-4 shrink-0 text-slate-500" aria-hidden />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 

@@ -42,6 +42,11 @@ beforeEach(() => {
 
 describe('WithdrawalPage (/customer/my/withdraw, A6)', () => {
   it('안내를 확인해야 [탈퇴하기]가 켜지고, 마지막 확인 뒤에만 탈퇴를 보낸다', async () => {
+    localStorage.clear()
+    // 이 계정이 이 기기에 남긴 점포 설정(픽업·단골)과 다른 계정 값
+    localStorage.setItem('freshlink.pickupStore.sub-1', '{"storeId":1,"name":"프레시 강남점"}')
+    localStorage.setItem('freshlink.favoriteStores.sub-1', '[]')
+    localStorage.setItem('freshlink.pickupStore.sub-2', '{"storeId":2,"name":"프레시 역삼점"}')
     del.mockResolvedValue({ data: undefined })
     const router = renderPage()
     const user = userEvent.setup()
@@ -57,6 +62,10 @@ describe('WithdrawalPage (/customer/my/withdraw, A6)', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(del).toHaveBeenCalledWith('/members/me')
     expect(signOut).toHaveBeenCalledWith('WITHDRAWN')
+    // 탈퇴에 성공하면 그 계정 값만 지운다
+    expect(localStorage.getItem('freshlink.pickupStore.sub-1')).toBeNull()
+    expect(localStorage.getItem('freshlink.favoriteStores.sub-1')).toBeNull()
+    expect(localStorage.getItem('freshlink.pickupStore.sub-2')).not.toBeNull()
   })
 
   it('진행 중 주문이 있으면(409) 이유와 주문 내역 링크, 로그아웃하지 않는다', async () => {
@@ -75,6 +84,19 @@ describe('WithdrawalPage (/customer/my/withdraw, A6)', () => {
       '/customer/orders',
     )
     expect(signOut).not.toHaveBeenCalled()
+  })
+
+  it('탈퇴가 막히면(409) 이 기기에 남긴 점포 설정을 지우지 않는다', async () => {
+    localStorage.clear()
+    localStorage.setItem('freshlink.pickupStore.sub-1', '{"storeId":1,"name":"프레시 강남점"}')
+    del.mockRejectedValue(apiError(409, 'WITHDRAWAL_BLOCKED_ACTIVE_ORDER'))
+    renderPage()
+    const user = userEvent.setup()
+    await user.click(screen.getByLabelText('안내를 모두 확인했어요'))
+    await user.click(screen.getByRole('button', { name: '탈퇴하기' }))
+    await user.click(screen.getByRole('button', { name: '탈퇴' }))
+    await screen.findByRole('alert')
+    expect(localStorage.getItem('freshlink.pickupStore.sub-1')).not.toBeNull()
   })
 
   it('주문 확인을 못 하면(503) 안내만', async () => {

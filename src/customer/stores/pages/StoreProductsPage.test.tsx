@@ -5,6 +5,7 @@ import type { AxiosRequestConfig } from 'axios'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
+import { useAuthStore } from '@/shared/auth'
 import type { StoreProduct } from '../api'
 import { StoreProductsPage } from './StoreProductsPage'
 
@@ -61,8 +62,13 @@ function hasFilter(config?: AxiosRequestConfig) {
   return Object.keys(params).some((key) => key !== 'page' && key !== 'size')
 }
 
+/** 상품 목록(묶음) 요청만. 분류 줄 사진용 전체 목록 요청(조건·묶음 없음)은 빼고 센다 */
 function productCalls() {
-  return get.mock.calls.filter(([url]) => url === '/stores/1/products')
+  return get.mock.calls.filter(
+    ([url, config]) =>
+      url === '/stores/1/products' &&
+      (config as AxiosRequestConfig | undefined)?.params?.page !== undefined,
+  )
 }
 
 /** 가짜 get 이 받은 검색어(q). 없으면 빈 문자열 */
@@ -225,30 +231,62 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     expect(screen.getByRole('textbox', { name: '상품 검색어' })).toHaveValue('')
   })
 
-  it('카테고리 칩을 누르면 그 카테고리로 서버에 묻고, 전체를 누르면 조건을 푼다', async () => {
+  it('분류 줄: [카테고리]는 전체 분류 화면, 분류를 누르면 그 분류로 서버에 묻고 다시 누르면 조건을 푼다', async () => {
     serve(() => Promise.resolve({ data: products }))
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
-    const group = await screen.findByRole('group', { name: '카테고리' })
-    expect(await within(group).findByRole('button', { name: '라면' })).toBeInTheDocument()
-    expect(within(group).getByRole('button', { name: '전체' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
+    expect(await screen.findByRole('link', { name: '카테고리' })).toHaveAttribute(
+      'href',
+      '/customer/stores/1/categories',
     )
+    const row = await screen.findByRole('list', { name: '분류' })
+    const ramen = await within(row).findByRole('button', { name: '라면' })
+    expect(ramen).toHaveAttribute('aria-pressed', 'false')
+    // 분류 사진은 꾸밈이라 화면 읽기에 읽히지 않는다(이름 글자가 라벨)
+    expect(row.querySelectorAll('img[alt=""]').length).toBeGreaterThanOrEqual(0)
 
-    await userEvent.click(within(group).getByRole('button', { name: '라면' }))
+    await userEvent.click(ramen)
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
         params: { category: '라면', page: 0, size: 20 },
       }),
     )
-    expect(within(group).getByRole('button', { name: '라면' })).toHaveAttribute(
+    expect(within(row).getByRole('button', { name: '라면' })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
 
-    await userEvent.click(within(group).getByRole('button', { name: '전체' }))
+    await userEvent.click(within(row).getByRole('button', { name: '라면' }))
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/stores/1/products', { params: { page: 0, size: 20 } }),
+    )
+  })
+
+  it('분류와 조건 버튼은 같이 걸린다(라면 + 신상품)', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    const row = await screen.findByRole('list', { name: '분류' })
+    await userEvent.click(await within(row).findByRole('button', { name: '라면' }))
+    const conditions = screen.getByRole('group', { name: '상품 조건' })
+    expect(
+      within(conditions)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['마감세일', '선착순', '신상품', '점주 추천'])
+    await userEvent.click(within(conditions).getByRole('button', { name: '신상품' }))
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { category: '라면', newOnly: true, page: 0, size: 20 },
+      }),
+    )
+  })
+
+  it('베스트 상품 [전체 보기](?sort=POPULAR)로 들어오면 추천순으로 시작한다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1?sort=POPULAR', { storeName: '프레시 강남점' })
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/stores/1/products', {
+        params: { sort: 'POPULAR', page: 0, size: 20 },
+      }),
     )
   })
 
@@ -483,10 +521,12 @@ describe('고객 점포 상품 목록 (U-10)', () => {
 
   it('[픽업 점포로 정하기]를 누르면 이 기기에 저장하고 "내 픽업 점포"로 바뀐다', async () => {
     localStorage.clear()
+    useAuthStore.setState({ user: { userId: 'sub-c', role: 'CUSTOMER' }, restoring: false })
     serve(() => Promise.resolve({ data: products }))
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
     await userEvent.click(await screen.findByRole('button', { name: '픽업 점포로 정하기' }))
-    expect(JSON.parse(localStorage.getItem('freshlink.pickupStore') ?? 'null')).toEqual({
+    // 계정마다 따로 남긴다(저장 이름 뒤에 사용자 번호)
+    expect(JSON.parse(localStorage.getItem('freshlink.pickupStore.sub-c') ?? 'null')).toEqual({
       storeId: 1,
       name: '프레시 강남점',
     })

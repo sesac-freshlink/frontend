@@ -93,3 +93,32 @@ export function favoriteRows(
 export function pinLabel(name: string): string {
   return name.replace(/^프레시\s+/, '')
 }
+
+/** 화면에서 이 거리(px) 안에 있으면 핀 이름표가 겹친다고 본다. 이름표 한 개 크기(가로 약 70·세로 약 36)에 맞췄다 */
+export const PIN_OVERLAP_PX = { x: 72, y: 36 } as const
+
+/**
+ * 화면 위치가 겹치는 핀을 묶는다(앞에서부터, 묶음의 첫 핀 자리를 기준으로). 한 개짜리 묶음은 그냥 핀이다.
+ * 고른 점포(keepAlone)는 묶지 않고 따로 둔다(점포 칸과 함께 보여야 해서)
+ */
+export function groupOverlapping<T extends { storeId: number }>(
+  items: { item: T; x: number; y: number }[],
+  keepAlone: number | null,
+): T[][] {
+  const groups: { x: number; y: number; members: T[] }[] = []
+  for (const { item, x, y } of items) {
+    if (item.storeId === keepAlone) {
+      groups.push({ x, y, members: [item] })
+      continue
+    }
+    const hit = groups.find(
+      (g) =>
+        g.members[0].storeId !== keepAlone &&
+        Math.abs(g.x - x) < PIN_OVERLAP_PX.x &&
+        Math.abs(g.y - y) < PIN_OVERLAP_PX.y,
+    )
+    if (hit) hit.members.push(item)
+    else groups.push({ x, y, members: [item] })
+  }
+  return groups.map((g) => g.members)
+}
