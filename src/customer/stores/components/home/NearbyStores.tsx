@@ -25,7 +25,7 @@ export function NearbyStores({
     refetch: () => unknown
     isFetching: boolean
   }
-  pickupId: number
+  pickupId: number | undefined
   onPick: (store: PickupStore) => void
 }) {
   return (

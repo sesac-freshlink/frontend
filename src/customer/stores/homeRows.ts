@@ -123,3 +123,28 @@ export function remainingText(expiry: string | null | undefined, now: number): s
   if (h === 0) return `${m}분 남음`
   return m === 0 ? `${h}시간 남음` : `${h}시간 ${m}분 남음`
 }
+
+/** 임시 픽업 점포를 고른 까닭. nearest = 내 위치에서 가장 가까운 점포, region = 내 지역 점포 목록의 첫 점포 */
+export type DefaultStoreReason = 'nearest' | 'region'
+
+export interface DefaultPickupStore {
+  store: StoreSummary
+  reason: DefaultStoreReason
+}
+
+/**
+ * 손님이 픽업 점포를 아직 안 골랐을 때 홈을 채울 임시 점포(이 기기에 저장하지 않는다).
+ * 위치를 알면 좌표가 있는 점포 중 가장 가까운 곳, 위치를 모르거나(거절·실패) 좌표 있는 점포가 없으면
+ * 내 지역 점포 목록(점포명순)의 첫 점포. 지역에 점포가 없으면 null
+ */
+export function defaultPickupStore(
+  stores: StoreSummary[],
+  origin: LatLng | null,
+): DefaultPickupStore | null {
+  if (stores.length === 0) return null
+  if (origin) {
+    const [nearest] = nearestStores(stores, origin, 1)
+    if (nearest) return { store: nearest.store, reason: 'nearest' }
+  }
+  return { store: stores[0], reason: 'region' }
+}
