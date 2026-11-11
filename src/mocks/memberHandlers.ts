@@ -6,7 +6,6 @@ import type {
   RegisterProfileRequest,
 } from '@/auth/api'
 import type { UpdateProfileRequest } from '@/customer/my/api'
-import type { HomeBanner } from '@/customer/banners/api'
 import type { StoreDetail, StoreSummary } from '@/customer/stores/api'
 import { findActiveStore } from './adminHandlers'
 import { mockSessionUser, resetMockSession } from './authHandlers'
@@ -39,17 +38,6 @@ const stores: StoreSummary[] = [
     name: '프레시 해운대점',
     address: '부산 해운대구 해운대로 3',
     region: 'BUSAN',
-  },
-]
-
-/** 홈 메인 배너 가짜 데이터. 미확정(member 배너 V6 전). 첫 장은 공지로 이어진다 */
-const homeBanners: HomeBanner[] = [
-  { bannerId: 1, title: '오늘 밤 마감세일 30% 할인', imageUrl: '/mock-banner-1.svg', noticeId: 1 },
-  {
-    bannerId: 2,
-    title: '픽업 신청하고 기다리지 말고 가져가세요',
-    imageUrl: '/mock-banner-2.svg',
-    noticeId: null,
   },
 ]
 
@@ -195,7 +183,6 @@ export const memberHandlers = [
     )
   }),
   // 홈 메인 배너. 미확정(member 배너 V6 전): 가짜 API 모드 확인용 2장
-  http.get('/api/members/banners', () => HttpResponse.json(homeBanners)),
   http.get('/api/stores/:storeId', ({ params }) => {
     const found = findActiveStore(Number(params.storeId))
     if (!found) {

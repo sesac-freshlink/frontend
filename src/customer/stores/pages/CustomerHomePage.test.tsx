@@ -321,7 +321,7 @@ describe('고객 홈 (U-01)', () => {
     expect(screen.queryByRole('region', { name: '알림 배너' })).not.toBeInTheDocument()
   })
 
-  it('배너가 있으면 제목을 보이고 공지 상세로 간다. 두 장 이상이면 멈춤 버튼이 있다', async () => {
+  it('배너는 제목을 그림의 대체 텍스트로만 쓰고, 공지가 있으면 공지 상세로 없으면 링크가 없다. 두 장 이상이면 멈춤 버튼이 있다', async () => {
     pickGangnam()
     mockApi({
       banners: [
@@ -335,7 +335,11 @@ describe('고객 홈 (U-01)', () => {
       'href',
       '/customer/notices/7',
     )
-    expect(within(banner).getByText('픽업 신청 안내')).toBeInTheDocument()
+    // 공지 연결이 없으면 눌러도 아무 일이 없다(링크가 아니다)
+    expect(within(banner).getByRole('img', { name: '픽업 신청 안내' })).toBeInTheDocument()
+    expect(within(banner).queryByRole('link', { name: '픽업 신청 안내' })).not.toBeInTheDocument()
+    // 그림 위에 제목 글자를 얹지 않는다 (A18 결정 9)
+    expect(within(banner).queryByText('오늘 밤 마감세일')).not.toBeInTheDocument()
     expect(
       within(banner).getByRole('button', { name: /배너 멈춤|배너 저절로 넘기기/ }),
     ).toBeInTheDocument()
