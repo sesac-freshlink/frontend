@@ -15,7 +15,10 @@ export function StoreDetailPage() {
     return (
       <section className="space-y-3 py-6 text-center">
         <p className="text-sm text-slate-500">점포 주소가 올바르지 않아요.</p>
-        <Link to="/customer/stores" className="text-sm text-emerald-600 underline">
+        <Link
+          to="/customer/stores"
+          className="text-sm text-emerald-700 underline hover:text-emerald-800"
+        >
           점포 찾기로
         </Link>
       </section>
@@ -32,9 +35,9 @@ function StoreDetailView({ storeId }: { storeId: number }) {
       <Link
         to={`/customer/stores/${storeId}`}
         state={store.data ? { storeName: store.data.name } : undefined}
-        className="inline-flex items-center gap-1 text-sm text-slate-500"
+        className="-ml-1 inline-flex min-h-11 items-center gap-1 pr-2 text-sm text-slate-500"
       >
-        <ChevronLeft className="size-4" />
+        <ChevronLeft className="size-4" aria-hidden />
         상품 목록
       </Link>
       {store.isPending ? (
@@ -77,7 +80,7 @@ function StoreDetailView({ storeId }: { storeId: number }) {
           <Link
             to={`/customer/stores/${storeId}`}
             state={{ storeName: store.data.name }}
-            className="block rounded-lg bg-emerald-600 py-3 text-center text-sm font-medium text-white"
+            className="block rounded-lg bg-emerald-700 py-3 text-center text-sm font-medium text-white"
           >
             이 점포 상품 보기
           </Link>

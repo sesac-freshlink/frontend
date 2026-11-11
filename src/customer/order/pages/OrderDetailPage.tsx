@@ -155,7 +155,13 @@ function pickupRows(order: Order): SummaryRow[] {
 function PickupNotice({ order }: { order: Order }) {
   if (!order.pickupDeadline) return null
   if (isSameDayPickup(order)) {
-    return <p className="text-sm text-amber-800">{SAME_DAY_PICKUP_NOTICE}</p>
+    return (
+      <div className="space-y-0.5 text-sm text-amber-800">
+        {SAME_DAY_PICKUP_NOTICE.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
+      </div>
+    )
   }
   return (
     <p className="text-sm text-slate-500">
@@ -344,7 +350,7 @@ function RefundSection({ order }: { order: Order }) {
           }}
           className={cn(
             'flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-medium',
-            retry ? 'bg-emerald-600 text-white' : 'border border-slate-300 text-slate-600',
+            retry ? 'bg-emerald-700 text-white' : 'border border-slate-300 text-slate-600',
           )}
         >
           {retry && <RotateCcw className="size-4" aria-hidden="true" />}
@@ -388,7 +394,7 @@ function Refunded({ order }: { order: Order }) {
       <OrderSummary rows={rows} />
       <Link
         to="/customer/orders"
-        className="block rounded-lg bg-emerald-600 py-3 text-center font-medium text-white"
+        className="block rounded-lg bg-emerald-700 py-3 text-center font-medium text-white"
       >
         주문 내역으로
       </Link>
@@ -415,13 +421,14 @@ function Paid({ order }: { order: Order }) {
       <ReceiptLink url={order.payment?.receiptUrl ?? null} className="flex justify-center" />
       <div className="space-y-1 text-center">
         {/* 기한 날짜는 위 표의 "픽업 기한" 줄에 있다. 문장에 다시 넣으면 폰 폭에서 "까/지"로 끊긴다 */}
-        <p className="text-sm text-slate-500">
-          {ready
-            ? '준비가 끝났어요. 매장에서 주문번호를 보여 주고 받아 가세요'
-            : requested
-              ? '오늘 받아 가실 수 있게 준비해요. 준비되면 알려 드려요'
-              : '픽업 신청을 하면 매장에서 준비해요'}
-        </p>
+        {/* 아직 신청 전이면 아래 픽업 안내(PickupNotice)가 같은 말을 하므로 한 줄만 보인다 */}
+        {(ready || requested) && (
+          <p className="text-sm text-slate-500">
+            {ready
+              ? '준비가 끝났어요. 매장에서 주문번호를 보여 주고 받아 가세요'
+              : '오늘 받아 가실 수 있게 준비해요. 준비되면 알려 드려요'}
+          </p>
+        )}
         <PickupNotice order={order} />
       </div>
       {requestable && <PickupRequestButton orderId={order.orderId} orderNo={order.orderNo} />}
@@ -489,7 +496,7 @@ function Failed({ order, title }: { order: Order; title: string }) {
         <Link
           to={`/customer/stores/${order.storeId}/products/${order.productId}`}
           state={{ storeName: order.storeName }}
-          className="block rounded-lg bg-emerald-600 py-3 text-center font-medium text-white"
+          className="block rounded-lg bg-emerald-700 py-3 text-center font-medium text-white"
         >
           다시 고르기
         </Link>
@@ -497,7 +504,7 @@ function Failed({ order, title }: { order: Order; title: string }) {
         <Link
           to={`/customer/stores/${order.storeId}`}
           state={{ storeName: order.storeName }}
-          className="block rounded-lg bg-emerald-600 py-3 text-center font-medium text-white"
+          className="block rounded-lg bg-emerald-700 py-3 text-center font-medium text-white"
         >
           상품으로 돌아가기
         </Link>
@@ -510,7 +517,7 @@ function NotFound() {
   return (
     <section className="space-y-3 py-10 text-center">
       <p className="text-sm text-slate-500">주문을 찾을 수 없어요.</p>
-      <Link to="/customer" className="text-sm text-emerald-600 underline">
+      <Link to="/customer" className="text-sm text-emerald-700 underline hover:text-emerald-800">
         홈으로
       </Link>
     </section>

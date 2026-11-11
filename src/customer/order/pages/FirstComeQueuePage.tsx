@@ -21,7 +21,10 @@ export function FirstComeQueuePage() {
         <p className="text-sm text-slate-500">
           상품 정보를 찾을 수 없어요. 상품을 다시 골라 주세요.
         </p>
-        <Link to="/customer/stores" className="text-sm text-emerald-600 underline">
+        <Link
+          to="/customer/stores"
+          className="text-sm text-emerald-700 underline hover:text-emerald-800"
+        >
           점포 찾기로
         </Link>
       </section>
@@ -93,14 +96,17 @@ function QueueView({ item }: { item: CheckoutItem }) {
           {firstComeErrorMessage(joinCode) ?? '줄을 서지 못했어요. 다시 시도해 주세요.'}
         </p>
         {joinCode === 'FIRST_COME_ALREADY_ORDERED' ? (
-          <Link to="/customer/orders" className="text-sm text-emerald-600 underline">
+          <Link
+            to="/customer/orders"
+            className="text-sm text-emerald-700 underline hover:text-emerald-800"
+          >
             주문 내역 보기
           </Link>
         ) : (
           <button
             type="button"
             onClick={rejoin}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white"
+            className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white"
           >
             다시 줄 서기
           </button>
@@ -120,7 +126,7 @@ function QueueView({ item }: { item: CheckoutItem }) {
         <button
           type="button"
           onClick={() => navigate(productPath, { replace: true })}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white"
+          className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white"
         >
           주문하기
         </button>
@@ -139,7 +145,7 @@ function QueueView({ item }: { item: CheckoutItem }) {
           type="button"
           onClick={order}
           disabled={buyNow.pending}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           다시 주문하기
         </button>
@@ -190,7 +196,7 @@ function QueueView({ item }: { item: CheckoutItem }) {
             type="button"
             onClick={rejoin}
             disabled={join.isPending}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             다시 줄 서기
           </button>

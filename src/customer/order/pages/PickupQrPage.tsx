@@ -17,7 +17,11 @@ export function PickupQrPage() {
   return (
     <section className="space-y-5">
       <div className="flex items-center gap-2">
-        <Link to="/customer/orders" aria-label="주문 내역으로" className="text-slate-500">
+        <Link
+          to="/customer/orders"
+          aria-label="주문 내역으로"
+          className="-ml-3 flex size-11 items-center justify-center text-slate-500"
+        >
           <ChevronLeft className="size-5" />
         </Link>
         <h1 className="text-xl font-bold text-slate-900">픽업 QR</h1>
@@ -68,7 +72,7 @@ export function PickupQrPage() {
                   {qr.pass.code}
                 </span>
               </p>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 {formatMmSs(qr.secondsLeft)} 남음 · 끝나기 전에 저절로 새로 바뀌어요
               </p>
             </>

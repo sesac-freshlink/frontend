@@ -57,7 +57,7 @@ export function NotificationBell({ align = 'end', className }: Props) {
       >
         <Bell className="size-5" />
         {count > 0 && (
-          <span className="absolute top-1.5 right-1.5 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] leading-4 font-bold text-white tabular-nums">
+          <span className="absolute top-1.5 right-1.5 min-w-4 rounded-full bg-red-600 px-1 text-center text-[10px] leading-4 font-bold text-white tabular-nums">
             {count > 99 ? '99+' : count}
           </span>
         )}
@@ -104,7 +104,7 @@ function NotificationPanel({
           type="button"
           onClick={() => markAllRead.mutate()}
           disabled={!hasUnread || markAllRead.isPending}
-          className="text-xs text-emerald-600 disabled:text-slate-300"
+          className="text-xs text-emerald-700 hover:text-emerald-800 disabled:text-slate-300"
         >
           모두 읽음
         </button>

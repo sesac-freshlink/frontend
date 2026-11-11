@@ -49,7 +49,7 @@ export function NearbyStoreStock({
               <Link
                 to={`/customer/stores/${s.storeId}/products/${productId}`}
                 state={{ storeName: s.name }}
-                className="min-w-0 flex-1 hover:underline"
+                className="flex min-h-11 min-w-0 flex-1 flex-col justify-center hover:underline"
               >
                 <span className="block truncate font-medium text-slate-900">{s.name}</span>
                 <span className="block text-xs text-slate-500 tabular-nums">
@@ -61,7 +61,7 @@ export function NearbyStoreStock({
                 to={`/customer/stores/${s.storeId}/info`}
                 state={{ storeName: s.name }}
                 aria-label={`${s.name} 위치 보기`}
-                className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
+                className="flex min-h-11 shrink-0 items-center gap-1 rounded-md px-3 text-xs text-emerald-700 hover:bg-emerald-50"
               >
                 <MapPin className="size-4" aria-hidden />
                 위치

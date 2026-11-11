@@ -18,7 +18,12 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
-      <Toaster position="top-center" richColors />
+      {/* 알림 토스트의 [보기] 버튼을 손가락으로 누르기 좋게 44px로 (sonner 기본은 24px) */}
+      <Toaster
+        position="top-center"
+        richColors
+        toastOptions={{ classNames: { actionButton: 'min-h-11! px-3! text-sm!' } }}
+      />
       {import.meta.env.DEV && <ReactQueryDevtools />}
     </QueryClientProvider>
   )

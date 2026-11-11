@@ -150,7 +150,7 @@ export function CancelReasonDialog({
                 aria-invalid={touched && detailMissing}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
-              <p className="text-xs text-slate-400">{CANCEL_DETAIL_MAX}자까지</p>
+              <p className="text-xs text-slate-500">{CANCEL_DETAIL_MAX}자까지</p>
             </div>
           )}
           {touched && reason === null && (
@@ -187,7 +187,7 @@ export function CancelReasonDialog({
           <button
             type="button"
             onClick={next}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white"
+            className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white"
           >
             다음
           </button>

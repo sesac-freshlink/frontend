@@ -1,22 +1,26 @@
 import { ChevronRight, LoaderCircle, Pin } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
+import { BackLink } from '@/customer/order/components/BackLink'
 import { formatDate } from '../format'
 import { useNotices } from '../api'
 
 interface Props {
   /** 상세 주소 앞부분 (고객 /customer/notices, 점주 /owner/notices) */
   basePath: string
+  /** 위 뒤로 링크 (고객은 마이페이지에서 들어온다). 없으면 그리지 않는다 */
+  back?: { to: string; label: string }
 }
 
 /** 공지사항 목록 (추가 명세 A17). 고정 글 먼저, 최신순 20개씩 */
-export function NoticeListPage({ basePath }: Props) {
+export function NoticeListPage({ basePath, back }: Props) {
   const [page, setPage] = useState(0)
   const notices = useNotices(page)
   const data = notices.data
 
   return (
     <section className="space-y-4">
+      {back && <BackLink to={back.to} label={back.label} />}
       <h1 className="text-xl font-bold text-slate-900">공지사항</h1>
       {notices.isPending && (
         <p role="status" className="flex items-center gap-2 text-sm text-slate-500">
@@ -42,7 +46,7 @@ export function NoticeListPage({ basePath }: Props) {
               >
                 {n.pinned && <Pin className="size-4 shrink-0 text-emerald-600" aria-label="고정" />}
                 <span className="min-w-0 flex-1 truncate text-slate-900">{n.title}</span>
-                <span className="shrink-0 text-xs text-slate-400">{formatDate(n.createdAt)}</span>
+                <span className="shrink-0 text-xs text-slate-500">{formatDate(n.createdAt)}</span>
                 <ChevronRight className="size-4 shrink-0 text-slate-400" />
               </Link>
             </li>

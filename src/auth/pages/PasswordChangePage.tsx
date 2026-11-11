@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
+import { BackLink } from '@/customer/order/components/BackLink'
 import { cn } from '@/shared/ui/cn'
 import { FormField } from '../components/FormField'
 import { describedBy, inputClass, primaryButtonClass } from '../components/fieldStyles'
@@ -13,6 +14,8 @@ import { PasswordFieldError, usePasswordChange } from '../usePasswordChange'
 interface Props {
   /** 취소하면 돌아갈 화면 (고객 /customer/my, 점주 /owner/store) */
   backTo: string
+  /** 위 뒤로 링크 이름 (고객 "마이페이지"). 없으면 그리지 않는다 */
+  backLabel?: string
 }
 
 const FIELDS = [
@@ -29,7 +32,7 @@ const FIELDS = [
 type FieldName = (typeof FIELDS)[number]['name']
 
 /** A4 비밀번호 변경 (고객 /customer/my/password, 점주 /owner/store/password). 바꾸면 다시 로그인한다 */
-export function PasswordChangePage({ backTo }: Props) {
+export function PasswordChangePage({ backTo, backLabel }: Props) {
   const { passwordLogin, submit } = usePasswordChange()
   const { register, handleSubmit, formState, setError, control, trigger, getValues } =
     useForm<PasswordChangeForm>({
@@ -46,12 +49,16 @@ export function PasswordChangePage({ backTo }: Props) {
 
   if (!passwordLogin) {
     return (
-      <div className="mx-auto max-w-md space-y-4">
+      <div className="mx-auto w-full max-w-md space-y-4">
+        {backLabel && <BackLink to={backTo} label={backLabel} />}
         <h1 className="text-xl font-bold text-slate-900">비밀번호 변경</h1>
         <p className="text-sm text-slate-500">
           구글로 가입한 계정은 비밀번호가 없어요. 구글 계정에서 관리해 주세요.
         </p>
-        <Link to={backTo} className="block text-center text-sm text-slate-500 underline">
+        <Link
+          to={backTo}
+          className="flex min-h-11 items-center justify-center text-sm text-slate-500 underline"
+        >
           돌아가기
         </Link>
       </div>
@@ -68,7 +75,8 @@ export function PasswordChangePage({ backTo }: Props) {
   })
 
   return (
-    <form onSubmit={onSubmit} className="mx-auto max-w-md space-y-4" noValidate>
+    <form onSubmit={onSubmit} className="mx-auto w-full max-w-md space-y-4" noValidate>
+      {backLabel && <BackLink to={backTo} label={backLabel} />}
       <h1 className="text-xl font-bold text-slate-900">비밀번호 변경</h1>
       {FIELDS.map((f) => {
         const id = `password-${f.name}`
@@ -88,14 +96,14 @@ export function PasswordChangePage({ backTo }: Props) {
                 type={shown ? 'text' : 'password'}
                 autoComplete={f.autoComplete}
                 aria-describedby={describedBy(id)}
-                className={cn(inputClass, 'pr-10')}
+                className={cn(inputClass, 'pr-12')}
                 {...register(f.name)}
               />
               <button
                 type="button"
                 onClick={() => setVisible((v) => ({ ...v, [f.name]: !shown }))}
                 aria-label={`${f.label} ${shown ? '숨기기' : '보기'}`}
-                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 hover:text-slate-600"
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-500 hover:text-slate-700"
               >
                 {shown ? (
                   <EyeOff className="size-4" aria-hidden="true" />
@@ -114,7 +122,10 @@ export function PasswordChangePage({ backTo }: Props) {
       >
         비밀번호 바꾸기
       </button>
-      <Link to={backTo} className="block text-center text-sm text-slate-500 underline">
+      <Link
+        to={backTo}
+        className="flex min-h-11 items-center justify-center text-sm text-slate-500 underline"
+      >
         취소
       </Link>
     </form>

@@ -62,7 +62,7 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
               onChange={(e) => {
                 if (isRegionCode(e.target.value)) setRegion(e.target.value)
               }}
-              className="appearance-none bg-transparent pr-5 text-base outline-none sm:text-sm"
+              className="min-h-11 appearance-none bg-transparent pr-5 text-base outline-none sm:text-sm"
             >
               {REGIONS.map((r) => (
                 <option key={r.code} value={r.code}>
@@ -90,7 +90,7 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
             />
             <button
               type="submit"
-              className="min-h-10 shrink-0 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
+              className="min-h-11 shrink-0 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
             >
               검색
             </button>

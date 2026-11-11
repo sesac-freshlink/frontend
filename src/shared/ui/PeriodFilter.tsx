@@ -17,7 +17,7 @@ export function PeriodFilter({ period, onChange, hint }: PeriodFilterProps) {
   const reversed = isReversedPeriod(period)
   const empty = period.from === '' && period.to === ''
   const inputClass = cn(
-    'min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-1.5 py-1.5 text-sm text-slate-900 lg:w-40 lg:flex-none',
+    'min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-1.5 text-sm text-slate-900 lg:w-40 lg:flex-none',
     reversed && 'border-red-600',
   )
 
@@ -48,7 +48,7 @@ export function PeriodFilter({ period, onChange, hint }: PeriodFilterProps) {
           disabled={empty}
           aria-label="기간 지우기"
           title="기간 지우기"
-          className="shrink-0 rounded-lg border border-slate-300 p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+          className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-50"
         >
           <X className="size-4" aria-hidden="true" />
         </button>

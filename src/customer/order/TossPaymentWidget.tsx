@@ -130,7 +130,7 @@ function RealWidget({
         type="button"
         onClick={() => void pay()}
         disabled={!ready || requesting}
-        className="w-full rounded-lg bg-emerald-600 py-3 font-medium text-white disabled:opacity-50"
+        className="w-full rounded-lg bg-emerald-700 py-3 font-medium text-white disabled:opacity-50"
       >
         {formatWon(amount)} 결제하기
       </button>
@@ -155,7 +155,7 @@ function MockWidget({ orderId, orderNo, amount }: Props) {
       <button
         type="button"
         onClick={() => navigate(`/customer/orders/${orderId}?${q.toString()}`, { replace: true })}
-        className="w-full rounded-lg bg-emerald-600 py-3 font-medium text-white"
+        className="w-full rounded-lg bg-emerald-700 py-3 font-medium text-white"
       >
         {formatWon(amount)} 결제하기
       </button>

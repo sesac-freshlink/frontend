@@ -94,7 +94,7 @@ export function OrderHistoryPage() {
           onClick={refresh}
           disabled={orders.isFetching || reversed}
           aria-label="새로 고침"
-          className="rounded-lg border border-slate-300 p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+          className="flex size-11 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-50"
         >
           <RefreshCw className={cn('size-4', orders.isFetching && 'animate-spin')} />
         </button>
@@ -102,7 +102,7 @@ export function OrderHistoryPage() {
       {hasWaiting && (
         <Link
           to="/customer/orders/pickup-qr"
-          className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3 font-medium text-white"
+          className="flex items-center justify-center gap-2 rounded-lg bg-emerald-700 py-3 font-medium text-white"
         >
           <QrCode className="size-5" />
           픽업 QR 보여 주기
@@ -141,7 +141,7 @@ export function OrderHistoryPage() {
           )}
           <button
             type="submit"
-            className="min-h-10 shrink-0 rounded-lg bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800"
+            className="min-h-11 shrink-0 rounded-lg bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800"
           >
             검색
           </button>
@@ -157,7 +157,7 @@ export function OrderHistoryPage() {
             aria-selected={tab === t.tab}
             onClick={() => setTab(t.tab)}
             className={cn(
-              'flex-1 rounded-md py-2 text-slate-500',
+              'min-h-11 flex-1 rounded-md text-slate-600',
               tab === t.tab && 'bg-white font-medium text-emerald-700 shadow-sm',
             )}
           >
@@ -254,7 +254,7 @@ function OrderRow({ order, nowMs }: { order: CustomerOrderSummary; nowMs: number
               className={cn(
                 'shrink-0 rounded px-1.5 py-0.5 text-xs font-medium',
                 done && 'bg-slate-100 text-slate-600',
-                closed && 'bg-red-50 text-red-600',
+                closed && 'bg-red-50 text-red-700',
                 !done && !closed && 'bg-emerald-50 text-emerald-700',
               )}
             >
@@ -262,7 +262,7 @@ function OrderRow({ order, nowMs }: { order: CustomerOrderSummary; nowMs: number
                 ? refundStatusLabel(order.refundStatus)
                 : orderStatusLabel(order.status, order.failureReason)}
             </span>
-            <span className="truncate text-xs text-slate-400">{order.orderNo}</span>
+            <span className="truncate text-xs text-slate-500">{order.orderNo}</span>
           </div>
           <p className="truncate font-medium text-slate-900">
             {order.productName ?? '상품 확인 중'} · {quantityText(order)}
