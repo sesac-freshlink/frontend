@@ -33,6 +33,7 @@ import { CLEARANCE_DISCOUNT_PERCENT, clearanceOf } from '../clearance'
 import { isClearanceProduct } from '../homeRows'
 import {
   isProductShortcut,
+  type ProductShortcut,
   readPickupStore,
   savePickupStore,
   type PickupStore,
@@ -67,13 +68,18 @@ function StoreProducts({ storeId }: { storeId: number }) {
   const [keyword, setKeyword] = useState(initialQ)
   const [category, setCategory] = useState(searchParams.get('category') ?? '')
   const [sort, setSort] = useState<StoreProductSort>('NAME')
-  const showParam = searchParams.get('show')
-  const shortcut = isProductShortcut(showParam) ? showParam : null
-  const [recommendedOnly, setRecommendedOnly] = useState(shortcut === 'recommended')
-  const [newOnly, setNewOnly] = useState(shortcut === 'new')
+  // 아이콘 줄 조건(신상품·마감세일·선착순·점주 추천)은 한 번에 하나만 켠다(11/11 경우 결정).
+  // 주소에 ?show= 가 여러 개 오면 알맞은 값 중 맨 앞 하나만 쓴다
+  const [shortcut, setShortcut] = useState<ProductShortcut | null>(
+    () => searchParams.getAll('show').find(isProductShortcut) ?? null,
+  )
+  const toggleShortcut = (next: ProductShortcut) =>
+    setShortcut((current) => (current === next ? null : next))
+  const recommendedOnly = shortcut === 'recommended'
+  const newOnly = shortcut === 'new'
   // 마감세일·선착순은 서버 조건이 없어 받아 온 목록에서 거른다(마감세일 거르기는 homeRows 한 곳)
-  const [clearanceOnly, setClearanceOnly] = useState(shortcut === 'clearance')
-  const [firstComeOnly, setFirstComeOnly] = useState(shortcut === 'firstCome')
+  const clearanceOnly = shortcut === 'clearance'
+  const firstComeOnly = shortcut === 'firstCome'
   const categories = useStoreCategories(storeId)
   const products = useStoreProductPages(storeId, {
     keyword,
@@ -100,10 +106,7 @@ function StoreProducts({ storeId }: { storeId: number }) {
     setDraft('')
     setKeyword('')
     setCategory('')
-    setRecommendedOnly(false)
-    setNewOnly(false)
-    setClearanceOnly(false)
-    setFirstComeOnly(false)
+    setShortcut(null)
   }
 
   return (
@@ -130,7 +133,7 @@ function StoreProducts({ storeId }: { storeId: number }) {
           </button>
         </label>
       </form>
-      {/* 동그란 아이콘 줄: 카테고리(전체 분류 화면) + 누르면 켜지고 꺼지는 조건 4개 */}
+      {/* 동그란 아이콘 줄: 카테고리(전체 분류 화면) + 조건 4개. 조건은 하나만 켜지고, 켜진 것을 다시 누르면 꺼진다 */}
       <nav aria-label="상품 조건" className="-mx-4 overflow-x-auto px-4">
         <ul className="flex gap-4">
           <li>
@@ -146,7 +149,7 @@ function StoreProducts({ storeId }: { storeId: number }) {
               label="신상품"
               icon={Sparkles}
               pressed={newOnly}
-              onClick={() => setNewOnly((v) => !v)}
+              onClick={() => toggleShortcut('new')}
             />
           </li>
           <li>
@@ -154,7 +157,7 @@ function StoreProducts({ storeId }: { storeId: number }) {
               label="마감세일"
               icon={Percent}
               pressed={clearanceOnly}
-              onClick={() => setClearanceOnly((v) => !v)}
+              onClick={() => toggleShortcut('clearance')}
             />
           </li>
           <li>
@@ -162,7 +165,7 @@ function StoreProducts({ storeId }: { storeId: number }) {
               label="선착순"
               icon={Timer}
               pressed={firstComeOnly}
-              onClick={() => setFirstComeOnly((v) => !v)}
+              onClick={() => toggleShortcut('firstCome')}
             />
           </li>
           <li>
@@ -170,7 +173,7 @@ function StoreProducts({ storeId }: { storeId: number }) {
               label="점주 추천"
               icon={ThumbsUp}
               pressed={recommendedOnly}
-              onClick={() => setRecommendedOnly((v) => !v)}
+              onClick={() => toggleShortcut('recommended')}
             />
           </li>
         </ul>

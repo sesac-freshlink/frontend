@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { CircleCheck, CircleX, LoaderCircle, PackageCheck, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { cn } from '@/shared/ui/cn'
 import { useOrder, type Order } from '../api'
@@ -26,16 +26,15 @@ import {
 import { TossPaymentWidget } from '../TossPaymentWidget'
 import { useCountdown } from '../useCountdown'
 import { useTossReturn } from '../useTossReturn'
-import { OrderCheckoutView } from './OrderCheckoutView'
 
 /**
  * U-21·U-22·U-31 /customer/orders/:id
- * - :id 가 new 면 주문·결제 화면 (주문 만들기 전)
+ * - :id 가 new 면 옛 주문·결제 화면 주소다. 화면을 없앴으므로(11/11) 상품 상세, 상품을 모르면 홈으로 보낸다
  * - 숫자면 주문 상태를 2초마다 읽어(POLL_MS.orderDetail) 상태별 화면을 보여 준다
  */
 export function OrderDetailPage() {
   const { id } = useParams()
-  if (id === 'new') return <OrderCheckoutView />
+  if (id === 'new') return <OldCheckoutRedirect />
 
   const orderId = id !== undefined && /^\d+$/.test(id) ? Number(id) : undefined
   if (orderId === undefined) return <NotFound />
@@ -44,6 +43,24 @@ export function OrderDetailPage() {
       <BackLink to="/customer/orders" label="주문 내역" />
       <OrderView key={orderId} orderId={orderId} />
     </div>
+  )
+}
+
+/** 옛 /customer/orders/new?storeId=..&productId=.. 주소. 수량은 이제 상품 상세에서 고른다 */
+function OldCheckoutRedirect() {
+  const [params] = useSearchParams()
+  const storeId = params.get('storeId')
+  const productId = params.get('productId')
+  const storeName = params.get('storeName')?.trim()
+  if (!storeId || !productId || !/^\d+$/.test(storeId) || !/^\d+$/.test(productId)) {
+    return <Navigate to="/customer" replace />
+  }
+  return (
+    <Navigate
+      to={`/customer/stores/${storeId}/products/${productId}`}
+      state={storeName ? { storeName } : undefined}
+      replace
+    />
   )
 }
 

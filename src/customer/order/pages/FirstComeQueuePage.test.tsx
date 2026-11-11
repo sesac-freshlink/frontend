@@ -68,6 +68,7 @@ function renderAt(path: string) {
       <RouterProvider router={router} />
     </QueryClientProvider>,
   )
+  return router
 }
 
 describe('선착순 대기 화면', () => {
@@ -91,41 +92,69 @@ describe('선착순 대기 화면', () => {
     )
   })
 
-  it('차례가 오면 수량을 1개로 묶은 주문 화면으로 간다', async () => {
-    get.mockResolvedValue({
-      data: {
-        ...waiting,
-        status: 'ADMITTED',
-        position: null,
-        ahead: null,
-        ticketExpiresAt: '2026-11-02T10:05:00+09:00',
-      },
+  const admitted = {
+    ...waiting,
+    status: 'ADMITTED' as const,
+    position: null,
+    ahead: null,
+    ticketExpiresAt: '2026-11-02T10:05:00+09:00',
+  }
+
+  /** 줄 서기는 waiting, 주문 만들기는 order 로 답한다 */
+  function postAnswers(order: () => Promise<unknown>) {
+    post.mockImplementation((url: string) =>
+      url === '/orders' ? (order() as never) : Promise.resolve({ data: waiting }),
+    )
+  }
+
+  it('차례가 오면 1개 주문을 한 번만 만들고 바로 결제 대기 화면으로 간다', async () => {
+    get.mockResolvedValue({ data: admitted })
+    postAnswers(() =>
+      Promise.resolve({ data: { orderId: 55, orderNo: 'FL-55', status: 'RESERVING' } }),
+    )
+    const router = renderAt(QUEUE_PATH)
+
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/customer/orders/55'))
+    const orders = post.mock.calls.filter((c) => c[0] === '/orders')
+    expect(orders).toHaveLength(1)
+    expect(orders[0][1]).toEqual({
+      storeId: 1,
+      storeName: '프레시 강남점',
+      productId: 3,
+      quantity: 1,
     })
-    renderAt(QUEUE_PATH)
-    const where = await screen.findByTestId('where')
-    expect(where.textContent).toMatch(/^\/customer\/orders\/new\?/)
-    expect(where.textContent).toContain('available=1')
-    expect(where.textContent).toContain('firstCome=1')
-    expect(where.textContent).toContain('productId=3')
+    // 대기 화면은 결제 대기 화면으로 바뀌어 뒤로 가도 다시 줄 서지 않는다
+    expect(router.state.historyAction).toBe('REPLACE')
   })
 
-  it('선착순이 아닌 상품이면(404 NOT_FIRST_COME) 바로 주문 화면으로 간다', async () => {
+  it('차례가 왔는데 주문을 만들지 못하면 이유를 알리고 다시 주문하기를 보여 준다', async () => {
+    get.mockResolvedValue({ data: admitted })
+    postAnswers(() => Promise.reject(errorWith('FIRST_COME_TICKET_REQUIRED')))
+    renderAt(QUEUE_PATH)
+
+    expect(await screen.findByText('차례예요! 주문을 만들지 못했어요')).toBeInTheDocument()
+    postAnswers(() =>
+      Promise.resolve({ data: { orderId: 56, orderNo: 'FL-56', status: 'RESERVING' } }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: '다시 주문하기' }))
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/customer/orders/56'))
+  })
+
+  it('선착순이 아닌 상품이면(404 NOT_FIRST_COME) 상품 상세로 돌아가 수량을 고르게 한다', async () => {
     post.mockRejectedValue(errorWith('NOT_FIRST_COME', 404))
     renderAt(QUEUE_PATH)
     const where = await screen.findByTestId('where')
-    expect(where.textContent).toMatch(/^\/customer\/orders\/new\?/)
-    expect(where.textContent).not.toContain('available=1')
+    expect(where.textContent).toBe('/customer/stores/1/products/3')
   })
 
-  it('기다리는 중에 선착순이 꺼지면 판매가 끝났다고 알리고 [주문하기]로 일반 주문 화면에 간다', async () => {
+  it('기다리는 중에 선착순이 꺼지면 판매가 끝났다고 알리고 [주문하기]로 상품 상세에 간다', async () => {
     get.mockRejectedValue(errorWith('NOT_FIRST_COME', 404))
     renderAt(QUEUE_PATH)
     expect(await screen.findByText('선착순 판매가 끝났어요')).toBeInTheDocument()
     expect(get).toHaveBeenCalledTimes(1)
     await userEvent.click(screen.getByRole('button', { name: '주문하기' }))
     const where = await screen.findByTestId('where')
-    expect(where.textContent).toMatch(/^\/customer\/orders\/new\?/)
-    expect(where.textContent).not.toContain('firstCome=1')
+    expect(where.textContent).toBe('/customer/stores/1/products/3')
   })
 
   it('이미 주문한 선착순 상품이면 이유와 주문 내역 링크를 보여 준다', async () => {
