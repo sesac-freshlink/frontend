@@ -117,7 +117,7 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     const noodle = (await screen.findByText('매운 컵라면 115g')).closest('li')!
     expect(within(noodle).getByText('1,700원')).toBeInTheDocument()
     // 3개 이하로 남으면 빨갛게 "N개 남았어요"
-    expect(within(noodle).getByText('3개 남았어요')).toHaveClass('text-red-700')
+    expect(within(noodle).getByText('3개 남았어요').parentElement).toHaveClass('text-red-700')
 
     // 2칸 사진 카드, 서버 순서 그대로
     const names = [...document.querySelectorAll('ul.grid > li')].map(
@@ -410,7 +410,12 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     // 할인율·할인가·원래 가격, 기본 수량 옆에 마감세일 수량
     expect(within(noodle).getByText('30%')).toBeInTheDocument()
     expect(within(noodle).getByText('1,190원')).toBeInTheDocument()
-    expect(within(noodle).getByText('3개 남았어요 · 마감세일 2개')).toBeInTheDocument()
+    // 숫자와 "개"가 줄바꿈으로 떨어지지 않게 두 묶음 모두 줄바꿈을 막는다
+    expect(within(noodle).getByText('3개 남았어요')).toHaveClass('whitespace-nowrap')
+    expect(within(noodle).getByText('마감세일 2개')).toHaveClass('whitespace-nowrap')
+    expect(within(noodle).getByText('마감세일 2개').parentElement).toHaveTextContent(
+      '3개 남았어요 · 마감세일 2개',
+    )
     expect(within(noodle).getByRole('link')).toHaveAccessibleName(
       '매운 컵라면 115g, 1,700원, 3개 남음, 마감세일 1,190원 2개, 추천',
     )

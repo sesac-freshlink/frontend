@@ -2,13 +2,27 @@ import type { Order, OrderLine } from './api'
 import { formatWon } from './format'
 
 /**
- * 마감세일이 섞인 주문의 픽업 안내 2줄 (결제 대기·주문 상세·상품 상세 안내, 11/11 경우 문구).
+ * 마감세일이 섞인 주문의 픽업 안내 3줄 (결제 대기·주문 상세·상품 상세 안내, 11/11 경우 문구, 문장마다 한 줄).
  * 시각은 order-service 픽업 기한(그날 23:59:59 KST)과 같다
  */
 export const SAME_DAY_PICKUP_NOTICE = [
-  '마감 세일 제품은 당일 픽업이 원칙이에요. 오늘 23시 59분까지 픽업해 주세요.',
+  '마감 세일 제품은 당일 픽업이 원칙이에요.',
+  '오늘 23시 59분까지 픽업해 주세요.',
   '미픽업 시 환불되지 않으며, 물품은 폐기 처리돼요.',
 ] as const
+
+/**
+ * 마감세일과 일반 수량이 한 주문에 섞였을 때 한 줄 (11/11 경우 결정: 주문을 나누지 않고 안내로 알린다).
+ * 마감세일이 섞인 주문은 결제 때 자동 픽업 신청되고 기한이 그날 23:59 라 일반 수량도 같이 당일 픽업이 된다
+ */
+export const MIXED_ORDER_NOTICE =
+  '마감세일과 일반 상품을 같이 주문하면 모두 당일 픽업 주문이 돼요. 오늘 함께 받아 가 주세요.'
+
+/** 마감세일 수량과 일반 수량이 둘 다 1개 이상이면 true. quantity 는 합계(마감세일 포함)다 */
+export function isMixedOrder(order: { quantity: number; clearanceQuantity?: number }): boolean {
+  const clearance = order.clearanceQuantity ?? 0
+  return clearance > 0 && order.quantity - clearance > 0
+}
 
 /** "마감세일 1개 3,490원" / "기본 2개 4,990원" */
 export function lineText(line: Pick<OrderLine, 'clearance' | 'quantity' | 'unitPrice'>): string {

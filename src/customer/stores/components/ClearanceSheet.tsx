@@ -1,3 +1,4 @@
+import { MIXED_ORDER_NOTICE } from '@/customer/order/clearance'
 import { BuyBar, BuyButton } from './BuyBar'
 import { Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
@@ -87,6 +88,10 @@ export function ClearanceSheet({
 
       {/* [N원 구매하기]는 화면 아래 고정 띠에 둔다. 점포를 모르면(주소로 바로 들어옴) 누를 수 없다 */}
       <BuyBar>
+        {/* 마감세일과 일반을 같이 고르면 모두 당일 픽업이 된다는 한 줄(11/11 경우 결정, 주문은 나누지 않는다) */}
+        {selection.clearance > 0 && selection.normal > 0 && (
+          <p className="mb-2 text-sm font-medium break-keep text-amber-800">{MIXED_ORDER_NOTICE}</p>
+        )}
         <BuyButton
           amount={selectionAmount(product, selection)}
           pending={buyNow.pending}

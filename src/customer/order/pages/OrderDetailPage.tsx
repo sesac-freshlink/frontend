@@ -11,7 +11,14 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { OrderSummary, type SummaryRow } from '../components/OrderSummary'
 import { PickupRequestButton } from '../components/PickupRequestButton'
 import { ReceiptLink } from '../components/ReceiptLink'
-import { isSameDayPickup, lineText, SAME_DAY_PICKUP_NOTICE, shortageMessage } from '../clearance'
+import {
+  isMixedOrder,
+  isSameDayPickup,
+  lineText,
+  MIXED_ORDER_NOTICE,
+  SAME_DAY_PICKUP_NOTICE,
+  shortageMessage,
+} from '../clearance'
 import { formatRemaining } from '../countdown'
 import { formatDateTime, formatHHmm, formatPickupDate, formatWon } from '../format'
 import { customerMessage, paymentInterruptedMessage } from '../orderStatus'
@@ -160,6 +167,7 @@ function PickupNotice({ order }: { order: Order }) {
         {SAME_DAY_PICKUP_NOTICE.map((line) => (
           <p key={line}>{line}</p>
         ))}
+        {isMixedOrder(order) && <p className="pt-1 font-medium break-keep">{MIXED_ORDER_NOTICE}</p>}
       </div>
     )
   }

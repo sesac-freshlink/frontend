@@ -538,6 +538,21 @@ describe('마감세일 구매 시트', () => {
     expect(within(sheet).getByText(/합계 5개/)).toBeInTheDocument()
   })
 
+  it('마감세일과 일반을 같이 고르면 구매 버튼 위에 모두 당일 픽업이 된다는 한 줄을 보인다', async () => {
+    get.mockResolvedValue({ data: { ...clearanceMilk, clearanceQuantity: 5 } })
+    renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+    const notice =
+      '마감세일과 일반 상품을 같이 주문하면 모두 당일 픽업 주문이 돼요. 오늘 함께 받아 가 주세요.'
+
+    const sheet = await screen.findByRole('region', { name: '마감세일 30%' })
+    // 마감세일만 고른 처음 상태에서는 보이지 않는다
+    expect(within(sheet).queryByText(notice)).not.toBeInTheDocument()
+    await userEvent.click(within(sheet).getByRole('button', { name: '일반 한 개 더하기' }))
+    expect(within(sheet).getByText(notice)).toHaveClass('text-amber-800')
+    await userEvent.click(within(sheet).getByRole('button', { name: '일반 한 개 빼기' }))
+    expect(within(sheet).queryByText(notice)).not.toBeInTheDocument()
+  })
+
   it('기본 수량이 0이어도 마감세일만 살 수 있다', async () => {
     get.mockResolvedValue({ data: { ...clearanceMilk, availableQuantity: 0, nearestExpiry: null } })
     const router = renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
