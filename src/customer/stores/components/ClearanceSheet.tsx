@@ -1,8 +1,8 @@
-import { BuyBar } from './BuyBar'
+import { BuyBar, BuyButton } from './BuyBar'
 import { Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router'
 import { MAX_QUANTITY, type CheckoutItem } from '@/customer/order/checkout'
+import { useBuyNow } from '@/customer/order/useBuyNow'
 import { formatHHmm, formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import type { StoreProductDetail } from '../api'
@@ -10,7 +10,6 @@ import {
   canDecrease,
   canIncrease,
   CLEARANCE_DISCOUNT_PERCENT,
-  clearanceCheckoutPath,
   clearanceOf,
   initialSelection,
   selectionAmount,
@@ -20,8 +19,8 @@ import {
 } from '../clearance'
 
 /**
- * 마감세일 구매 시트. 기본(정가)과 마감세일 두 줄에서 수량을 고르고 주문 화면으로 간다.
- * 두 줄 합계 1~5개, 한 줄만 사도 된다. 그 사이 마감세일이 다 팔리면 주문이 실패하고 다시 고르게 된다(주문 화면이 안내한다).
+ * 마감세일 구매 시트. 기본(정가)과 마감세일 두 줄에서 수량을 고르고 [N원 구매하기]로 바로 주문을 만든다(주문·결제 화면은 11/11 없앴다).
+ * 두 줄 합계 1~5개, 한 줄만 사도 된다. 그 사이 마감세일이 다 팔리면 주문이 실패하고 결제 대기 화면이 어느 쪽이 모자란지 알리고 다시 고르게 한다.
  * 마감세일이 없으면(clearanceOf 가 null) 그리지 않는다
  */
 export function ClearanceSheet({
@@ -33,6 +32,7 @@ export function ClearanceSheet({
 }) {
   const clearance = clearanceOf(product)
   const [selection, setSelection] = useState<SheetSelection>(() => initialSelection(product))
+  const buyNow = useBuyNow()
   if (!clearance) return null
 
   const change = (row: SheetRow, delta: number) =>
@@ -85,24 +85,23 @@ export function ClearanceSheet({
         </span>
       </p>
 
-      {/* [구매하기]는 화면 아래 고정 띠에 둔다. 고른 수량이 그대로 넘어간다 */}
+      {/* [N원 구매하기]는 화면 아래 고정 띠에 둔다. 점포를 모르면(주소로 바로 들어옴) 누를 수 없다 */}
       <BuyBar>
-        {item ? (
-          <Link
-            to={clearanceCheckoutPath(item, selection)}
-            className="block rounded-lg bg-emerald-700 py-3 text-center text-sm font-medium text-white"
-          >
-            구매하기
-          </Link>
-        ) : (
-          <button
-            type="button"
-            disabled
-            className="w-full rounded-lg bg-emerald-700 py-3 text-sm font-medium text-white opacity-40"
-          >
-            구매하기
-          </button>
-        )}
+        <BuyButton
+          amount={selectionAmount(product, selection)}
+          pending={buyNow.pending}
+          disabled={!item}
+          onClick={() =>
+            item &&
+            void buyNow.buy({
+              storeId: item.storeId,
+              storeName: item.storeName,
+              productId: item.productId,
+              quantity: total,
+              clearanceQuantity: selection.clearance,
+            })
+          }
+        />
       </BuyBar>
     </section>
   )
@@ -131,7 +130,7 @@ function SheetRowView({
   onChange,
 }: RowProps) {
   const stepClass =
-    'flex size-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 disabled:opacity-40'
+    'flex size-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 disabled:opacity-40'
   return (
     <li className="flex items-center justify-between gap-3 py-2.5">
       <span className="min-w-0">

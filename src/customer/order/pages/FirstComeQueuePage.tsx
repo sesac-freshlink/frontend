@@ -1,15 +1,16 @@
 import { LoaderCircle, Users } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { apiErrorCode } from '@/shared/api/errors'
 import { useJoinQueue, useLeaveQueue, useQueueStatus, type QueueStatusResponse } from '../api'
-import { checkoutPath, parseCheckout, type CheckoutItem } from '../checkout'
+import { parseCheckout, productPath as productPathOf, type CheckoutItem } from '../checkout'
 import { firstComeErrorMessage } from '../firstCome'
+import { useBuyNow } from '../useBuyNow'
 
 /**
  * 선착순 대기 화면 (/customer/stores/:storeId/products/:productId/queue, 오픈런 문서 2장).
- * 들어오면 줄을 서고 2.5초마다 내 순번·앞에 남은 사람·남은 수량을 다시 읽는다. 차례가 오면(입장권 5분) 주문 화면으로 간다.
- * 상품 상세 [구매하기]가 checkoutPath 와 같은 쿼리로 보내 준다(frontend #60 queuePath)
+ * 들어오면 줄을 서고 2.5초마다 내 순번·앞에 남은 사람·남은 수량을 다시 읽는다. 차례가 오면(입장권 5분) 1개 주문을 만들고
+ * 결제 대기 화면으로 간다 (주문·결제 화면은 11/11 없앴다). 상품 상세 [구매하기]가 queuePath 쿼리로 보내 준다
  */
 export function FirstComeQueuePage() {
   const [params] = useSearchParams()
@@ -29,18 +30,17 @@ export function FirstComeQueuePage() {
   return <QueueView item={item} />
 }
 
-/** 선착순 상품은 1개만 살 수 있어 주문 화면 수량을 1로 묶는다 */
-function firstComeCheckoutPath(item: CheckoutItem): string {
-  return checkoutPath({ ...item, available: 1, firstCome: true })
-}
-
 function QueueView({ item }: { item: CheckoutItem }) {
   const navigate = useNavigate()
   const join = useJoinQueue(item.storeId, item.productId)
   const leave = useLeaveQueue(item.storeId, item.productId)
   const statusQuery = useQueueStatus(item.storeId, item.productId, join.isSuccess)
   const joined = useRef(false)
-  const productPath = `/customer/stores/${item.storeId}/products/${item.productId}`
+  const buyNow = useBuyNow()
+  // 차례가 와서 주문을 만들었다(한 번만). 실패하면 다시 누를 수 있게 false 로 돌린다
+  const ordering = useRef(false)
+  const [orderFailed, setOrderFailed] = useState(false)
+  const productPath = productPathOf(item)
 
   useEffect(() => {
     if (joined.current) return
@@ -53,13 +53,30 @@ function QueueView({ item }: { item: CheckoutItem }) {
   const ended = apiErrorCode(statusQuery.error) === 'NOT_FIRST_COME'
   const status: QueueStatusResponse | undefined = statusQuery.data ?? join.data
 
+  // 선착순이 아니면 상품 상세로 돌아가 수량을 고르게 한다
   useEffect(() => {
-    if (joinCode === 'NOT_FIRST_COME') navigate(checkoutPath(item), { replace: true })
-  }, [joinCode, item, navigate])
+    if (joinCode === 'NOT_FIRST_COME') navigate(productPath, { replace: true })
+  }, [joinCode, productPath, navigate])
 
+  // 선착순 상품은 한 사람이 1개만 산다. 차례가 오면 1개 주문을 만들고 결제 대기 화면으로 간다
+  const { buy } = buyNow
+  const { storeId, storeName, productId } = item
+  const order = useCallback(() => {
+    if (ordering.current) return
+    ordering.current = true
+    setOrderFailed(false)
+    void buy({ storeId, storeName, productId, quantity: 1 }, { replace: true }).then((ok) => {
+      if (ok) return
+      ordering.current = false
+      setOrderFailed(true)
+    })
+  }, [buy, storeId, storeName, productId])
+
+  const admitted = status?.status === 'ADMITTED'
+  // 실패한 뒤에는 저절로 다시 만들지 않고 [다시 주문하기]를 기다린다. ordering 이 같은 주문을 두 번 보내지 않게 막는다
   useEffect(() => {
-    if (status?.status === 'ADMITTED') navigate(firstComeCheckoutPath(item), { replace: true })
-  }, [status?.status, item, navigate])
+    if (admitted && !orderFailed) order()
+  }, [admitted, orderFailed, order])
 
   const rejoin = () => {
     join.mutate(undefined, { onSuccess: () => void statusQuery.refetch() })
@@ -102,7 +119,7 @@ function QueueView({ item }: { item: CheckoutItem }) {
         <p className="text-sm text-slate-500">이제 줄을 서지 않고 바로 주문할 수 있어요.</p>
         <button
           type="button"
-          onClick={() => navigate(checkoutPath(item), { replace: true })}
+          onClick={() => navigate(productPath, { replace: true })}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white"
         >
           주문하기
@@ -114,12 +131,31 @@ function QueueView({ item }: { item: CheckoutItem }) {
     )
   }
 
-  if (!status || status.status === 'ADMITTED') {
+  if (admitted && orderFailed) {
+    return (
+      <section className="space-y-4 py-10 text-center">
+        <p className="font-medium text-slate-900">차례예요! 주문을 만들지 못했어요</p>
+        <button
+          type="button"
+          onClick={order}
+          disabled={buyNow.pending}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          다시 주문하기
+        </button>
+        <Link to={productPath} className="block text-sm text-slate-500 underline">
+          상품으로 돌아가기
+        </Link>
+      </section>
+    )
+  }
+
+  if (!status || admitted) {
     return (
       <section className="flex flex-col items-center gap-3 py-16 text-slate-500">
         <LoaderCircle className="size-8 animate-spin text-emerald-600" />
         <p className="font-medium text-slate-900">
-          {status?.status === 'ADMITTED' ? '차례예요! 주문 화면으로 가요' : '줄을 서고 있어요'}
+          {admitted ? '차례예요! 결제 화면으로 가요' : '줄을 서고 있어요'}
         </p>
       </section>
     )
@@ -162,7 +198,7 @@ function QueueView({ item }: { item: CheckoutItem }) {
       )}
 
       <ul className="space-y-1 text-xs text-slate-500">
-        <li>차례가 오면 5분 안에 결제하기를 눌러야 해요.</li>
+        <li>차례가 오면 바로 결제 화면으로 가요. 10분 안에 결제해 주세요.</li>
         <li>한 사람이 1개만 살 수 있어요.</li>
         <li>이 화면을 떠나 30초가 지나면 줄에서 빠져요.</li>
       </ul>

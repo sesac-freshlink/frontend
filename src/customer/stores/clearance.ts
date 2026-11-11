@@ -1,4 +1,4 @@
-import { checkoutPath, MAX_QUANTITY, type CheckoutItem } from '@/customer/order/checkout'
+import { MAX_QUANTITY } from '@/customer/order/checkout'
 import type { StoreProduct } from './api'
 
 type ClearanceFields = Pick<
@@ -61,16 +61,4 @@ export function selectionAmount(
 ): number {
   const clearancePrice = clearanceOf(product)?.price ?? 0
   return product.price * selection.normal + clearancePrice * selection.clearance
-}
-
-/**
- * 시트에서 고른 수량으로 주문 화면 주소를 만든다. 주문 화면(경우님 checkoutPath) 쿼리 뒤에
- * quantity(두 줄 합계, RESERVE quantity 와 같은 뜻)와 clearanceQuantity(그중 마감세일)를 붙인다
- */
-export function clearanceCheckoutPath(item: CheckoutItem, selection: SheetSelection): string {
-  const q = new URLSearchParams({
-    quantity: String(selectionTotal(selection)),
-    clearanceQuantity: String(selection.clearance),
-  })
-  return `${checkoutPath(item)}&${q.toString()}`
 }

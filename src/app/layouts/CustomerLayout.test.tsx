@@ -32,9 +32,4 @@ describe('CustomerLayout 하단 메뉴', () => {
     renderAt('/customer/orders/pickup-qr')
     expect(ordersTab()).not.toHaveClass('font-semibold')
   })
-
-  it('주문·결제 화면(아직 주문 전)에서도 [주문 내역] 칸을 켜지 않는다', () => {
-    renderAt('/customer/orders/new?storeId=1')
-    expect(ordersTab()).not.toHaveClass('font-semibold')
-  })
 })

@@ -4,7 +4,7 @@ import type { ConfirmPaymentRequest } from './api'
 export const MIN_QUANTITY = 1
 export const MAX_QUANTITY = 5
 
-/** 상품 화면(U-10)에서 [바로 구매]를 누를 때 주문 화면으로 넘기는 값 */
+/** 상품 화면(U-10)에서 선착순 대기 화면으로 넘기는 값. 차례가 오면 대기 화면이 이 값으로 주문을 만든다 */
 export interface CheckoutItem {
   storeId: number
   storeName: string
@@ -12,27 +12,22 @@ export interface CheckoutItem {
   productName: string
   /** 표시용 단가. 실제 금액은 서버가 정한다 (OR-02 amount) */
   price: number
-  /** 구매 가능 수량. 알면 넘긴다 (수량 선택 상한) */
+  /** 구매 가능 수량. 알면 넘긴다 */
   available?: number
-  /** 상품 이미지 주소. 있으면 넘긴다 (주문 화면 표시용) */
+  /** 상품 이미지 주소. 있으면 넘긴다 */
   imageUrl?: string
-  /** 선착순 대기열에서 입장권을 받고 온 주문. 1개만 살 수 있다는 안내를 보여 준다 */
-  firstCome?: boolean
-  /** 마감세일 함께 사기: 시트에서 고른 전체 수량 (없으면 주문 화면에서 고른다) */
-  quantity?: number
-  /** 그중 마감세일 수량 */
-  clearanceQuantity?: number
-  /** 마감세일 단가. 주소로 받지 않고 주문 화면이 상품 API에서 읽어 채운다 (표시용, 실제 금액은 서버) */
-  clearancePrice?: number
-  /** 마감세일 남은 수. 주소로 받지 않고 주문 화면이 상품 API에서 읽어 채운다 (마감세일 줄 상한) */
-  clearanceAvailable?: number
+}
+
+/** 상품 상세 주소 (/customer/stores/:storeId/products/:productId) */
+export function productPath(item: Pick<CheckoutItem, 'storeId' | 'productId'>): string {
+  return `/customer/stores/${item.storeId}/products/${item.productId}`
 }
 
 /**
- * 주문·결제 화면 주소. 새로 고침해도 남도록 쿼리에 담는다 (개인 정보 없음).
- * 상품 화면은 이 함수로 주소를 만들어 이동한다: navigate(checkoutPath(item))
+ * 대기 화면 주소에 붙이는 쿼리. 새로 고침해도 남도록 쿼리에 담는다 (개인 정보 없음).
+ * 대기 화면은 parseCheckout 으로 읽는다
  */
-export function checkoutPath(item: CheckoutItem): string {
+export function checkoutQuery(item: CheckoutItem): string {
   const q = new URLSearchParams({
     storeId: String(item.storeId),
     storeName: item.storeName,
@@ -42,11 +37,7 @@ export function checkoutPath(item: CheckoutItem): string {
   })
   if (item.available !== undefined) q.set('available', String(item.available))
   if (item.imageUrl) q.set('imageUrl', item.imageUrl)
-  if (item.firstCome) q.set('firstCome', '1')
-  if (item.quantity !== undefined) q.set('quantity', String(item.quantity))
-  if (item.clearanceQuantity !== undefined)
-    q.set('clearanceQuantity', String(item.clearanceQuantity))
-  return `/customer/orders/new?${q.toString()}`
+  return q.toString()
 }
 
 function nonNegativeInt(value: string | null): number | undefined {
@@ -68,8 +59,6 @@ export function parseCheckout(q: URLSearchParams): CheckoutItem | null {
   if (!storeId || !productId || !price || !storeName || !productName) return null
 
   const available = nonNegativeInt(q.get('available'))
-  const quantity = positiveInt(q.get('quantity'))
-  const clearanceQuantity = nonNegativeInt(q.get('clearanceQuantity'))
   return {
     storeId,
     storeName,
@@ -77,9 +66,6 @@ export function parseCheckout(q: URLSearchParams): CheckoutItem | null {
     productName,
     price,
     ...(available !== undefined && { available }),
-    ...(q.get('firstCome') === '1' && { firstCome: true }),
-    ...(quantity !== undefined && { quantity }),
-    ...(clearanceQuantity !== undefined && { clearanceQuantity }),
   }
 }
 
