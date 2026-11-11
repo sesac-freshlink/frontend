@@ -4,18 +4,17 @@ import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/QueryState'
 import type { StoreSummary } from '../../api'
 import { nearestStores } from '../../homeRows'
 import { formatDistance } from '../../nearby'
-import type { PickupStore } from '../../pickupStore'
 import type { PositionState } from '../../useCurrentPosition'
 
 /**
  * 홈 ⑦ 내 주변 점포: 내 위치에서 가까운 3곳(같은 지역 점포 목록의 좌표로 거리 계산). 오른쪽에 거리.
- * 위치 권한을 거절했거나 위치를 못 얻으면 점포 검색으로 안내한다. 누르면 그 점포를 픽업 점포로 정하고 상품 목록으로 간다
+ * 위치 권한을 거절했거나 위치를 못 얻으면 점포 검색으로 안내한다. 누르면 그 점포 둘러보기(상품 목록)로만 간다.
+ * 픽업 점포는 둘러보기 화면의 [픽업 점포로 정하기]로만 정한다(11/11 경우 결정, 점포 검색과 같은 방식)
  */
 export function NearbyStores({
   position,
   stores,
   pickupId,
-  onPick,
 }: {
   position: PositionState
   stores: {
@@ -26,19 +25,18 @@ export function NearbyStores({
     isFetching: boolean
   }
   pickupId: number | undefined
-  onPick: (store: PickupStore) => void
 }) {
   return (
     <section aria-labelledby="home-nearby" className="space-y-2">
       <h2 id="home-nearby" className="text-lg font-bold text-slate-900">
         내 주변 점포
       </h2>
-      <NearbyBody position={position} stores={stores} pickupId={pickupId} onPick={onPick} />
+      <NearbyBody position={position} stores={stores} pickupId={pickupId} />
     </section>
   )
 }
 
-function NearbyBody({ position, stores, pickupId, onPick }: Parameters<typeof NearbyStores>[0]) {
+function NearbyBody({ position, stores, pickupId }: Parameters<typeof NearbyStores>[0]) {
   if (position.status === 'unavailable') {
     return (
       <div className="flex items-start gap-3 rounded-xl bg-white p-4 ring-1 ring-slate-200">
@@ -88,7 +86,6 @@ function NearbyBody({ position, stores, pickupId, onPick }: Parameters<typeof Ne
           <Link
             to={`/customer/stores/${store.storeId}`}
             state={{ storeName: store.name }}
-            onClick={() => onPick({ storeId: store.storeId, name: store.name })}
             className="flex min-h-14 items-center gap-3 px-4 py-2"
           >
             <span className="min-w-0 flex-1">

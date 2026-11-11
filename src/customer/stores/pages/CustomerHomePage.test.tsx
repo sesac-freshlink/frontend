@@ -189,15 +189,13 @@ describe('고객 홈 (U-01)', () => {
     expect(localStorage.getItem('freshlink.pickupStore')).toBeNull()
   })
 
-  it('임시 점포로 보다가 주변 점포를 누르면 그 점포를 픽업 점포로 저장한다', async () => {
+  it('주변 점포를 누르면 픽업 점포는 그대로 두고 그 점포 둘러보기로만 간다(11/11)', async () => {
     mockApi()
-    renderHome()
+    const router = renderHome()
     const nearby = await screen.findByRole('region', { name: '내 주변 점포' })
     await userEvent.click(await within(nearby).findByRole('link', { name: /프레시 역삼점/ }))
-    expect(JSON.parse(localStorage.getItem('freshlink.pickupStore') ?? 'null')).toEqual({
-      storeId: 2,
-      name: '프레시 역삼점',
-    })
+    await waitFor(() => expect(router.state.location.pathname).toBe('/customer/stores/2'))
+    expect(localStorage.getItem('freshlink.pickupStore')).toBeNull()
   })
 
   it('위치 답을 기다리는 동안 빈 화면 대신 자리표시를 보인다', async () => {
@@ -208,10 +206,15 @@ describe('고객 홈 (U-01)', () => {
     expect(get).not.toHaveBeenCalledWith('/stores/1/products')
   })
 
-  it('내 지역에 점포가 하나도 없을 때만 점포 고르기 안내를 보인다', async () => {
+  it('내 지역에 점포가 하나도 없을 때만 점포 찾기 안내를 보인다', async () => {
     mockApi({ stores: [] })
     const router = renderHome()
-    await userEvent.click(await screen.findByRole('link', { name: '점포 고르기' }))
+    expect(
+      await screen.findByText(
+        '점포 검색에서 다른 지역 점포를 찾아 [픽업 점포로 정하기]를 눌러 주세요.',
+      ),
+    ).toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('link', { name: '점포 찾기' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/customer/stores'))
   })
 

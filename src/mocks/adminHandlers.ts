@@ -17,6 +17,10 @@ const FIRST_STORES: Record<number, Pick<AdminStore, 'name' | 'address' | 'region
   1: { name: '프레시 강남점', address: '서울 강남구 테헤란로 1', region: 'SEOUL' },
   2: { name: '프레시 역삼점', address: '서울 강남구 역삼로 2', region: 'SEOUL' },
   3: { name: '프레시 해운대점', address: '부산 해운대구 해운대로 3', region: 'BUSAN' },
+  // 점포 검색 지도(11/11)에 핀이 여러 개 보이게 서울 점포 셋을 더 둔다
+  4: { name: '프레시 선릉점', address: '서울 강남구 선릉로 4', region: 'SEOUL' },
+  5: { name: '프레시 삼성점', address: '서울 강남구 삼성로 5', region: 'SEOUL' },
+  6: { name: '프레시 논현점', address: '서울 강남구 논현로 6', region: 'SEOUL' },
 }
 
 function seedStore(id: number): AdminStore {
@@ -51,7 +55,17 @@ function storeDetailSeed(
     : id === 2
       ? // 홈 '내 주변 점포' 거리가 두 곳 이상 보이게 역삼점에도 좌표를 둔다
         { latitude: 37.500622, longitude: 127.036456, description: null, imageUrl: null }
-      : { latitude: null, longitude: null, description: null, imageUrl: null }
+      : (MAP_SEED[id] ?? { latitude: null, longitude: null, description: null, imageUrl: null })
+}
+
+/** 점포 검색 지도용 좌표(11/11). 강남역 둘레 */
+const MAP_SEED: Record<
+  number,
+  Pick<AdminStore, 'latitude' | 'longitude' | 'description' | 'imageUrl'>
+> = {
+  4: { latitude: 37.504503, longitude: 127.049008, description: null, imageUrl: null },
+  5: { latitude: 37.508844, longitude: 127.06316, description: null, imageUrl: null },
+  6: { latitude: 37.511093, longitude: 127.021415, description: null, imageUrl: null },
 }
 
 /** 고객 점포 상세(memberHandlers)용: 운영 중 점포 한 건. 관리자 수정이 바로 보이게 같은 가짜 DB를 읽는다 */
