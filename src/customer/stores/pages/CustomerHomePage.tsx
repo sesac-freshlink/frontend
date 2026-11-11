@@ -1,137 +1,138 @@
-import { LoaderCircle, MapPin, Search, Store } from 'lucide-react'
+import { Search, Store } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate } from 'react-router'
+import { Link, Navigate, useNavigate } from 'react-router'
 import { useMyProfile } from '@/auth/api'
-import { DEFAULT_REGION, isRegionCode, REGIONS, type RegionCode } from '@/auth/regions'
+import { DEFAULT_REGION, isRegionCode, type RegionCode } from '@/auth/regions'
 import { FullScreenSpinner } from '@/shared/ui/FullScreenSpinner'
-import { STORE_KEYWORD_MAX, useStores } from '../api'
+import { PRODUCT_KEYWORD_MAX, useClearanceProducts, useStoreProducts, useStores } from '../api'
+import { CategoryGrid } from '../components/home/CategoryGrid'
+import { HomeBanner } from '../components/home/HomeBanner'
+import { NearbyStores } from '../components/home/NearbyStores'
+import { PickupStoreButton } from '../components/home/PickupStoreButton'
+import { ProductRail } from '../components/home/ProductRail'
+import { storeDistance } from '../homeRows'
+import { readPickupStore, savePickupStore, type PickupStore } from '../pickupStore'
+import { useCurrentPosition } from '../useCurrentPosition'
 
-/** U-01 고객 홈: 거주 지역의 점포를 보여 주고 지역·검색어로 다시 찾는다 */
+/**
+ * U-01 고객 홈 (/customer). 위에서 아래로: 픽업 점포 한 줄 → 메인 배너 → 카테고리 4×2 → 점포 상품 검색 →
+ * 상품 줄 3개(오늘 마감세일·점주 추천·신상품) → 내 주변 점포. 로고·알림 종·하단 메뉴는 CustomerLayout 이 그린다.
+ * 픽업 점포를 아직 안 골랐으면 점포 고르기 안내만 보인다. 점포 찾기는 하단 메뉴 [점포 검색](StoreSearchPage)으로 옮겼다
+ */
 export function CustomerHomePage() {
   const profile = useMyProfile()
+  const [pickup, setPickup] = useState<PickupStore | null>(readPickupStore)
 
   if (profile.isPending) return <FullScreenSpinner />
   // 로그인했는데 프로필이 없으면 프로필 등록 마무리 화면으로 (기능명세 M1)
   if (profile.data === null) return <Navigate to="/signup" replace />
 
+  if (pickup === null) return <ChooseStore />
+
   const me = profile.data?.role === 'CUSTOMER' ? profile.data : undefined
-  const myRegion = me && isRegionCode(me.region) ? me.region : DEFAULT_REGION
-  return <StoreSearch initialRegion={myRegion} nickname={me?.nickname} />
+  const region = me && isRegionCode(me.region) ? me.region : DEFAULT_REGION
+  return (
+    <Home
+      pickup={pickup}
+      region={region}
+      onPick={(store) => {
+        savePickupStore(store)
+        setPickup(store)
+      }}
+    />
+  )
 }
 
-function StoreSearch({
-  initialRegion,
-  nickname,
-}: {
-  initialRegion: RegionCode
-  nickname: string | undefined
-}) {
-  const [region, setRegion] = useState<RegionCode>(initialRegion)
-  const [draft, setDraft] = useState('')
-  const [keyword, setKeyword] = useState('')
-  const stores = useStores({ region, keyword })
-
-  const onSearch = (e: FormEvent) => {
-    e.preventDefault()
-    setKeyword(draft)
-  }
-
+/** 픽업 점포를 고르기 전: 홈의 다른 칸은 점포마다 달라 보여 줄 수 없어 고르기 안내만 둔다 */
+function ChooseStore() {
   return (
-    <section className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">
-          {nickname ? `${nickname}님, 가까운 점포를 골라 보세요` : '점포 찾기'}
+    <section aria-labelledby="choose-store" className="space-y-4 py-12 text-center">
+      <Store className="mx-auto size-10 text-emerald-700" strokeWidth={1.5} aria-hidden />
+      <div className="space-y-1">
+        <h1 id="choose-store" className="text-xl font-bold text-slate-900">
+          픽업할 점포를 먼저 골라 주세요
         </h1>
-        <p className="text-sm text-slate-500">점포를 고르고 바로 구매한 뒤 매장에서 픽업해요</p>
+        <p className="text-sm text-slate-600">
+          고른 점포의 마감세일과 상품을 여기서 바로 볼 수 있어요.
+        </p>
       </div>
-
-      <form onSubmit={onSearch} className="space-y-2" role="search">
-        <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
-          <MapPin className="size-4 shrink-0 text-slate-400" />
-          <span className="sr-only">지역</span>
-          <select
-            value={region}
-            onChange={(e) => {
-              if (isRegionCode(e.target.value)) setRegion(e.target.value)
-            }}
-            className="w-full bg-white text-sm text-slate-900 outline-none"
-          >
-            {REGIONS.map((r) => (
-              <option key={r.code} value={r.code}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="flex gap-2">
-          <label className="flex flex-1 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
-            <Search className="size-4 shrink-0 text-slate-400" />
-            <span className="sr-only">검색어</span>
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              maxLength={STORE_KEYWORD_MAX}
-              placeholder="점포명이나 주소"
-              className="w-full text-sm text-slate-900 outline-none"
-            />
-          </label>
-          <button
-            type="submit"
-            className="shrink-0 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white"
-          >
-            검색
-          </button>
-        </div>
-      </form>
-
-      <StoreList stores={stores} />
+      <Link
+        to="/customer/stores"
+        className="inline-flex min-h-12 items-center rounded-xl bg-emerald-700 px-6 text-base font-semibold text-white hover:bg-emerald-800"
+      >
+        점포 고르기
+      </Link>
     </section>
   )
 }
 
-function StoreList({ stores }: { stores: ReturnType<typeof useStores> }) {
-  if (stores.isPending) {
-    return (
-      <div className="flex justify-center py-10 text-slate-400">
-        <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
-      </div>
-    )
-  }
-  if (stores.isError) {
-    return (
-      <div className="space-y-2 py-10 text-center">
-        <p className="text-sm text-red-600">점포를 불러오지 못했어요.</p>
-        <button
-          type="button"
-          onClick={() => void stores.refetch()}
-          className="text-sm text-slate-500 underline"
-        >
-          다시 시도
-        </button>
-      </div>
-    )
-  }
-  if (stores.data.length === 0) {
-    return <p className="py-10 text-center text-sm text-slate-500">검색 결과가 없습니다.</p>
-  }
+function Home({
+  pickup,
+  region,
+  onPick,
+}: {
+  pickup: PickupStore
+  region: RegionCode
+  onPick: (store: PickupStore) => void
+}) {
+  const { storeId, name } = pickup
+  const position = useCurrentPosition(true)
+  const stores = useStores({ region, keyword: '' })
+  const origin = position.status === 'ok' ? position.position : null
+  const distance = storeDistance(
+    stores.data?.find((s) => s.storeId === storeId),
+    origin,
+  )
+  const clearance = useClearanceProducts(storeId)
+  const recommended = useStoreProducts(storeId, { recommendedOnly: true })
+  const newArrivals = useStoreProducts(storeId, { newOnly: true })
 
   return (
-    <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
-      {stores.data.map((s) => (
-        <li key={s.storeId}>
-          <Link
-            to={`/customer/stores/${s.storeId}`}
-            state={{ storeName: s.name }}
-            className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50"
-          >
-            <Store className="mt-0.5 size-5 shrink-0 text-emerald-600" />
-            <span className="min-w-0">
-              <span className="block font-medium text-slate-900">{s.name}</span>
-              <span className="block truncate text-sm text-slate-500">{s.address}</span>
-            </span>
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-6">
+      <h1 className="sr-only">freshLink 홈</h1>
+      <PickupStoreButton store={pickup} distanceKm={distance} />
+      <HomeBanner />
+      <CategoryGrid storeId={storeId} storeName={name} />
+      <ProductSearch storeId={storeId} storeName={name} />
+      <ProductRail kind="clearance" storeId={storeId} storeName={name} query={clearance} />
+      <ProductRail kind="recommended" storeId={storeId} storeName={name} query={recommended} />
+      <ProductRail kind="new" storeId={storeId} storeName={name} query={newArrivals} />
+      <NearbyStores position={position} stores={stores} pickupId={storeId} onPick={onPick} />
+    </div>
+  )
+}
+
+/** 홈 ⑤ 픽업 점포 상품 검색. 검색하면 그 점포 상품 목록을 검색어(?q=)와 함께 연다 */
+function ProductSearch({ storeId, storeName }: { storeId: number; storeName: string }) {
+  const navigate = useNavigate()
+  const [draft, setDraft] = useState('')
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    const q = draft.trim()
+    navigate(`/customer/stores/${storeId}${q ? `?q=${encodeURIComponent(q)}` : ''}`, {
+      state: { storeName },
+    })
+  }
+  return (
+    <form onSubmit={onSubmit} role="search">
+      <label className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white pr-1 pl-3 focus-within:border-emerald-700 focus-within:ring-1 focus-within:ring-emerald-700">
+        <Search className="size-4 shrink-0 text-slate-600" aria-hidden />
+        <span className="sr-only">{storeName} 상품 검색</span>
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          maxLength={PRODUCT_KEYWORD_MAX}
+          placeholder={`${storeName} 상품 검색`}
+          enterKeyHint="search"
+          className="min-h-12 w-full min-w-0 text-base text-slate-900 outline-none placeholder:text-slate-600"
+        />
+        <button
+          type="submit"
+          className="min-h-11 shrink-0 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
+        >
+          검색
+        </button>
+      </label>
+    </form>
   )
 }

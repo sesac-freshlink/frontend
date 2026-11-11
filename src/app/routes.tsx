@@ -16,10 +16,12 @@ import { FirstComeQueuePage } from '@/customer/order/pages/FirstComeQueuePage'
 import { OrderDetailPage } from '@/customer/order/pages/OrderDetailPage'
 import { OrderHistoryPage } from '@/customer/order/pages/OrderHistoryPage'
 import { PickupQrPage } from '@/customer/order/pages/PickupQrPage'
+import { CategoriesPage } from '@/customer/stores/pages/CategoriesPage'
 import { CustomerHomePage } from '@/customer/stores/pages/CustomerHomePage'
 import { StoreDetailPage } from '@/customer/stores/pages/StoreDetailPage'
 import { StoreProductDetailPage } from '@/customer/stores/pages/StoreProductDetailPage'
 import { StoreProductsPage } from '@/customer/stores/pages/StoreProductsPage'
+import { StoreSearchPage } from '@/customer/stores/pages/StoreSearchPage'
 import { ExpiringPage } from '@/owner/inventory/pages/ExpiringPage'
 import { InventoryPage } from '@/owner/inventory/pages/InventoryPage'
 import { LedgerPage } from '@/owner/inventory/pages/LedgerPage'
@@ -71,7 +73,9 @@ export const routes: RouteObject[] = [
         element: <CustomerLayout />,
         children: [
           { index: true, element: <CustomerHomePage /> },
+          { path: 'stores', element: <StoreSearchPage /> },
           { path: 'stores/:storeId', element: <StoreProductsPage /> },
+          { path: 'stores/:storeId/categories', element: <CategoriesPage /> },
           { path: 'stores/:storeId/info', element: <StoreDetailPage /> },
           { path: 'stores/:storeId/products/:productId', element: <StoreProductDetailPage /> },
           { path: 'stores/:storeId/products/:productId/queue', element: <FirstComeQueuePage /> },

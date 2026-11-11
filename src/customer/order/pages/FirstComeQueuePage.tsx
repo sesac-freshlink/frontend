@@ -20,7 +20,7 @@ export function FirstComeQueuePage() {
         <p className="text-sm text-slate-500">
           상품 정보를 찾을 수 없어요. 상품을 다시 골라 주세요.
         </p>
-        <Link to="/customer" className="text-sm text-emerald-600 underline">
+        <Link to="/customer/stores" className="text-sm text-emerald-600 underline">
           점포 찾기로
         </Link>
       </section>

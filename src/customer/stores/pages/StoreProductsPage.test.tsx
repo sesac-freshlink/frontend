@@ -75,12 +75,23 @@ function renderAt(path: string, state?: { storeName: string }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createMemoryRouter(
     [
-      { path: '/customer', element: <p>점포 찾기 화면</p> },
+      { path: '/customer/stores', element: <p>점포 찾기 화면</p> },
       { path: '/customer/stores/:storeId', element: <StoreProductsPage /> },
       { path: '/customer/stores/:storeId/products/:productId', element: <p>상품 상세 화면</p> },
       { path: '/customer/orders/:id', element: <p>주문·결제 화면</p> },
     ],
-    { initialEntries: [state ? { pathname: path, state } : path] },
+    // 주소에 ?조건이 있으면 pathname·search 로 나눠 넘긴다(state 를 같이 넘길 때)
+    {
+      initialEntries: [
+        state
+          ? {
+              pathname: path.split('?')[0],
+              search: path.includes('?') ? `?${path.split('?')[1]}` : '',
+              state,
+            }
+          : path,
+      ],
+    },
   )
   render(
     <QueryClientProvider client={queryClient}>
@@ -329,6 +340,42 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     // 마감세일이 없는 상품에는 붙지 않는다
     const sandwich = screen.getByText('샌드위치 햄치즈').closest('li')!
     expect(within(sandwich).queryByText(/마감세일/)).not.toBeInTheDocument()
+  })
+
+  it('홈에서 넘어온 검색어(?q)·카테고리(?category)로 시작한다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt(
+      `/customer/stores/1?q=${encodeURIComponent('컵라면')}&category=${encodeURIComponent('라면')}`,
+      {
+        storeName: '프레시 강남점',
+      },
+    )
+    expect(await screen.findByRole('textbox', { name: '상품 검색어' })).toHaveValue('컵라면')
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/stores/1/products', {
+        params: { q: '컵라면', category: '라면', page: 0, size: 20 },
+      }),
+    )
+  })
+
+  it('홈 [전체 보기](?show=clearance)로 들어오면 마감세일 칩이 켜지고 마감세일 상품만 보인다', async () => {
+    serve(() =>
+      Promise.resolve({
+        data: [
+          {
+            ...products[0],
+            clearanceQuantity: 2,
+            clearancePrice: 1190,
+            clearanceExpiry: '2099-12-30T23:59:59+09:00',
+          },
+          products[1],
+        ],
+      }),
+    )
+    renderAt('/customer/stores/1?show=clearance', { storeName: '프레시 강남점' })
+    expect(await screen.findByText('매운 컵라면 115g')).toBeInTheDocument()
+    expect(screen.queryByText('샌드위치 햄치즈')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '마감세일' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('20개가 넘으면 [더 보기]로 다음 묶음을 이어 붙이고, 마지막 묶음이면 버튼이 사라진다', async () => {

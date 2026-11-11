@@ -37,7 +37,7 @@ function seedStore(id: number): AdminStore {
   }
 }
 
-/** 1번 점포만 점포 상세 값(좌표·설명·이미지)을 채워 둔다. 고객 점포 상세(memberHandlers)가 같은 값을 읽는다 */
+/** 1번 점포는 점포 상세 값(좌표·설명·이미지)을, 2번 점포는 좌표만 채워 둔다. 고객 점포 상세(memberHandlers)가 같은 값을 읽는다 */
 function storeDetailSeed(
   id: number,
 ): Pick<AdminStore, 'latitude' | 'longitude' | 'description' | 'imageUrl'> {
@@ -48,7 +48,10 @@ function storeDetailSeed(
         description: '강남역 11번 출구에서 200m. 24시간 운영해요',
         imageUrl: '/mock-store.svg',
       }
-    : { latitude: null, longitude: null, description: null, imageUrl: null }
+    : id === 2
+      ? // 홈 '내 주변 점포' 거리가 두 곳 이상 보이게 역삼점에도 좌표를 둔다
+        { latitude: 37.500622, longitude: 127.036456, description: null, imageUrl: null }
+      : { latitude: null, longitude: null, description: null, imageUrl: null }
 }
 
 /** 고객 점포 상세(memberHandlers)용: 운영 중 점포 한 건. 관리자 수정이 바로 보이게 같은 가짜 DB를 읽는다 */
