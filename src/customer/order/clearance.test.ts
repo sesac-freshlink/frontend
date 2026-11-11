@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { lineText, quantityText, shortageMessage } from './clearance'
+import { isMixedOrder, lineText, quantityText, shortageMessage } from './clearance'
 
 describe('마감세일 문구', () => {
   it('줄 문구와 목록 수량 문구', () => {
@@ -45,5 +45,12 @@ describe('마감세일 문구', () => {
         availableQuantity: 1,
       }),
     ).toBeNull()
+  })
+
+  it('마감세일과 일반이 둘 다 1개 이상일 때만 섞인 주문이다', () => {
+    expect(isMixedOrder({ quantity: 2, clearanceQuantity: 1 })).toBe(true)
+    expect(isMixedOrder({ quantity: 2, clearanceQuantity: 2 })).toBe(false)
+    expect(isMixedOrder({ quantity: 2, clearanceQuantity: 0 })).toBe(false)
+    expect(isMixedOrder({ quantity: 2 })).toBe(false)
   })
 })

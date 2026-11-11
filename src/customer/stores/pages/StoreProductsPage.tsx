@@ -551,8 +551,14 @@ function ProductCard({
             left <= LOW_STOCK ? 'font-medium text-red-700' : 'text-slate-600',
           )}
         >
-          {left}개 남았어요
-          {clearance && ` · 마감세일 ${clearance.quantity}개`}
+          {/* 숫자와 "개"가 줄바꿈으로 떨어지지 않게 묶음마다 줄바꿈을 막는다(11/11 dev 확인) */}
+          <span className="whitespace-nowrap">{left}개 남았어요</span>
+          {clearance && (
+            <>
+              {' · '}
+              <span className="whitespace-nowrap">마감세일 {clearance.quantity}개</span>
+            </>
+          )}
         </span>
       )}
       <ExpiryBadge nearestExpiry={product.nearestExpiry} />

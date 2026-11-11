@@ -398,13 +398,16 @@ describe('마감세일 함께 사기', () => {
 
     expect(await screen.findByText('마감세일 1개 3,490원')).toBeInTheDocument()
     expect(screen.getByText('기본 1개 4,990원')).toBeInTheDocument()
-    // 마감세일 안내는 두 줄 (11/11 경우 문구)
+    // 마감세일 안내는 문장마다 한 줄씩 세 줄 (11/11 경우 문구)
+    expect(screen.getByText('마감 세일 제품은 당일 픽업이 원칙이에요.')).toBeInTheDocument()
+    expect(screen.getByText('오늘 23시 59분까지 픽업해 주세요.')).toBeInTheDocument()
+    expect(screen.getByText('미픽업 시 환불되지 않으며, 물품은 폐기 처리돼요.')).toBeInTheDocument()
+    // 마감세일 1 + 일반 1 로 섞인 주문이라 모두 당일 픽업이 된다는 줄을 더한다
     expect(
       screen.getByText(
-        '마감 세일 제품은 당일 픽업이 원칙이에요. 오늘 23시 59분까지 픽업해 주세요.',
+        '마감세일과 일반 상품을 같이 주문하면 모두 당일 픽업 주문이 돼요. 오늘 함께 받아 가 주세요.',
       ),
     ).toBeInTheDocument()
-    expect(screen.getByText('미픽업 시 환불되지 않으며, 물품은 폐기 처리돼요.')).toBeInTheDocument()
   })
 
   it('마감세일이 끝나 실패하면 남은 수를 알려 주고 다시 고르기는 상품 상세로 간다', async () => {

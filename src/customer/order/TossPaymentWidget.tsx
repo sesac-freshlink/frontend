@@ -8,8 +8,12 @@ import {
 import { LoaderCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { toast } from 'sonner'
 import { successUrlFor } from './checkout'
 import { formatWon } from './format'
+
+/** 필수 약관에 동의하지 않고 [결제하기]를 눌렀을 때 (11/11 경우 문구) */
+export const AGREEMENT_REQUIRED_MESSAGE = '필수 약관에 동의해야 구매할 수 있어요.'
 
 const rawClientKey: unknown = import.meta.env.VITE_TOSS_CLIENT_KEY
 /** 결제위젯 연동 키(gck). 빌드 때 frontend-deploy 가 넣는다. 로컬에서 없으면 개발용 가짜 결제를 쓴다 */
@@ -38,7 +42,8 @@ export function TossPaymentWidget(props: Props) {
   )
 }
 
-function RealWidget({
+/** 실제 토스 결제위젯. 테스트가 키를 직접 넘겨 그릴 수 있게 내보낸다 */
+export function RealWidget({
   clientKey,
   orderId,
   orderNo,
@@ -51,6 +56,10 @@ function RealWidget({
   const [ready, setReady] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [requesting, setRequesting] = useState(false)
+  // 토스 약관 UI 의 필수 약관 동의 상태(agreementStatusChange). 이벤트가 오기 전에는 모르므로 null(토스가 결제 요청 때 다시 본다)
+  const agreedRef = useRef<boolean | null>(null)
+  const agreementElRef = useRef<HTMLElement | null>(null)
+  const [agreementError, setAgreementError] = useState(false)
 
   useEffect(() => {
     const container = containerRef.current
@@ -72,6 +81,12 @@ function RealWidget({
         await widgets.setAmount({ currency: 'KRW', value: amount })
         methods = await widgets.renderPaymentMethods({ selector: `#${id}-methods` })
         agreement = await widgets.renderAgreement({ selector: `#${id}-agreement` })
+        // 필수 약관 동의를 지켜본다. 동의하면 빨간 안내를 지운다(토스 SDK WidgetAgreementWidget.on)
+        agreement.on('agreementStatusChange', (status) => {
+          agreedRef.current = status.agreedRequiredTerms
+          if (status.agreedRequiredTerms) setAgreementError(false)
+        })
+        agreementElRef.current = document.getElementById(`${id}-agreement`)
         if (cancelled) {
           // 그리는 도중에 화면을 떠났으면 정리 함수가 이미 돌았으니 여기서 지운다
           void methods.destroy().catch(() => undefined)
@@ -88,6 +103,8 @@ function RealWidget({
     return () => {
       cancelled = true
       widgetsRef.current = undefined
+      agreedRef.current = null
+      agreementElRef.current = null
       setReady(false)
       void methods?.destroy().catch(() => undefined)
       void agreement?.destroy().catch(() => undefined)
@@ -98,6 +115,18 @@ function RealWidget({
   const pay = async () => {
     const widgets = widgetsRef.current
     if (!widgets) return
+    // 필수 약관에 동의하지 않았으면 결제창을 열지 않고 알린다(버튼은 누를 수 있게 둔다, 11/11 경우 결정)
+    if (agreedRef.current === false) {
+      setAgreementError(true)
+      toast.error(AGREEMENT_REQUIRED_MESSAGE)
+      const el = agreementElRef.current
+      if (el) {
+        el.tabIndex = -1
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        el.focus({ preventScroll: true })
+      }
+      return
+    }
     setRequesting(true)
     const returnUrl = successUrlFor(orderId, window.location.origin)
     try {
@@ -118,6 +147,10 @@ function RealWidget({
   return (
     <div className="space-y-3">
       <div ref={containerRef} />
+      {/* 약관 UI 바로 아래 빨간 안내 한 줄. 화면 읽기 프로그램에도 바로 읽힌다 */}
+      <p aria-live="assertive" className="text-sm font-medium text-red-700 empty:hidden">
+        {agreementError ? AGREEMENT_REQUIRED_MESSAGE : ''}
+      </p>
       {!ready && !loadFailed && (
         <div className="flex justify-center py-6 text-slate-400">
           <LoaderCircle className="size-6 animate-spin" aria-label="결제 수단 불러오는 중" />
