@@ -17,7 +17,11 @@ export function WithdrawalPage() {
   return (
     <section className="space-y-5">
       <div className="flex items-center gap-2">
-        <Link to="/customer/my" aria-label="마이페이지로" className="text-slate-500">
+        <Link
+          to="/customer/my"
+          aria-label="마이페이지로"
+          className="-ml-3 flex size-11 items-center justify-center text-slate-500"
+        >
           <ChevronLeft className="size-5" />
         </Link>
         <h1 className="text-xl font-bold text-slate-900">회원탈퇴</h1>
@@ -58,7 +62,7 @@ export function WithdrawalPage() {
             type="button"
             onClick={flow.askConfirm}
             disabled={!flow.acknowledged}
-            className="w-full rounded-lg bg-red-600 py-2 font-medium text-white disabled:opacity-50"
+            className="min-h-11 w-full rounded-lg bg-red-600 py-2 font-medium text-white disabled:opacity-50"
           >
             탈퇴하기
           </button>
@@ -73,7 +77,7 @@ export function WithdrawalPage() {
               type="button"
               onClick={flow.back}
               disabled={flow.submitting}
-              className="flex-1 rounded-lg border border-slate-300 bg-white py-2 text-sm text-slate-600"
+              className="min-h-11 flex-1 rounded-lg border border-slate-300 bg-white py-2 text-sm text-slate-600"
             >
               취소
             </button>
@@ -81,7 +85,7 @@ export function WithdrawalPage() {
               type="button"
               onClick={() => void flow.withdraw()}
               disabled={flow.submitting}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {flow.submitting && <LoaderCircle className="size-4 animate-spin" />}
               탈퇴

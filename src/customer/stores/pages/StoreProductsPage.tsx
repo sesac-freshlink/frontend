@@ -5,6 +5,7 @@ import {
   Info,
   LayoutGrid,
   LoaderCircle,
+  MapPinCheck,
   Percent,
   RefreshCw,
   Search,
@@ -48,7 +49,7 @@ import { useStoreName } from '../useStoreName'
  * 상품을 전부 보여 주고 품절은 흐리게 둔다.
  * 위 검색창에 상품명을 넣고 검색을 누르면 서버가 거른 목록을 보여 준다. 카테고리 칩, 추천상품·신상품만 보기,
  * 이름순·추천순(최근 7일 많이 팔린 순) 정렬도 서버가 처리한다. 상품마다 추천·신상품·선착순 배지가 붙는다.
- * 상품을 누르면 상품 상세로 가고, 거기서 구매하기를 누르면 주문·결제 화면(U-21)으로 넘어간다. 폴링하지 않고 들어올 때·검색할 때·새로고침 때만 읽는다.
+ * 상품을 누르면 상품 상세로 가고, 거기서 수량을 고르고 [N원 구매하기]를 누르면 바로 결제 대기로 넘어간다. 폴링하지 않고 들어올 때·검색할 때·새로고침 때만 읽는다.
  * 상품은 묶음(20개)씩 불러오고, 목록 끝이 보이면 다음 묶음을 이어 붙인다(무한 스크롤). 키보드로도 [더 보기]로 이어 볼 수 있다.
  * 화면 맨 위에서 아래로 당겼다 놓으면 상품과 카테고리를 다시 읽는다(당겨서 새로고침)
  */
@@ -225,14 +226,16 @@ function StoreHeader({
     <div className="space-y-1">
       <Link
         to={fromSearch ? '/customer/stores' : '/customer'}
-        className="-ml-1 inline-flex min-h-11 items-center gap-1 pr-2 text-sm text-slate-600"
+        className="-ml-1 inline-flex min-h-11 min-w-11 items-center gap-1 pr-2 text-sm text-slate-600"
       >
         <ChevronLeft className="size-4" aria-hidden />
         {fromSearch ? '점포 검색' : '홈'}
       </Link>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-bold text-slate-900">{storeName ?? '점포 상품'}</h1>
+          <h1 className="text-xl font-bold break-keep text-slate-900">
+            {storeName ?? '점포 상품'}
+          </h1>
           <div className="flex flex-wrap items-center gap-x-3">
             <Link
               to={`/customer/stores/${storeId}/info`}
@@ -261,7 +264,8 @@ function StoreHeader({
 
 /**
  * 둘러보기 화면에서 이 점포를 내 픽업 점포로 정한다(11/11 경우 결정). 누르면 이 기기에 저장하고 짧게 알린다.
- * 이미 내 픽업 점포면 버튼 대신 "내 픽업 점포" 표시만 보인다
+ * 이미 내 픽업 점포면 버튼 대신 "내 픽업 점포" 표시만 보인다.
+ * 옆 "점포 정보·위치" 링크와 같은 높이·글자 크기의 글자 버튼이다(누르는 칸은 44px)
  */
 function PickupControl({ storeId, storeName }: { storeId: number; storeName: string }) {
   const [pickup, setPickup] = useState<PickupStore | null>(readPickupStore)
@@ -281,8 +285,9 @@ function PickupControl({ storeId, storeName }: { storeId: number; storeName: str
         setPickup(store)
         toast.success('픽업 점포로 정했어요')
       }}
-      className="inline-flex min-h-11 items-center rounded-full border border-emerald-700 px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+      className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-emerald-700 underline-offset-2 hover:underline"
     >
+      <MapPinCheck className="size-4" aria-hidden />
       픽업 점포로 정하기
     </button>
   )
@@ -405,7 +410,7 @@ function ProductList({
           <button
             type="button"
             onClick={onClearSearch}
-            className="text-sm text-emerald-600 underline"
+            className="text-sm text-emerald-700 underline hover:text-emerald-800"
           >
             전체 상품 보기
           </button>
@@ -586,7 +591,7 @@ function SortSelect({
       <select
         value={sort}
         onChange={(e) => onChange(e.target.value as StoreProductSort)}
-        className="min-h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
+        className="min-h-11 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
       >
         <option value="NAME">이름순</option>
         <option value="POPULAR">추천순</option>
@@ -599,7 +604,10 @@ function BackToHome({ message }: { message: string }) {
   return (
     <section className="space-y-3 py-6 text-center">
       <p className="text-sm text-slate-500">{message}</p>
-      <Link to="/customer/stores" className="text-sm text-emerald-600 underline">
+      <Link
+        to="/customer/stores"
+        className="text-sm text-emerald-700 underline hover:text-emerald-800"
+      >
         점포 찾기로
       </Link>
     </section>
@@ -622,8 +630,8 @@ function Chip({
       aria-pressed={pressed}
       onClick={onClick}
       className={cn(
-        'shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-slate-600',
-        pressed && 'border-emerald-600 bg-emerald-600 text-white',
+        'min-h-11 min-w-11 shrink-0 rounded-full border border-slate-200 px-3 text-slate-600',
+        pressed && 'border-emerald-700 bg-emerald-700 text-white',
       )}
     >
       {label}

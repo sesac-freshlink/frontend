@@ -12,7 +12,10 @@ export function ReceiptLink({ url, className }: { url: string | null; className?
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={cn('inline-flex items-center gap-1 text-sm text-emerald-600 underline', className)}
+      className={cn(
+        'inline-flex items-center gap-1 text-sm text-emerald-700 underline hover:text-emerald-800',
+        className,
+      )}
     >
       영수증 보기
       <ExternalLink className="size-3.5" aria-hidden />

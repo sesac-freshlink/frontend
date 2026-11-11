@@ -36,7 +36,10 @@ export function StoreProductDetailPage() {
     return (
       <section className="space-y-3 py-6 text-center">
         <p className="text-sm text-slate-500">상품 주소가 올바르지 않아요.</p>
-        <Link to="/customer/stores" className="text-sm text-emerald-600 underline">
+        <Link
+          to="/customer/stores"
+          className="text-sm text-emerald-700 underline hover:text-emerald-800"
+        >
           점포 찾기로
         </Link>
       </section>
@@ -61,9 +64,9 @@ function ProductDetail({ storeId, productId }: { storeId: number; productId: num
       <PullIndicator pull={pull} ready={ready} />
       <Link
         to={`/customer/stores/${storeId}`}
-        className="inline-flex items-center gap-1 text-sm text-slate-500"
+        className="-ml-1 inline-flex min-h-11 items-center gap-1 pr-2 text-sm text-slate-500"
       >
-        <ChevronLeft className="size-4" />
+        <ChevronLeft className="size-4" aria-hidden />
         상품 목록
       </Link>
       {product.isPending ? (
@@ -199,7 +202,7 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
           <button
             type="button"
             disabled
-            className="w-full rounded-lg bg-emerald-600 py-3 text-sm font-medium text-white opacity-40"
+            className="w-full rounded-lg bg-emerald-700 py-3 text-sm font-medium text-white opacity-40"
           >
             {product.soldOut ? '품절' : '구매하기'}
           </button>
@@ -207,7 +210,10 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
           {!product.soldOut && (
             <p className="text-sm text-slate-500">
               점포 찾기에서 점포를 다시 골라 주세요.{' '}
-              <Link to="/customer/stores" className="text-emerald-600 underline">
+              <Link
+                to="/customer/stores"
+                className="text-emerald-700 underline hover:text-emerald-800"
+              >
                 점포 찾기로
               </Link>
             </p>

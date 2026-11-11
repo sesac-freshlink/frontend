@@ -77,7 +77,7 @@ export function ConfirmDialog({
           aria-busy={pending}
           className={cn(
             'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50',
-            tone === 'danger' ? 'bg-red-600' : 'bg-emerald-600',
+            tone === 'danger' ? 'bg-red-600' : 'bg-emerald-700',
           )}
         >
           {pending && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}

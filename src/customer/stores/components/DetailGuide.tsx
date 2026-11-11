@@ -1,3 +1,4 @@
+import { SAME_DAY_PICKUP_NOTICE } from '@/customer/order/clearance'
 import { ChevronDown } from 'lucide-react'
 import { useId, useState, type ReactNode } from 'react'
 import { cn } from '@/shared/ui/cn'
@@ -16,10 +17,17 @@ export function DetailGuide({ clearance, firstCome }: { clearance: boolean; firs
     >
       <GuideRow title="이용 안내">
         {clearance && (
-          <li className="font-medium text-slate-900">
-            마감세일 상품은 유통기한이 하루 안 남은 상품이라 30% 싸게 팔아요. 06~23시에만 팔고, 오늘
-            23:59까지 받아 가야 해요. 마감세일이 들어간 주문은 결제하면 바로 픽업 신청돼요.
-          </li>
+          <>
+            <li className="font-medium text-slate-900">
+              마감세일 상품은 유통기한이 하루 안 남은 상품이라 30% 싸게 팔아요. 06~23시에만 팔고,
+              마감세일이 들어간 주문은 결제하면 바로 픽업 신청돼요.
+            </li>
+            {SAME_DAY_PICKUP_NOTICE.map((line) => (
+              <li key={line} className="font-medium text-red-700">
+                {line}
+              </li>
+            ))}
+          </>
         )}
         {firstCome && (
           <li className="font-medium text-slate-900">
@@ -31,7 +39,7 @@ export function DetailGuide({ clearance, firstCome }: { clearance: boolean; firs
         <li>한 번에 5개까지 살 수 있어요.</li>
         <li>주문하고 10분 안에 결제해 주세요. 지나면 주문이 취소돼요.</li>
         <li>
-          결제한 뒤 주문 내역에서 [픽업 신청]을 눌러 주세요. 신청한 날 23:59까지 받아 가야 해요.
+          결제한 뒤 주문 내역에서 [픽업 신청]을 눌러 주세요. 신청한 날 23시 59분까지 받아 가야 해요.
         </li>
         <li>점주가 준비를 마치면 알려 드려요. 점포에서 [픽업 QR]을 보여 주고 받아 가세요.</li>
         <li className="text-red-700">

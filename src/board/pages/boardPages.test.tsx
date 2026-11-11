@@ -128,6 +128,23 @@ describe('게시판 화면 (A17)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('없는 공지예요.')
   })
 
+  it('고객 공지·FAQ 는 위에 "‹ 마이페이지" 뒤로 링크가 있고, back 이 없으면(점주) 없다', async () => {
+    get.mockResolvedValue({ data: [faq] })
+    const back = { to: '/customer/my', label: '마이페이지' }
+    renderAt('/customer/faq', [{ path: '/customer/faq', element: <FaqPage back={back} /> }])
+    expect(await screen.findByRole('link', { name: '마이페이지' })).toHaveAttribute(
+      'href',
+      '/customer/my',
+    )
+  })
+
+  it('back 이 없으면 뒤로 링크를 그리지 않는다', async () => {
+    get.mockResolvedValue({ data: [faq] })
+    renderAt('/owner/faq', [{ path: '/owner/faq', element: <FaqPage /> }])
+    await screen.findByText('Q. 언제 받아 가요?')
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
   it('FAQ 는 질문을 누르면 답이 펼쳐진다', async () => {
     get.mockResolvedValue({ data: [faq] })
     renderAt('/customer/faq', [{ path: '/customer/faq', element: <FaqPage /> }])

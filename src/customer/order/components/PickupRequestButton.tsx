@@ -39,8 +39,8 @@ export function PickupRequestButton({
         onClick={() => setOpen(true)}
         aria-label={size === 'compact' ? `${orderNo} 픽업 신청` : undefined}
         className={cn(
-          'rounded-lg bg-emerald-600 font-medium text-white hover:bg-emerald-700',
-          size === 'full' ? 'block w-full py-3 text-center' : 'px-3 py-1.5 text-sm',
+          'rounded-lg bg-emerald-700 font-medium text-white hover:bg-emerald-800',
+          size === 'full' ? 'block w-full py-3 text-center' : 'min-h-11 px-3 text-sm',
         )}
       >
         픽업 신청

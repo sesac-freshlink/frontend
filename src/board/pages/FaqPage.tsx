@@ -1,12 +1,14 @@
 import { ChevronDown, LoaderCircle } from 'lucide-react'
+import { BackLink } from '@/customer/order/components/BackLink'
 import { useFaqs } from '../api'
 
 /** 자주 묻는 질문 (추가 명세 A17). 질문을 누르면 답이 펼쳐진다 */
-export function FaqPage() {
+export function FaqPage({ back }: { back?: { to: string; label: string } } = {}) {
   const faqs = useFaqs()
 
   return (
     <section className="space-y-4">
+      {back && <BackLink to={back.to} label={back.label} />}
       <h1 className="text-xl font-bold text-slate-900">자주 묻는 질문</h1>
       {faqs.isPending && (
         <p role="status" className="flex items-center gap-2 text-sm text-slate-500">

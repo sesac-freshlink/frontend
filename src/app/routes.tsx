@@ -86,13 +86,24 @@ export const routes: RouteObject[] = [
           { path: 'my', element: <MyPage /> },
           { path: 'my/profile', element: <ProfileEditPage /> },
           { path: 'my/withdraw', element: <WithdrawalPage /> },
-          { path: 'notices', element: <NoticeListPage basePath="/customer/notices" /> },
+          {
+            path: 'notices',
+            element: (
+              <NoticeListPage
+                basePath="/customer/notices"
+                back={{ to: '/customer/my', label: '마이페이지' }}
+              />
+            ),
+          },
           {
             path: 'notices/:noticeId',
             element: <NoticeDetailPage basePath="/customer/notices" />,
           },
-          { path: 'faq', element: <FaqPage /> },
-          { path: 'my/password', element: <PasswordChangePage backTo="/customer/my" /> },
+          { path: 'faq', element: <FaqPage back={{ to: '/customer/my', label: '마이페이지' }} /> },
+          {
+            path: 'my/password',
+            element: <PasswordChangePage backTo="/customer/my" backLabel="마이페이지" />,
+          },
         ],
       },
     ],

@@ -116,7 +116,7 @@ describe('메인배너 가짜 API (A18)', () => {
     expect(home.map((x) => x.bannerId)).toEqual([1, 2, 3, 4])
     expect(home[0]).toEqual({
       bannerId: 1,
-      title: '마감세일, 오늘 23:59까지 픽업',
+      title: '마감세일, 오늘 23시 59분까지 픽업',
       imageUrl: '/banners/clearance.svg',
       noticeId: 1,
     })

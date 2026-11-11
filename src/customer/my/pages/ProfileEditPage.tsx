@@ -86,7 +86,10 @@ function ProfileEditForm({ current }: { current: EditableProfile }) {
       >
         저장
       </button>
-      <Link to="/customer/my" className="block text-center text-sm text-slate-500 underline">
+      <Link
+        to="/customer/my"
+        className="flex min-h-11 items-center justify-center text-sm text-slate-500 underline"
+      >
         취소
       </Link>
     </form>

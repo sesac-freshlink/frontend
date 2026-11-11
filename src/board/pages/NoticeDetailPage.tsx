@@ -19,7 +19,10 @@ export function NoticeDetailPage({ basePath }: Props) {
 
   return (
     <article className="space-y-4">
-      <Link to={basePath} className="flex items-center gap-1 text-sm text-slate-500">
+      <Link
+        to={basePath}
+        className="-ml-1 inline-flex min-h-11 items-center gap-1 pr-2 text-sm text-slate-500"
+      >
         <ChevronLeft className="size-4" />
         공지사항
       </Link>
@@ -45,7 +48,7 @@ export function NoticeDetailPage({ basePath }: Props) {
         <>
           <header className="space-y-1 border-b border-slate-200 pb-3">
             <h1 className="text-xl font-bold text-slate-900">{notice.data.title}</h1>
-            <p className="text-xs text-slate-400">{formatDate(notice.data.createdAt)}</p>
+            <p className="text-xs text-slate-500">{formatDate(notice.data.createdAt)}</p>
           </header>
           <p className="text-sm leading-relaxed whitespace-pre-line text-slate-700">
             {notice.data.content}

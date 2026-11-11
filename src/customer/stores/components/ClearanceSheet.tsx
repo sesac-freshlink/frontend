@@ -140,7 +140,7 @@ function SheetRowView({
             {formatWon(price)}
           </span>
           {basePrice !== undefined && (
-            <span className="text-xs text-slate-400 tabular-nums line-through">
+            <span className="text-xs text-slate-500 tabular-nums line-through">
               {formatWon(basePrice)}
             </span>
           )}

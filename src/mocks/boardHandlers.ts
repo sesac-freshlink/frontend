@@ -20,7 +20,7 @@ const seedNotices: NoticeDetail[] = [
     noticeId: 1,
     title: '프레시링크 서비스를 시작했어요',
     content:
-      '유통기한이 가까운 상품을 가까운 점포에서 싸게 예약하고 픽업할 수 있어요.\n앱을 써 보시고 불편한 점은 자주 묻는 질문을 먼저 봐 주세요.',
+      '유통기한이 가까운 상품을 가까운 점포에서 싸게 사서 픽업할 수 있어요.\n앱을 써 보시고 불편한 점은 자주 묻는 질문을 먼저 봐 주세요.',
     audience: 'ALL',
     pinned: true,
     createdAt: '2026-11-01T09:00:00+09:00',
@@ -49,7 +49,7 @@ const seedNotices: NoticeDetail[] = [
 const seedFaqs: FaqItem[] = [
   {
     faqId: 1,
-    question: '예약한 상품은 언제까지 받아 가야 하나요?',
+    question: '산 상품은 언제까지 받아 가야 하나요?',
     answer: '결제한 날 점포 영업시간 안에 받아 가 주세요.',
     audience: 'CUSTOMER',
     sortOrder: 1,
@@ -80,7 +80,7 @@ const seedFaqs: FaqItem[] = [
 const seedBanners: Omit<AdminBanner, 'noticeTitle'>[] = [
   {
     bannerId: 1,
-    title: '마감세일, 오늘 23:59까지 픽업',
+    title: '마감세일, 오늘 23시 59분까지 픽업',
     imageUrl: '/banners/clearance.svg',
     noticeId: 1,
   },

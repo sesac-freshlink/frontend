@@ -239,7 +239,8 @@ describe('주문 상세 (U-22·U-31)', () => {
     renderAt('/customer/orders/123')
     expect(await screen.findByText('결제 완료')).toBeInTheDocument()
     expect(screen.getByText('10월 22일(목)까지')).toBeInTheDocument()
-    expect(screen.getByText('픽업 신청을 하면 매장에서 준비해요')).toBeInTheDocument()
+    // 신청 전에는 같은 말을 두 번 하지 않고 픽업 안내 한 줄만 보인다
+    expect(screen.queryByText('픽업 신청을 하면 매장에서 준비해요')).not.toBeInTheDocument()
     expect(screen.getByText(PICKUP_REQUEST_NOTICE)).toBeInTheDocument()
   })
 
@@ -254,7 +255,7 @@ describe('주문 상세 (U-22·U-31)', () => {
     renderAt('/customer/orders/123')
     await userEvent.click(await screen.findByRole('button', { name: '픽업 신청' }))
     expect(screen.getByRole('dialog', { name: '픽업 신청할까요?' })).toBeInTheDocument()
-    expect(screen.getByText('오늘 23:59까지 받아 가셔야 해요')).toBeInTheDocument()
+    expect(screen.getByText('오늘 23시 59분까지 받아 가셔야 해요')).toBeInTheDocument()
     expect(post).not.toHaveBeenCalled()
     const dialog = screen.getByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: '픽업 신청' }))
@@ -397,7 +398,13 @@ describe('마감세일 함께 사기', () => {
 
     expect(await screen.findByText('마감세일 1개 3,490원')).toBeInTheDocument()
     expect(screen.getByText('기본 1개 4,990원')).toBeInTheDocument()
-    expect(screen.getByText(/오늘 23:59까지 픽업해 주세요/)).toBeInTheDocument()
+    // 마감세일 안내는 두 줄 (11/11 경우 문구)
+    expect(
+      screen.getByText(
+        '마감 세일 제품은 당일 픽업이 원칙이에요. 오늘 23시 59분까지 픽업해 주세요.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('미픽업 시 환불되지 않으며, 물품은 폐기 처리돼요.')).toBeInTheDocument()
   })
 
   it('마감세일이 끝나 실패하면 남은 수를 알려 주고 다시 고르기는 상품 상세로 간다', async () => {

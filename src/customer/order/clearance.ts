@@ -1,9 +1,14 @@
 import type { Order, OrderLine } from './api'
 import { formatWon } from './format'
 
-/** 마감세일이 섞인 주문의 픽업 안내 (결제 대기·주문 상세) */
-export const SAME_DAY_PICKUP_NOTICE =
-  '오늘 23:59까지 픽업해 주세요. 지나면 받아 갈 수 없고 환불되지 않아요'
+/**
+ * 마감세일이 섞인 주문의 픽업 안내 2줄 (결제 대기·주문 상세·상품 상세 안내, 11/11 경우 문구).
+ * 시각은 order-service 픽업 기한(그날 23:59:59 KST)과 같다
+ */
+export const SAME_DAY_PICKUP_NOTICE = [
+  '마감 세일 제품은 당일 픽업이 원칙이에요. 오늘 23시 59분까지 픽업해 주세요.',
+  '미픽업 시 환불되지 않으며, 물품은 폐기 처리돼요.',
+] as const
 
 /** "마감세일 1개 3,490원" / "기본 2개 4,990원" */
 export function lineText(line: Pick<OrderLine, 'clearance' | 'quantity' | 'unitPrice'>): string {

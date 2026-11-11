@@ -7,5 +7,5 @@
 <circle cx="1058" cy="126" r="78" fill="#ffffff"/>
 <text x="1058" y="143" text-anchor="middle" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="48" font-weight="800" fill="#047857">30%</text>
 <text x="72" y="320" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="84" font-weight="800" fill="#ffffff">마감세일</text>
-<text x="72" y="391" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="46" font-weight="600" fill="#ffffff" fill-opacity="0.9">오늘 23:59까지 픽업</text>
+<text x="72" y="391" font-family="Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="46" font-weight="600" fill="#ffffff" fill-opacity="0.9">오늘 23시 59분까지 픽업</text>
 </svg>
