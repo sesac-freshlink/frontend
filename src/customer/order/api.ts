@@ -112,8 +112,17 @@ export const ORDER_PAGE_SIZES = [10, 20, 50] as const
 export type OrderPageSize = (typeof ORDER_PAGE_SIZES)[number]
 export const DEFAULT_ORDER_PAGE_SIZE: OrderPageSize = 20
 
-/** 주문 내역 상품명 검색어 최대 길이 (OR-06 q: 앞뒤 공백 빼고 50자) */
+/** 주문 내역 상품명 검색어 최대 길이 (OR-06 q: 앞뒤 공백 빼고 50자, 이모지도 1자로 센다) */
 export const ORDER_KEYWORD_MAX = 50
+
+/**
+ * 글자(코드포인트) 기준으로 max 자까지 자른다. input maxLength 는 이모지를 2칸으로 세서 서버(코드포인트 50자)와
+ * 어긋나므로 이 함수로 자른다
+ */
+export function limitCodePoints(value: string, max: number): string {
+  const chars = Array.from(value)
+  return chars.length > max ? chars.slice(0, max).join('') : value
+}
 
 /** 주문 한 줄 (마감세일 함께 사기). 마감세일 줄이 먼저 온다. amount = unitPrice × quantity */
 export interface OrderLine {

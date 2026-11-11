@@ -258,6 +258,19 @@ describe('고객 주문 내역 (A3)', () => {
     expect(await screen.findByText('FL-20261020-000123')).toBeInTheDocument()
   })
 
+  it('검색어는 이모지도 한 글자로 세어 50자까지 받는다', async () => {
+    get.mockResolvedValue(pageOf([paid]))
+    renderPage()
+    await screen.findByText('FL-20261020-000123')
+    const input = screen.getByRole('textbox', { name: '주문한 상품 검색' })
+    // 이모지 26개(UTF-16 52칸)도 그대로 들어간다
+    fireEvent.change(input, { target: { value: '🍌'.repeat(26) } })
+    expect(input).toHaveValue('🍌'.repeat(26))
+    // 51자를 넣으면 50자에서 자른다
+    fireEvent.change(input, { target: { value: '🍌'.repeat(25) + '가'.repeat(26) } })
+    expect(input).toHaveValue('🍌'.repeat(25) + '가'.repeat(25))
+  })
+
   it('맨 위에서 당겼다 놓으면 다시 읽는다', async () => {
     get.mockResolvedValue(pageOf([paid]))
     renderPage()

@@ -17,6 +17,7 @@ import {
   type CustomerOrderSummary,
   type CustomerOrderTab,
   DEFAULT_ORDER_PAGE_SIZE,
+  limitCodePoints,
   ORDER_KEYWORD_MAX,
   useCustomerOrderPages,
   useCustomerOrders,
@@ -120,8 +121,7 @@ export function OrderHistoryPage() {
           <input
             aria-label="주문한 상품 검색"
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            maxLength={ORDER_KEYWORD_MAX}
+            onChange={(e) => setDraft(limitCodePoints(e.target.value, ORDER_KEYWORD_MAX))}
             placeholder="주문한 상품 이름으로 찾기"
             enterKeyHint="search"
             className="min-h-11 w-full min-w-0 text-base text-slate-900 outline-none placeholder:text-slate-500"
