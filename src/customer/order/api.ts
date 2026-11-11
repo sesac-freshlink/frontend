@@ -1,4 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { api } from '@/shared/api/client'
 import { apiErrorCode } from '@/shared/api/errors'
 import { type DatePeriod, isReversedPeriod, periodParams } from '@/shared/api/period'
@@ -106,6 +112,18 @@ export const ORDER_PAGE_SIZES = [10, 20, 50] as const
 export type OrderPageSize = (typeof ORDER_PAGE_SIZES)[number]
 export const DEFAULT_ORDER_PAGE_SIZE: OrderPageSize = 20
 
+/** 주문 내역 상품명 검색어 최대 길이 (OR-06 q: 앞뒤 공백 빼고 50자, 이모지도 1자로 센다) */
+export const ORDER_KEYWORD_MAX = 50
+
+/**
+ * 글자(코드포인트) 기준으로 max 자까지 자른다. input maxLength 는 이모지를 2칸으로 세서 서버(코드포인트 50자)와
+ * 어긋나므로 이 함수로 자른다
+ */
+export function limitCodePoints(value: string, max: number): string {
+  const chars = Array.from(value)
+  return chars.length > max ? chars.slice(0, max).join('') : value
+}
+
 /** 주문 한 줄 (마감세일 함께 사기). 마감세일 줄이 먼저 온다. amount = unitPrice × quantity */
 export interface OrderLine {
   clearance: boolean
@@ -159,6 +177,36 @@ export function useCustomerOrders({ tab, page, size, period }: CustomerOrdersQue
       ).data,
     enabled: !isReversedPeriod(period),
     placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+  })
+}
+
+/**
+ * A3 고객 주문 내역을 묶음(size)씩 이어 붙여 읽는다(핸드폰 무한 스크롤, 11/11).
+ * 받은 묶음이 마지막 페이지면 더 부르지 않는다. 구분·기간이 바뀌면 처음 묶음부터 다시 읽는다.
+ * 시작 날짜가 끝 날짜보다 늦으면 서버가 400 을 주므로 부르지 않는다
+ */
+export function useCustomerOrderPages({
+  tab,
+  size,
+  period,
+  keyword = '',
+}: Omit<CustomerOrdersQuery, 'page'> & { keyword?: string }) {
+  const range = periodParams(period)
+  // 상품명 검색(OR-06 q, 11/11). 앞뒤 공백을 빼고 비면 보내지 않는다. 서버가 q 를 모르면 무시해 전체가 온다
+  const q = keyword.trim()
+  const search = q ? { q } : {}
+  return useInfiniteQuery({
+    queryKey: ['customer', 'orders', 'pages', tab, size, range, q],
+    queryFn: async ({ pageParam }) =>
+      (
+        await api.get<OrderPage<CustomerOrderSummary>>('/orders', {
+          params: { tab, page: pageParam, size, ...range, ...search },
+        })
+      ).data,
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.page + 1 < last.totalPages ? last.page + 1 : undefined),
+    enabled: !isReversedPeriod(period),
     refetchOnWindowFocus: false,
   })
 }

@@ -30,7 +30,7 @@ export function PickupStoreButton({
   const distance = distanceKm === null ? '' : `, ${formatDistance(distanceKm)}`
   return (
     <Link
-      to="/customer/stores"
+      to="/customer/stores?pick=1"
       aria-label={`${label} ${store.name}${distance}. 다른 점포로 바꾸기`}
       className="flex min-h-12 items-center gap-2 rounded-xl bg-white px-4 py-2 ring-1 ring-slate-200"
     >

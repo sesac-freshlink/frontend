@@ -83,6 +83,11 @@ describe('PickupQrPage (/customer/orders/pickup-qr, A16)', () => {
     )
     renderPage()
     expect(await screen.findByText('받아 갈 주문이 없어요.')).toBeInTheDocument()
+    // 다음에 할 일: 주문 내역으로 가는 길을 준다
+    expect(screen.getByRole('link', { name: '주문 내역 보기' })).toHaveAttribute(
+      'href',
+      '/customer/orders',
+    )
     await waitFor(() =>
       expect(screen.queryByRole('img', { name: '픽업 QR' })).not.toBeInTheDocument(),
     )

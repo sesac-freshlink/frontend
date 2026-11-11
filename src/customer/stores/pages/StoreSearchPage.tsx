@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, MapPin, Search } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate } from 'react-router'
+import { Link, Navigate, useSearchParams } from 'react-router'
 import { useMyProfile } from '@/auth/api'
 import { DEFAULT_REGION, isRegionCode, REGIONS, type RegionCode } from '@/auth/regions'
 import { FullScreenSpinner } from '@/shared/ui/FullScreenSpinner'
@@ -10,7 +10,7 @@ import { readPickupStore, savePickupStore, type PickupStore } from '../pickupSto
 
 /**
  * U-01 점포 검색 (/customer/stores, 하단 메뉴 [점포 검색]): 거주 지역의 점포를 보여 주고 지역·검색어로 다시 찾는다.
- * 점포를 누르면 그 점포를 픽업 점포로 정하고(이 기기에 저장) 상품 목록으로 간다. 홈에 있던 찾기를 옮겼다
+ * 점포를 누르면 그 점포를 픽업 점포로 정하고(이 기기에 저장) 고객 홈으로 돌아간다. 홈에 있던 찾기를 옮겼다
  */
 export function StoreSearchPage() {
   const profile = useMyProfile()
@@ -24,12 +24,21 @@ export function StoreSearchPage() {
   return <StoreSearch initialRegion={myRegion} />
 }
 
+/**
+ * 점포 검색이 어디서 열렸는지에 따라 점포를 눌렀을 때 하는 일이 다르다(11/11 경우 시나리오).
+ * - 고르기(?pick=1): 홈 맨 위 픽업 점포 줄·점포 고르기 안내·내 주변 점포 안내에서 연다. 누르면 픽업 점포로 저장하고 홈으로.
+ * - 둘러보기(쿼리 없음): 하단 메뉴 [점포 검색]에서 연다. 누르면 픽업 점포는 그대로 두고 그 점포 상품 화면(둘러보기)으로
+ */
+export const PICK_STORE_PATH = '/customer/stores?pick=1'
+
 function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
   const [region, setRegion] = useState<RegionCode>(initialRegion)
   const [draft, setDraft] = useState('')
   const [keyword, setKeyword] = useState('')
   const stores = useStores({ region, keyword })
   const [pickup, setPickup] = useState<PickupStore | null>(readPickupStore)
+  const [searchParams] = useSearchParams()
+  const picking = searchParams.get('pick') === '1'
   const regionName = REGIONS.find((r) => r.code === region)?.name ?? ''
 
   const onSearch = (e: FormEvent) => {
@@ -42,7 +51,7 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
       <section className="space-y-3" aria-labelledby="store-search-title">
         <div className="flex items-center justify-between gap-3">
           <h1 id="store-search-title" className="text-xl font-bold text-slate-900">
-            픽업할 점포 찾기
+            {picking ? '픽업할 점포 고르기' : '점포 검색'}
           </h1>
           {/* 지역은 바꿀 일이 드물어 제목 옆에 작게 둔다. 검색창이 화면 폭을 다 쓰게 한다 */}
           <label className="relative flex min-h-11 items-center gap-1 text-sm font-medium text-slate-700">
@@ -93,6 +102,7 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
           searched={keyword.trim() !== ''}
           regionName={regionName}
           pickupId={pickup?.storeId}
+          picking={picking}
           onPick={(store) => {
             savePickupStore(store)
             setPickup(store)
@@ -108,12 +118,15 @@ function StoreList({
   searched,
   regionName,
   pickupId,
+  picking,
   onPick,
 }: {
   stores: ReturnType<typeof useStores>
   searched: boolean
   regionName: string
   pickupId: number | undefined
+  /** true 면 고르기(저장하고 홈으로), false 면 둘러보기(저장하지 않고 그 점포 상품 화면으로) */
+  picking: boolean
   onPick: (store: PickupStore) => void
 }) {
   if (stores.isPending) return <LoadingState label="점포를 불러오는 중" />
@@ -143,10 +156,11 @@ function StoreList({
       <ul className="divide-y divide-slate-200 border-t border-slate-200">
         {stores.data.map((s) => (
           <li key={s.storeId}>
+            {/* 고르기면 픽업 점포로 저장하고 홈으로(홈이 그 점포로 다시 채워진다), 둘러보기면 저장하지 않고 그 점포 상품 화면으로 */}
             <Link
-              to={`/customer/stores/${s.storeId}`}
-              state={{ storeName: s.name }}
-              onClick={() => onPick({ storeId: s.storeId, name: s.name })}
+              to={picking ? '/customer' : `/customer/stores/${s.storeId}`}
+              state={picking ? undefined : { storeName: s.name, from: 'search' }}
+              onClick={picking ? () => onPick({ storeId: s.storeId, name: s.name }) : undefined}
               className="flex min-h-16 items-center gap-3 py-3"
             >
               <span className="min-w-0 flex-1">

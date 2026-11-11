@@ -9,7 +9,16 @@ import { useCurrentPosition } from '../useCurrentPosition'
  * 위치를 쓸 수 있으면 가까운 순, 거부하면 지금 점포와 같은 지역 점포를 많이 남은 순으로 보여 준다.
  * 점포를 누르면 그 점포의 같은 상품 상세로, [위치]를 누르면 점포 정보(지도)로 간다
  */
-export function NearbyStoreStock({ storeId, productId }: { storeId: number; productId: number }) {
+export function NearbyStoreStock({
+  storeId,
+  productId,
+  soldOut = true,
+}: {
+  storeId: number
+  productId: number
+  /** 지금 점포에서 품절인지. 품절이면 "근처 점포에 있어요", 아니면 "구매 가능한 다른 점포" 제목. 팔고 있는데 다른 점포 재고가 없으면 칸을 숨긴다 */
+  soldOut?: boolean
+}) {
   const stocks = useProductStores(productId, true)
   const position = useCurrentPosition(true)
   const list = Array.isArray(stocks.data) ? stocks.data : []
@@ -21,11 +30,12 @@ export function NearbyStoreStock({ storeId, productId }: { storeId: number; prod
   const items = nearbyStores(list, places.places, storeId, origin)
 
   if (!stocks.isSuccess || position.status === 'pending' || places.isPending) return null
+  if (!soldOut && items.length === 0) return null
 
   return (
     <section aria-labelledby="nearby-title" className="space-y-2">
       <h2 id="nearby-title" className="text-sm font-semibold text-slate-900">
-        근처 점포에 있어요
+        {soldOut ? '근처 점포에 있어요' : '구매 가능한 다른 점포'}
       </h2>
       {origin === null && (
         <p className="text-xs text-slate-500">위치를 쓸 수 없어 같은 지역 점포를 보여 드려요.</p>

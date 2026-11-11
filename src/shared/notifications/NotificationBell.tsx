@@ -53,11 +53,11 @@ export function NotificationBell({ align = 'end', className }: Props) {
         onClick={() => setOpen((v) => !v)}
         aria-label={count > 0 ? `알림 ${count}개 안 읽음` : '알림'}
         aria-expanded={open}
-        className="relative rounded-full p-1 text-slate-500 hover:bg-slate-100"
+        className="relative flex size-11 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
       >
         <Bell className="size-5" />
         {count > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] leading-4 font-bold text-white tabular-nums">
+          <span className="absolute top-1.5 right-1.5 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] leading-4 font-bold text-white tabular-nums">
             {count > 99 ? '99+' : count}
           </span>
         )}

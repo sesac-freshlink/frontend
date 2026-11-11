@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
 import { cn } from '@/shared/ui/cn'
 import { useOrder, type Order } from '../api'
+import { BackLink } from '../components/BackLink'
 import { CancelReasonDialog } from '../components/CancelReasonDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { OrderSummary, type SummaryRow } from '../components/OrderSummary'
@@ -38,7 +39,12 @@ export function OrderDetailPage() {
 
   const orderId = id !== undefined && /^\d+$/.test(id) ? Number(id) : undefined
   if (orderId === undefined) return <NotFound />
-  return <OrderView key={orderId} orderId={orderId} />
+  return (
+    <div className="space-y-2">
+      <BackLink to="/customer/orders" label="주문 내역" />
+      <OrderView key={orderId} orderId={orderId} />
+    </div>
+  )
 }
 
 function OrderView({ orderId }: { orderId: number }) {

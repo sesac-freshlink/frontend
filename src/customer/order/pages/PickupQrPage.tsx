@@ -24,7 +24,16 @@ export function PickupQrPage() {
       </div>
 
       {qr.noOrders && (
-        <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">받아 갈 주문이 없어요.</p>
+        <div className="space-y-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+          <p className="font-medium text-slate-800">받아 갈 주문이 없어요.</p>
+          <p>픽업 신청한 주문이 준비되면 여기에 QR이 나와요.</p>
+          <Link
+            to="/customer/orders"
+            className="inline-flex min-h-11 items-center rounded-lg bg-emerald-700 px-4 font-medium text-white"
+          >
+            주문 내역 보기
+          </Link>
+        </div>
       )}
       {qr.error && (
         <div className="space-y-2">

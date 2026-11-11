@@ -31,6 +31,8 @@ const RIGHT_TABS: Tab[] = [
 export function CustomerLayout() {
   const { pathname } = useLocation()
   const onPickupQr = pathname.startsWith(PICKUP_QR_PATH)
+  // 픽업 QR·주문·결제(아직 주문 전) 화면에서는 [주문 내역] 칸을 켜지 않는다(주소가 /customer/orders/… 라도)
+  const ordersInactive = onPickupQr || pathname.startsWith('/customer/orders/new')
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-white">
@@ -64,7 +66,11 @@ export function CustomerLayout() {
           픽업 QR
         </NavLink>
         {RIGHT_TABS.map((tab) => (
-          <TabLink key={tab.to} tab={tab} forceInactive={false} />
+          <TabLink
+            key={tab.to}
+            tab={tab}
+            forceInactive={tab.to === '/customer/orders' && ordersInactive}
+          />
         ))}
       </nav>
     </div>

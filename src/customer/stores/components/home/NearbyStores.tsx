@@ -49,7 +49,7 @@ function NearbyBody({ position, stores, pickupId, onPick }: Parameters<typeof Ne
             점포를 직접 찾아 주세요.
           </p>
           <Link
-            to="/customer/stores"
+            to="/customer/stores?pick=1"
             className="inline-flex min-h-11 items-center text-sm font-semibold text-emerald-700"
           >
             점포 검색으로 가기

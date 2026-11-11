@@ -745,7 +745,7 @@ export const orderHandlers = [
     const body: CreateOrderResponse = { orderId: id, orderNo: orderNo(id), status: 'RESERVING' }
     return HttpResponse.json(body, { status: 201 })
   }),
-  // OR-06 고객 주문 내역 (A3): 구분·기간으로 거르고 주문일시 최신순
+  // OR-06 고객 주문 내역 (A3): 구분·기간·상품명으로 거르고 주문일시 최신순
   http.get('/api/orders', ({ request }) => {
     const q = readListParams(
       new URL(request.url),
@@ -754,13 +754,17 @@ export const orderHandlers = [
     )
     if (q instanceof Response) return q
     const statuses = CUSTOMER_TABS[q.tab]
+    // 상품명 검색(OR-06 q, 11/11): 서버처럼 앞뒤 공백 빼고 대소문자 없이 상품명 일부
+    const keyword = (new URL(request.url).searchParams.get('q') ?? '').trim().toLowerCase()
     for (const o of orders.values()) advance(o)
     const rows = [...orders.values()]
       .filter(
         (o) =>
           (q.tab === 'ALL'
             ? statuses.includes(o.status)
-            : inTab(o, statuses, q.tab === 'CANCELED')) && q.inPeriod(o),
+            : inTab(o, statuses, q.tab === 'CANCELED')) &&
+          q.inPeriod(o) &&
+          (!keyword || (o.productName ?? '').toLowerCase().includes(keyword)),
       )
       .sort(newestFirst((o) => o.createdAt))
       .map(customerOrder)

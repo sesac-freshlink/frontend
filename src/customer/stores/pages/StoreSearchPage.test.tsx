@@ -19,15 +19,16 @@ const busanStore = {
   region: 'BUSAN',
 }
 
-function renderSearch() {
+function renderSearch(path = '/customer/stores?pick=1') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createMemoryRouter(
     [
       { path: '/customer/stores', element: <StoreSearchPage /> },
-      { path: '/customer/stores/:storeId', element: <p>상품 목록</p> },
+      { path: '/customer', element: <p>고객 홈</p> },
+      { path: '/customer/stores/:storeId', element: <p>점포 둘러보기</p> },
       { path: '/signup', element: <p>프로필 등록</p> },
     ],
-    { initialEntries: ['/customer/stores'] },
+    { initialEntries: [path] },
   )
   render(
     <QueryClientProvider client={queryClient}>
@@ -44,7 +45,7 @@ describe('점포 검색 (U-01)', () => {
     useAuthStore.setState({ user: { userId: 'sub-1', role: 'CUSTOMER' }, restoring: false })
   })
 
-  it('프로필의 거주 지역으로 먼저 찾고, 점포를 누르면 상품 목록으로 간다', async () => {
+  it('프로필의 거주 지역으로 먼저 찾고, 점포를 누르면 픽업 점포로 저장하고 고객 홈으로 돌아간다', async () => {
     get.mockImplementation(async (url) => {
       if (url === '/members/me') {
         return {
@@ -63,7 +64,12 @@ describe('점포 검색 (U-01)', () => {
 
     await userEvent.click(await screen.findByText('프레시 해운대점'))
     expect(get).toHaveBeenCalledWith('/stores', { params: { region: 'BUSAN' } })
-    await waitFor(() => expect(router.state.location.pathname).toBe('/customer/stores/3'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/customer'))
+    expect(screen.getByText('고객 홈')).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('freshlink.pickupStore') ?? 'null')).toEqual({
+      storeId: 3,
+      name: '프레시 해운대점',
+    })
   })
 
   it('검색어는 앞뒤 공백을 지워 보내고, 결과가 없으면 안내한다', async () => {
@@ -114,11 +120,35 @@ describe('점포 검색 (U-01)', () => {
       return { data: [busanStore] }
     })
     renderSearch()
-    expect(await screen.findByRole('heading', { name: '픽업할 점포 찾기' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '픽업할 점포 고르기' })).toBeInTheDocument()
     await userEvent.click(await screen.findByText('프레시 해운대점'))
     expect(JSON.parse(localStorage.getItem('freshlink.pickupStore') ?? 'null')).toEqual({
       storeId: 3,
       name: '프레시 해운대점',
+    })
+  })
+
+  it('하단 메뉴로 열면(둘러보기) 점포를 눌러도 픽업 점포를 바꾸지 않고 그 점포 상품 화면으로 간다', async () => {
+    localStorage.setItem(
+      'freshlink.pickupStore',
+      JSON.stringify({ storeId: 1, name: '프레시 강남점' }),
+    )
+    get.mockImplementation(async (url) => {
+      if (url === '/members/me') {
+        return {
+          data: { memberId: 's', role: 'CUSTOMER', name: '김', nickname: 'n1', region: 'BUSAN' },
+        }
+      }
+      return { data: [busanStore] }
+    })
+    const router = renderSearch('/customer/stores')
+    expect(await screen.findByRole('heading', { name: '점포 검색' })).toBeInTheDocument()
+    await userEvent.click(await screen.findByText('프레시 해운대점'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/customer/stores/3'))
+    expect(router.state.location.state).toEqual({ storeName: '프레시 해운대점', from: 'search' })
+    expect(JSON.parse(localStorage.getItem('freshlink.pickupStore') ?? 'null')).toEqual({
+      storeId: 1,
+      name: '프레시 강남점',
     })
   })
 

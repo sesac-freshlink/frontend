@@ -1,4 +1,5 @@
 import { Search, Store } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { useMyProfile } from '@/auth/api'
@@ -7,6 +8,7 @@ import { FullScreenSpinner } from '@/shared/ui/FullScreenSpinner'
 import { ErrorState } from '@/shared/ui/QueryState'
 import { PRODUCT_KEYWORD_MAX, useClearanceProducts, useStoreProducts, useStores } from '../api'
 import { CategoryGrid } from '../components/home/CategoryGrid'
+import { PullIndicator } from '../components/PullIndicator'
 import { HomeBanner } from '../components/home/HomeBanner'
 import { NearbyStores } from '../components/home/NearbyStores'
 import { PickupStoreButton } from '../components/home/PickupStoreButton'
@@ -14,6 +16,7 @@ import { ProductRail } from '../components/home/ProductRail'
 import { defaultPickupStore, storeDistance, type DefaultStoreReason } from '../homeRows'
 import { readPickupStore, savePickupStore, type PickupStore } from '../pickupStore'
 import { useCurrentPosition, type PositionState } from '../useCurrentPosition'
+import { usePullToRefresh } from '../usePullToRefresh'
 
 /**
  * U-01 고객 홈 (/customer). 위에서 아래로: 픽업 점포 한 줄 → 메인 배너 → 카테고리 4×2 → 점포 상품 검색 →
@@ -113,7 +116,7 @@ function ChooseStore() {
         <p className="text-sm text-slate-600">점포 검색에서 다른 지역의 점포를 골라 주세요.</p>
       </div>
       <Link
-        to="/customer/stores"
+        to="/customer/stores?pick=1"
         className="inline-flex min-h-12 items-center rounded-xl bg-emerald-700 px-6 text-base font-semibold text-white hover:bg-emerald-800"
       >
         점포 고르기
@@ -146,9 +149,23 @@ function Home({
   const clearance = useClearanceProducts(storeId)
   const recommended = useStoreProducts(storeId, { recommendedOnly: true })
   const newArrivals = useStoreProducts(storeId, { newOnly: true })
+  // 화면 맨 위에서 당겼다 놓으면 상품 줄·카테고리 사진·점포 목록·배너를 다시 읽는다(태우님 usePullToRefresh 그대로 쓴다)
+  const queryClient = useQueryClient()
+  const {
+    ref: pullRef,
+    pull,
+    ready,
+  } = usePullToRefresh<HTMLDivElement>(() => {
+    void clearance.refetch()
+    void recommended.refetch()
+    void newArrivals.refetch()
+    void stores.refetch()
+    void queryClient.invalidateQueries({ queryKey: ['customer', 'banners'] })
+  })
 
   return (
-    <div className="space-y-6">
+    <div ref={pullRef} className="space-y-6">
+      <PullIndicator pull={pull} ready={ready} />
       <h1 className="sr-only">freshLink 홈</h1>
       <PickupStoreButton store={pickup} distanceKm={distance} temporary={temporary} />
       <HomeBanner />
