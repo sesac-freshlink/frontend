@@ -8,8 +8,8 @@ import {
   type KakaoMap,
   type KakaoMaps,
 } from '../kakaoMap'
-import { formatDistance, type LatLng } from '../nearby'
-import { pinLabel, type StoreRow } from '../storeSearchTabs'
+import { distanceKm, formatDistance, type LatLng } from '../nearby'
+import { groupOverlapping, pinLabel, type StoreRow } from '../storeSearchTabs'
 
 /** 처음 확대 단계(카카오맵 1~14, 작을수록 가깝다). 점포가 하나뿐이거나 내 위치만 있을 때 쓴다 */
 const MAP_LEVEL = 5
@@ -61,6 +61,36 @@ function pinButton(row: Pin, selected: boolean, pickup: boolean, onSelect: () =>
   return button
 }
 
+/**
+ * 겹친 핀 묶음 버튼("N곳"). 누르면 그 점포들이 떨어져 보이게 확대하고, 더 확대해도 겹치면 목록으로 보여 준다(onClick 이 정한다)
+ */
+function clusterButton(members: Pin[], onClick: () => void) {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.dataset.clusterIds = members.map((m) => m.storeId).join(',')
+  button.className =
+    'flex min-h-11 min-w-11 flex-col items-center justify-end pb-2 focus-visible:outline-2 focus-visible:outline-emerald-700'
+  button.setAttribute(
+    'aria-label',
+    `점포 ${members.length}곳: ${members.map((m) => m.name).join(', ')}. 누르면 가까이 보여 줘요`,
+  )
+  const tag = document.createElement('span')
+  tag.className =
+    'rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold whitespace-nowrap text-emerald-800 shadow-sm ring-2 ring-emerald-700'
+  tag.textContent = `${members.length}곳`
+  const tail = document.createElement('span')
+  tail.setAttribute('aria-hidden', 'true')
+  tail.className =
+    '-mt-px block size-0 border-x-5 border-t-6 border-x-transparent border-t-emerald-700'
+  button.append(tag, tail)
+  button.addEventListener('click', onClick)
+  return button
+}
+
+/** 묶음을 눌렀을 때 이 단계 이하이거나 점포끼리 이 거리(km) 안이면 더 확대하지 않고 목록으로 보여 준다 */
+const CLUSTER_LIST_LEVEL = 2
+const SAME_SPOT_KM = 0.03
+
 /** 내 위치 점 */
 function myDot() {
   const dot = document.createElement('span')
@@ -79,6 +109,8 @@ interface StoreSearchMapProps {
   onRequestLocation: () => void
   /** 지도 위에 겹쳐 띄울 점포 칸(바텀 시트). 없으면 null */
   sheet: ReactNode
+  /** 겹친 핀 묶음을 더 확대할 수 없을 때 그 점포들을 목록으로 보여 달라고 부른다 */
+  onClusterList: (storeIds: number[]) => void
   /** 점포 칸을 닫은 뒤 포커스를 돌려줄 핀. 돌려준 뒤 onPinFocused 를 부른다 */
   focusPinId: number | null
   onPinFocused: () => void
@@ -96,6 +128,7 @@ export function StoreSearchMap({
   position,
   onSelect,
   onRequestLocation,
+  onClusterList,
   sheet,
   focusPinId,
   onPinFocused,
@@ -148,24 +181,68 @@ export function StoreSearchMap({
     map.map.setBounds(bounds)
   }, [map, pins, position])
 
-  // 핀과 내 위치 점을 그린다. 고른 점포·내 픽업 점포가 바뀌면 다시 그린다
-  const pinButtons = useRef(new Map<number, HTMLButtonElement>())
+  // 확대 단계. 바뀌면(손가락으로 확대·축소, setBounds) 핀 묶음을 다시 계산한다(카카오 zoom_changed)
+  const [zoom, setZoom] = useState<number | null>(null)
   useEffect(() => {
     if (!map) return
+    const onZoom = () => setZoom(map.map.getLevel())
+    onZoom()
+    map.maps.event.addListener(map.map, 'zoom_changed', onZoom)
+    return () => map.maps.event.removeListener(map.map, 'zoom_changed', onZoom)
+  }, [map])
+
+  // 핀과 내 위치 점을 그린다. 화면에서 이름표가 겹치는 핀은 "N곳" 하나로 묶는다(고른 점포는 묶지 않음).
+  // 고른 점포·내 픽업 점포·확대 단계가 바뀌면 다시 그린다
+  const pinButtons = useRef(new Map<number, HTMLButtonElement>())
+  useEffect(() => {
+    if (!map || zoom === null) return
     const buttons = new Map<number, HTMLButtonElement>()
     pinButtons.current = buttons
-    const overlays: KakaoCustomOverlay[] = pins.map((p) => {
-      const button = pinButton(p, p.storeId === selectedId, p.storeId === pickupId, () =>
-        onSelect(p.storeId),
-      )
-      buttons.set(p.storeId, button)
+    const projection = map.map.getProjection()
+    const groups = groupOverlapping(
+      pins.map((p) => ({
+        item: p,
+        ...projection.pointFromCoords(new map.maps.LatLng(p.latitude, p.longitude)),
+      })),
+      selectedId,
+    )
+    const overlays: KakaoCustomOverlay[] = groups.map((members) => {
+      const [first] = members
+      if (members.length === 1) {
+        const button = pinButton(
+          first,
+          first.storeId === selectedId,
+          first.storeId === pickupId,
+          () => onSelect(first.storeId),
+        )
+        buttons.set(first.storeId, button)
+        return new map.maps.CustomOverlay({
+          map: map.map,
+          position: new map.maps.LatLng(first.latitude, first.longitude),
+          content: button,
+          clickable: true,
+          yAnchor: 1,
+          zIndex: first.storeId === selectedId ? 3 : 2,
+        })
+      }
+      const button = clusterButton(members, () => {
+        const sameSpot = members.every((m) => distanceKm(first, m) < SAME_SPOT_KM)
+        if (sameSpot || map.map.getLevel() <= CLUSTER_LIST_LEVEL) {
+          onClusterList(members.map((m) => m.storeId))
+          return
+        }
+        const bounds = new map.maps.LatLngBounds()
+        members.forEach((m) => bounds.extend(new map.maps.LatLng(m.latitude, m.longitude)))
+        map.map.setBounds(bounds)
+      })
+      members.forEach((m) => buttons.set(m.storeId, button))
       return new map.maps.CustomOverlay({
         map: map.map,
-        position: new map.maps.LatLng(p.latitude, p.longitude),
+        position: new map.maps.LatLng(first.latitude, first.longitude),
         content: button,
         clickable: true,
         yAnchor: 1,
-        zIndex: p.storeId === selectedId ? 3 : 2,
+        zIndex: 2,
       })
     })
     if (position) {
@@ -179,7 +256,7 @@ export function StoreSearchMap({
       )
     }
     return () => overlays.forEach((o) => o.setMap(null))
-  }, [map, pins, selectedId, pickupId, position, onSelect])
+  }, [map, zoom, pins, selectedId, pickupId, position, onSelect, onClusterList])
 
   // 점포 칸을 닫았으면 방금 다시 그린 그 점포 핀으로 포커스를 돌려준다(핀 그리기 효과 다음에 돈다)
   useEffect(() => {

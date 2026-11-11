@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { apiErrorCode } from '@/shared/api/errors'
 import { useAuthStore } from '@/shared/auth'
+import { clearAccountStorePrefs } from '@/customer/stores/accountStorage'
 import { useWithdraw } from './api'
 
 export type WithdrawalStep = 'guide' | 'confirm'
@@ -68,7 +69,10 @@ export function useWithdrawal(): UseWithdrawalReturn {
         setStep('guide')
         return
       }
-      // 계정은 서버가 지웠다. 남은 로그인 쿠키를 지우고 로그인 화면에서 안내한다
+      // 계정은 서버가 지웠다. 이 기기에 남긴 그 계정의 점포 설정(픽업·단골)도 지운다(11/11)
+      const userId = useAuthStore.getState().user?.userId
+      if (userId) clearAccountStorePrefs(userId)
+      // 남은 로그인 쿠키를 지우고 로그인 화면에서 안내한다
       await signOut('WITHDRAWN')
       navigate('/login', { replace: true })
     },

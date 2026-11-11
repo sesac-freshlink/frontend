@@ -6,13 +6,8 @@ import {
   LayoutGrid,
   LoaderCircle,
   MapPinCheck,
-  Percent,
   RefreshCw,
   Search,
-  Sparkles,
-  ThumbsUp,
-  Timer,
-  type LucideIcon,
 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router'
@@ -22,12 +17,14 @@ import { ProductThumb } from '@/shared/ui/ProductThumb'
 import {
   PRODUCT_KEYWORD_MAX,
   useStoreCategories,
+  useStoreCategoryPhotos,
   useStoreProductPages,
   type StoreProduct,
   type StoreProductSort,
 } from '../api'
 import { ExpiryBadge } from '../components/ExpiryBadge'
 import { ProductBadges } from '../components/ProductBadges'
+import { PhotoOrIcon } from '../components/PhotoOrIcon'
 import { PullIndicator } from '../components/PullIndicator'
 import { productLabel } from '../productLabel'
 import { CLEARANCE_DISCOUNT_PERCENT, clearanceOf } from '../clearance'
@@ -68,7 +65,10 @@ function StoreProducts({ storeId }: { storeId: number }) {
   const [draft, setDraft] = useState(initialQ)
   const [keyword, setKeyword] = useState(initialQ)
   const [category, setCategory] = useState(searchParams.get('category') ?? '')
-  const [sort, setSort] = useState<StoreProductSort>('NAME')
+  // 홈 베스트 상품 [전체 보기](?sort=POPULAR)로 들어오면 추천순(최근 7일 많이 팔린 순)으로 시작한다
+  const [sort, setSort] = useState<StoreProductSort>(
+    searchParams.get('sort') === 'POPULAR' ? 'POPULAR' : 'NAME',
+  )
   // 아이콘 줄 조건(신상품·마감세일·선착순·점주 추천)은 한 번에 하나만 켠다(11/11 경우 결정).
   // 주소에 ?show= 가 여러 개 오면 알맞은 값 중 맨 앞 하나만 쓴다
   const [shortcut, setShortcut] = useState<ProductShortcut | null>(
@@ -82,6 +82,7 @@ function StoreProducts({ storeId }: { storeId: number }) {
   const clearanceOnly = shortcut === 'clearance'
   const firstComeOnly = shortcut === 'firstCome'
   const categories = useStoreCategories(storeId)
+  const categoryPhotos = useStoreCategoryPhotos(storeId)
   const products = useStoreProductPages(storeId, {
     keyword,
     category,
@@ -134,59 +135,36 @@ function StoreProducts({ storeId }: { storeId: number }) {
           </button>
         </label>
       </form>
-      {/* 동그란 아이콘 줄: 카테고리(전체 분류 화면) + 조건 4개. 조건은 하나만 켜지고, 켜진 것을 다시 누르면 꺼진다 */}
-      <nav aria-label="상품 조건" className="-mx-4 overflow-x-auto px-4">
-        <ul className="flex gap-4">
-          <li>
-            <IconLink
-              to={`/customer/stores/${storeId}/categories`}
-              storeName={storeName}
-              label="카테고리"
-              icon={LayoutGrid}
-            />
-          </li>
-          <li>
-            <IconToggle
-              label="신상품"
-              icon={Sparkles}
-              pressed={newOnly}
-              onClick={() => toggleShortcut('new')}
-            />
-          </li>
-          <li>
-            <IconToggle
-              label="마감세일"
-              icon={Percent}
-              pressed={clearanceOnly}
-              onClick={() => toggleShortcut('clearance')}
-            />
-          </li>
-          <li>
-            <IconToggle
-              label="선착순"
-              icon={Timer}
-              pressed={firstComeOnly}
-              onClick={() => toggleShortcut('firstCome')}
-            />
-          </li>
-          <li>
-            <IconToggle
-              label="점주 추천"
-              icon={ThumbsUp}
-              pressed={recommendedOnly}
-              onClick={() => toggleShortcut('recommended')}
-            />
-          </li>
-        </ul>
-      </nav>
+      {/* 11/11 경우 시안: 분류 줄([카테고리] 고정 + 점포 분류 사진 동그라미 좌우 스크롤) + 그 아래 조건 버튼 줄.
+          분류와 조건은 같이 걸리고, 조건은 하나만 켜진다. 고른 분류·조건을 다시 누르면 꺼진다 */}
+      <CategoryRow
+        storeId={storeId}
+        storeName={storeName}
+        categories={categories.data ?? []}
+        photos={categoryPhotos.data ?? {}}
+        selected={category}
+        onSelect={(c) => setCategory((current) => (current === c ? '' : c))}
+      />
       <div
         role="group"
-        aria-label="카테고리"
-        className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 text-sm"
+        aria-label="상품 조건"
+        className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1"
       >
-        <Chip label="전체" pressed={category === ''} onClick={() => setCategory('')} />
-        {(categories.data ?? []).map((c) => (
-          <Chip key={c} label={c} pressed={category === c} onClick={() => setCategory(c)} />
+        {CONDITIONS.map((c) => (
+          <button
+            key={c.value}
+            type="button"
+            aria-pressed={shortcut === c.value}
+            onClick={() => toggleShortcut(c.value)}
+            className={cn(
+              'min-h-11 shrink-0 rounded-full border px-4 text-sm',
+              shortcut === c.value
+                ? 'border-emerald-700 bg-emerald-700 font-semibold text-white'
+                : 'border-slate-300 bg-white text-slate-800',
+            )}
+          >
+            {c.label}
+          </button>
         ))}
       </div>
       <div className="flex justify-end text-sm">
@@ -293,61 +271,74 @@ function PickupControl({ storeId, storeName }: { storeId: number; storeName: str
   )
 }
 
-/** 동그란 아이콘 + 이름. 누르면 켜지고 꺼지는 조건(켜지면 진한 초록 동그라미) */
-function IconToggle({
-  label,
-  icon: Icon,
-  pressed,
-  onClick,
-}: {
-  label: string
-  icon: LucideIcon
-  pressed: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className="flex w-14 flex-col items-center gap-1 text-xs text-slate-800"
-    >
-      <span
-        className={cn(
-          'flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700',
-          pressed && 'bg-emerald-700 text-white',
-        )}
-      >
-        <Icon className="size-5" strokeWidth={1.75} aria-hidden />
-      </span>
-      <span className={cn(pressed && 'font-semibold text-emerald-700')}>{label}</span>
-    </button>
-  )
-}
+/** 조건 버튼 줄 순서(11/11 시안). 신상품·점주 추천은 서버가 거르고, 마감세일·선착순은 받아 온 목록에서 거른다 */
+const CONDITIONS: { value: ProductShortcut; label: string }[] = [
+  { value: 'clearance', label: '마감세일' },
+  { value: 'firstCome', label: '선착순' },
+  { value: 'new', label: '신상품' },
+  { value: 'recommended', label: '점주 추천' },
+]
 
-/** 동그란 아이콘 + 이름 링크(카테고리 → 전체 분류 화면) */
-function IconLink({
-  to,
+/**
+ * 분류 줄: 맨 왼쪽 [카테고리](전체 분류 화면)는 고정, 세로 구분선 오른쪽에 점포 분류(사진 동그라미 + 이름)를 좌우로 넘긴다.
+ * 고른 분류는 초록 테두리. 사진은 꾸밈(alt="")이고 이름 글자가 버튼 이름이다. Tab 으로 분류마다 옮겨 갈 수 있다
+ */
+function CategoryRow({
+  storeId,
   storeName,
-  label,
-  icon: Icon,
+  categories,
+  photos,
+  selected,
+  onSelect,
 }: {
-  to: string
+  storeId: number
   storeName: string | undefined
-  label: string
-  icon: LucideIcon
+  categories: string[]
+  photos: Record<string, string>
+  selected: string
+  onSelect: (category: string) => void
 }) {
   return (
-    <Link
-      to={to}
-      state={storeName ? { storeName } : undefined}
-      className="flex w-14 flex-col items-center gap-1 text-xs text-slate-800"
-    >
-      <span className="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-700">
-        <Icon className="size-5" strokeWidth={1.75} aria-hidden />
-      </span>
-      {label}
-    </Link>
+    <div className="-mx-4 flex items-start">
+      <Link
+        to={`/customer/stores/${storeId}/categories`}
+        state={storeName ? { storeName } : undefined}
+        className="mt-1 flex w-18 shrink-0 flex-col items-center gap-1.5 border-r border-slate-200 pr-3 pl-4 text-xs text-slate-800"
+      >
+        <span className="flex size-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800">
+          <LayoutGrid className="size-6" strokeWidth={1.75} aria-hidden />
+        </span>
+        카테고리
+      </Link>
+      <ul aria-label="분류" className="flex min-w-0 gap-3 overflow-x-auto py-1 pr-4 pl-2.5">
+        {categories.map((c) => {
+          const on = c === selected
+          return (
+            <li key={c} className="shrink-0">
+              <button
+                type="button"
+                aria-pressed={on}
+                onClick={() => onSelect(c)}
+                className={cn(
+                  'flex w-15 flex-col items-center gap-1.5 text-xs',
+                  on ? 'font-bold text-emerald-700' : 'text-slate-800',
+                )}
+              >
+                <PhotoOrIcon
+                  src={photos[c]}
+                  icon={LayoutGrid}
+                  className={cn(
+                    'size-14 rounded-full bg-slate-50 p-1.5',
+                    on && 'outline-2 outline-offset-2 outline-emerald-700',
+                  )}
+                />
+                <span className="break-keep">{c}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
 
@@ -617,30 +608,5 @@ function BackToHome({ message }: { message: string }) {
         점포 찾기로
       </Link>
     </section>
-  )
-}
-
-/** 누르면 켜지고 꺼지는 칩. 켜지면 브랜드 색 */
-function Chip({
-  label,
-  pressed,
-  onClick,
-}: {
-  label: string
-  pressed: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        'min-h-11 min-w-11 shrink-0 rounded-full border border-slate-200 px-3 text-slate-600',
-        pressed && 'border-emerald-700 bg-emerald-700 text-white',
-      )}
-    >
-      {label}
-    </button>
   )
 }

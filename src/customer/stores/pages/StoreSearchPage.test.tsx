@@ -14,24 +14,41 @@ vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), err
 vi.mock('../kakaoMap', () => ({ kakaoMapKey: vi.fn(() => null), loadKakaoMaps: vi.fn() }))
 const get = vi.mocked(api.get)
 
-/** 가짜 카카오맵: 핀(CustomOverlay 내용)을 화면에 그대로 붙여 눌러 볼 수 있게 한다 */
+/** 가짜 카카오맵: 핀(CustomOverlay 내용)을 화면에 그대로 붙여 눌러 볼 수 있게 한다. 좌표 1도 = 화면 100000px */
+let fakeLevel = 5
+const fakeSetBounds = vi.fn()
 function fakeKakao(): KakaoMaps {
   const layer = document.createElement('div')
   layer.dataset.testid = 'fake-map-layer'
   document.body.append(layer)
   return {
     load: (cb: () => void) => cb(),
-    LatLng: class {},
+    LatLng: class {
+      lat: number
+      lng: number
+      constructor(lat: number, lng: number) {
+        this.lat = lat
+        this.lng = lng
+      }
+    },
     LatLngBounds: class {
       extend() {}
     },
     Map: class {
-      setBounds = vi.fn()
+      setBounds = fakeSetBounds
       panTo = vi.fn()
       setLevel = vi.fn()
       relayout = vi.fn()
+      getLevel = () => fakeLevel
+      getProjection = () => ({
+        pointFromCoords: (p: { lat: number; lng: number }) => ({
+          x: p.lng * 100000,
+          y: -p.lat * 100000,
+        }),
+      })
     },
     Marker: class {},
+    event: { addListener: vi.fn(), removeListener: vi.fn() },
     CustomOverlay: class {
       private el: HTMLElement
       constructor(o: { content: HTMLElement }) {
@@ -120,6 +137,8 @@ describe('점포 검색 (U-01)', () => {
     localStorage.clear()
     vi.mocked(kakaoMapKey).mockReturnValue(null)
     vi.mocked(toast.success).mockReset()
+    fakeLevel = 5
+    fakeSetBounds.mockReset()
     useAuthStore.setState({ user: { userId: 'sub-1', role: 'CUSTOMER' }, restoring: false })
   })
 
@@ -149,7 +168,7 @@ describe('점포 검색 (U-01)', () => {
     await userEvent.click(await screen.findByText('프레시 해운대점'))
     expect(get).toHaveBeenCalledWith('/stores', { params: { region: 'BUSAN' } })
     await waitFor(() => expect(router.state.location.pathname).toBe('/customer/stores/3'))
-    expect(localStorage.getItem('freshlink.pickupStore')).toBeNull()
+    expect(localStorage.getItem('freshlink.pickupStore.sub-1')).toBeNull()
   })
 
   it('검색어는 앞뒤 공백을 지워 보내고, 결과가 없으면 안내한다', async () => {
@@ -221,7 +240,7 @@ describe('점포 검색 (U-01)', () => {
     await userEvent.click(await screen.findByText('프레시 해운대점'))
     await waitFor(() => expect(router.state.location.pathname).toBe('/customer/stores/3'))
     expect(router.state.location.state).toEqual({ storeName: '프레시 해운대점', from: 'search' })
-    expect(JSON.parse(localStorage.getItem('freshlink.pickupStore') ?? 'null')).toEqual({
+    expect(JSON.parse(localStorage.getItem('freshlink.pickupStore.sub-1') ?? 'null')).toEqual({
       storeId: 1,
       name: '프레시 강남점',
     })
@@ -364,7 +383,7 @@ describe('점포 검색 (U-01)', () => {
       )
       await userEvent.click(within(sheet).getByRole('button', { name: '픽업 점포로 정하기' }))
       expect(within(sheet).getByText('✓ 내 픽업 점포')).toBeInTheDocument()
-      expect(JSON.parse(localStorage.getItem('freshlink.pickupStore') ?? 'null')).toEqual({
+      expect(JSON.parse(localStorage.getItem('freshlink.pickupStore.sub-1') ?? 'null')).toEqual({
         storeId: 2,
         name: '프레시 역삼점',
       })
@@ -385,7 +404,7 @@ describe('점포 검색 (U-01)', () => {
       await userEvent.click(await screen.findByRole('button', { name: '프레시 강남점' }))
       await userEvent.click(screen.getByRole('button', { name: '픽업 점포로 정하기' }))
       await waitFor(() => expect(router.state.location.pathname).toBe('/customer'))
-      expect(JSON.parse(localStorage.getItem('freshlink.pickupStore') ?? 'null')).toEqual({
+      expect(JSON.parse(localStorage.getItem('freshlink.pickupStore.sub-1') ?? 'null')).toEqual({
         storeId: 1,
         name: '프레시 강남점',
       })
@@ -429,6 +448,76 @@ describe('점포 검색 (U-01)', () => {
       await userEvent.click(await screen.findByRole('tab', { name: '최근 주문' }))
       expect(await screen.findByText('서울특별시에서 주문한 점포가 없어요.')).toBeInTheDocument()
       expect(screen.getByText('주문하면 여기에서 다시 찾을 수 있어요.')).toBeInTheDocument()
+    })
+  })
+
+  describe('겹치는 핀 묶기 (11/11)', () => {
+    // 강남점 바로 옆(화면에서 겹침)과 같은 자리(좌표 거의 같음) 점포
+    const near = {
+      ...seoulStores[0],
+      storeId: 7,
+      storeCode: 'S7',
+      name: '프레시 강남역점',
+      address: '서울 강남구 강남대로 7',
+      latitude: 37.4983,
+      longitude: 127.0279,
+    }
+    const same = {
+      ...near,
+      storeId: 8,
+      storeCode: 'S8',
+      name: '프레시 강남2점',
+      latitude: 37.498096,
+      longitude: 127.027611,
+    }
+    const serve = (list: unknown[]) =>
+      get.mockImplementation(async (url) => (url === '/members/me' ? seoulMe : { data: list }))
+
+    it('이름표가 겹치는 핀은 "N곳" 하나로 묶고, 누르면 그 점포들이 보이게 확대한다', async () => {
+      vi.mocked(kakaoMapKey).mockReturnValue('test-key')
+      vi.mocked(loadKakaoMaps).mockResolvedValue(fakeKakao())
+      serve([...seoulStores, near])
+      renderSearch('/customer/stores')
+
+      const cluster = await screen.findByRole('button', {
+        name: '점포 2곳: 프레시 강남점, 프레시 강남역점. 누르면 가까이 보여 줘요',
+      })
+      expect(cluster).toHaveTextContent('2곳')
+      // 떨어진 역삼점은 그대로 핀 하나
+      expect(screen.getByRole('button', { name: '프레시 역삼점' })).toBeInTheDocument()
+      fakeSetBounds.mockReset()
+      await userEvent.click(cluster)
+      expect(fakeSetBounds).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole('region', { name: '이 자리 점포 목록' })).not.toBeInTheDocument()
+    })
+
+    it('같은 자리라 더 확대해도 겹치면 목록으로 보여 주고, 고르면 그 점포 칸이 열린다', async () => {
+      vi.mocked(kakaoMapKey).mockReturnValue('test-key')
+      vi.mocked(loadKakaoMaps).mockResolvedValue(fakeKakao())
+      serve([seoulStores[0], same])
+      renderSearch('/customer/stores')
+
+      await userEvent.click(await screen.findByRole('button', { name: /^점포 2곳: / }))
+      const list = screen.getByRole('region', { name: '이 자리 점포 목록' })
+      expect(within(list).getByRole('heading', { name: '이 자리 점포 2곳' })).toHaveFocus()
+      await userEvent.click(within(list).getByRole('button', { name: /프레시 강남2점/ }))
+      expect(screen.getByRole('region', { name: '프레시 강남2점 정보' })).toBeInTheDocument()
+      // 고른 점포는 묶지 않고 따로 보인다
+      expect(screen.getByRole('button', { name: '프레시 강남2점' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+    })
+
+    it('목록을 Esc 로 닫으면 묶음 핀으로 포커스가 돌아간다', async () => {
+      vi.mocked(kakaoMapKey).mockReturnValue('test-key')
+      vi.mocked(loadKakaoMaps).mockResolvedValue(fakeKakao())
+      serve([seoulStores[0], same])
+      renderSearch('/customer/stores')
+      await userEvent.click(await screen.findByRole('button', { name: /^점포 2곳: / }))
+      await userEvent.keyboard('{Escape}')
+      expect(screen.queryByRole('region', { name: '이 자리 점포 목록' })).not.toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole('button', { name: /^점포 2곳: / })).toHaveFocus())
     })
   })
 })

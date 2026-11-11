@@ -1,8 +1,12 @@
+import { useAuthStore } from '@/shared/auth'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { isProductShortcut, readPickupStore, savePickupStore } from './pickupStore'
 
 describe('내 픽업 점포', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    useAuthStore.setState({ user: { userId: 'sub-a', role: 'CUSTOMER' }, restoring: false })
+  })
 
   it('저장한 점포를 다시 읽는다', () => {
     savePickupStore({ storeId: 3, name: '프레시 해운대점' })

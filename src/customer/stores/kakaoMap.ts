@@ -1,7 +1,9 @@
 /**
  * 카카오맵 JavaScript SDK 중 이 앱이 쓰는 부분만.
- * 점포 상세: 지도 하나·표시 하나. 점포 검색(11/11): 여러 점포 핀(CustomOverlay)·범위 맞추기(LatLngBounds·setBounds)·내 위치로 옮기기(panTo).
- * 근거: apis.map.kakao.com/web/documentation (CustomOverlay options·setMap(null), LatLngBounds.extend, Map.setBounds·panTo·relayout)
+ * 점포 상세: 지도 하나·표시 하나. 점포 검색(11/11): 여러 점포 핀(CustomOverlay)·범위 맞추기(LatLngBounds·setBounds)·내 위치로 옮기기(panTo)·
+ * 겹치는 핀 묶기(getLevel·getProjection().pointFromCoords·event zoom_changed).
+ * 근거: apis.map.kakao.com/web/documentation (CustomOverlay options·setMap(null), LatLngBounds.extend, Map.setBounds·panTo·relayout·getLevel,
+ * MapProjection.pointFromCoords, event.addListener·removeListener)
  */
 export interface KakaoLatLng {
   readonly _brand?: 'LatLng'
@@ -11,11 +13,19 @@ export interface KakaoLatLngBounds {
   extend(latlng: KakaoLatLng): void
 }
 
+export interface KakaoPoint {
+  x: number
+  y: number
+}
+
 export interface KakaoMap {
   setBounds(bounds: KakaoLatLngBounds): void
   panTo(latlng: KakaoLatLng): void
   setLevel(level: number): void
+  getLevel(): number
   relayout(): void
+  /** 좌표 → 지도 화면 점(px). 핀이 화면에서 겹치는지 볼 때 쓴다 */
+  getProjection(): { pointFromCoords(latlng: KakaoLatLng): KakaoPoint }
 }
 
 export interface KakaoCustomOverlay {
@@ -28,6 +38,11 @@ export interface KakaoMaps {
   LatLngBounds: new () => KakaoLatLngBounds
   Map: new (container: HTMLElement, options: { center: KakaoLatLng; level: number }) => KakaoMap
   Marker: new (options: { map: KakaoMap; position: KakaoLatLng }) => object
+  /** 지도 확대 단계가 바뀌면 핀 묶음을 다시 계산한다(zoom_changed) */
+  event: {
+    addListener(target: KakaoMap, type: 'zoom_changed', handler: () => void): void
+    removeListener(target: KakaoMap, type: 'zoom_changed', handler: () => void): void
+  }
   CustomOverlay: new (options: {
     map?: KakaoMap
     position: KakaoLatLng

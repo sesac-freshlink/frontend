@@ -1,14 +1,14 @@
-/** 내 픽업 점포: 고객이 홈에서 마지막으로 고른 점포. 이 기기에만 남긴다(서버에 "내 점포" 값이 없다) */
+import { readAccountItem, writeAccountItem } from './accountStorage'
+
+/** 내 픽업 점포: 고객이 [픽업 점포로 정하기]로 마지막으로 고른 점포. 서버에 "내 점포" 값이 없어 이 기기에, 계정마다 따로 남긴다(accountStorage) */
 export interface PickupStore {
   storeId: number
   name: string
 }
 
-const KEY = 'freshlink.pickupStore'
-
 export function readPickupStore(): PickupStore | null {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = readAccountItem('freshlink.pickupStore')
     if (raw === null) return null
     const value: unknown = JSON.parse(raw)
     if (
@@ -28,11 +28,7 @@ export function readPickupStore(): PickupStore | null {
 }
 
 export function savePickupStore(store: PickupStore) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(store))
-  } catch {
-    // 저장이 막힌 브라우저면 이번에만 쓴다
-  }
+  writeAccountItem('freshlink.pickupStore', JSON.stringify(store))
 }
 
 /** 홈 바로가기가 상품 목록에 넘기는 보기 조건(?show=) */
