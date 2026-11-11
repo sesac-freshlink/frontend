@@ -15,7 +15,7 @@ export function StoreDetailPage() {
     return (
       <section className="space-y-3 py-6 text-center">
         <p className="text-sm text-slate-500">점포 주소가 올바르지 않아요.</p>
-        <Link to="/customer" className="text-sm text-emerald-600 underline">
+        <Link to="/customer/stores" className="text-sm text-emerald-600 underline">
           점포 찾기로
         </Link>
       </section>

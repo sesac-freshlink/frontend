@@ -3,6 +3,7 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { useQueries } from '@tanstack/react-query'
 import type { RegionCode } from '@/auth/regions'
 import { api } from '@/shared/api/client'
+import { categoryPhotos, clearanceRow } from './homeRows'
 
 /** ST-01 응답 한 줄 */
 export interface StoreSummary {
@@ -11,6 +12,9 @@ export interface StoreSummary {
   name: string
   address: string
   region: RegionCode
+  /** 지도 좌표(11/10 member ST-01부터). 관리자가 안 넣었으면 null, 그 전 응답에는 칸이 없다 */
+  latitude?: number | null
+  longitude?: number | null
 }
 
 export interface StoreSearchParams {
@@ -176,6 +180,27 @@ export function useStoreProducts(
     // 검색어를 바꾸는 동안 이전 결과를 그대로 둬서 목록이 깜빡이지 않게 한다
     placeholderData: keepPreviousData,
   })
+}
+
+/** 점포 상품 전부(조건 없음) 읽기. useStoreProducts(storeId) 와 같은 queryKey 라 홈 줄끼리 한 번만 부른다 */
+function allProductsQuery(storeId: number) {
+  return {
+    queryKey: ['customer', 'stores', storeId, 'products', {}],
+    queryFn: async () => (await api.get<StoreProduct[]>(`/stores/${storeId}/products`)).data,
+  }
+}
+
+/**
+ * 홈 '오늘 마감세일' 줄. inventory 에 마감세일 조건이 없어(11/11) 상품 전부를 받아 homeRows.clearanceRow 로 거른다.
+ * 마감세일 조건(예: clearanceOnly)이 생기면 여기서 그 조건으로 부르고 homeRows 의 거르기만 고친다
+ */
+export function useClearanceProducts(storeId: number) {
+  return useQuery({ ...allProductsQuery(storeId), select: clearanceRow })
+}
+
+/** 홈 카테고리 칸 사진(분류별 첫 상품 사진). 마감세일 줄과 같은 상품 전부 목록을 쓴다 */
+export function useCategoryPhotos(storeId: number) {
+  return useQuery({ ...allProductsQuery(storeId), select: categoryPhotos })
 }
 
 /** U-10 카테고리 칩. 상품 전체의 카테고리(가나다순). 들어올 때 한 번 읽는다 */

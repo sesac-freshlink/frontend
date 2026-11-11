@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, Info, LoaderCircle, RefreshCw, Search } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
@@ -16,6 +16,8 @@ import { ProductBadges } from '../components/ProductBadges'
 import { PullIndicator } from '../components/PullIndicator'
 import { productLabel } from '../productLabel'
 import { clearanceOf } from '../clearance'
+import { isClearanceProduct } from '../homeRows'
+import { isProductShortcut } from '../pickupStore'
 import { useLoadMoreOnScroll } from '../useLoadMoreOnScroll'
 import { usePullToRefresh } from '../usePullToRefresh'
 import { useStoreName } from '../useStoreName'
@@ -37,12 +39,20 @@ export function StoreProductsPage() {
 
 function StoreProducts({ storeId }: { storeId: number }) {
   const storeName = useStoreName(storeId)
-  const [draft, setDraft] = useState('')
-  const [keyword, setKeyword] = useState('')
-  const [category, setCategory] = useState('')
+  // 홈 바로가기(?show=)·홈 상품 검색(?q=)·홈 카테고리 칸(?category=)으로 들어오면 그 조건을 켠 채 시작한다
+  const [searchParams] = useSearchParams()
+  const initialQ = (searchParams.get('q') ?? '').slice(0, PRODUCT_KEYWORD_MAX)
+  const [draft, setDraft] = useState(initialQ)
+  const [keyword, setKeyword] = useState(initialQ)
+  const [category, setCategory] = useState(searchParams.get('category') ?? '')
   const [sort, setSort] = useState<StoreProductSort>('NAME')
-  const [recommendedOnly, setRecommendedOnly] = useState(false)
-  const [newOnly, setNewOnly] = useState(false)
+  const showParam = searchParams.get('show')
+  const shortcut = isProductShortcut(showParam) ? showParam : null
+  const [recommendedOnly, setRecommendedOnly] = useState(shortcut === 'recommended')
+  const [newOnly, setNewOnly] = useState(shortcut === 'new')
+  // 마감세일·선착순은 서버 조건이 없어 받아 온 목록에서 거른다(마감세일 거르기는 homeRows 한 곳)
+  const [clearanceOnly, setClearanceOnly] = useState(shortcut === 'clearance')
+  const [firstComeOnly, setFirstComeOnly] = useState(shortcut === 'firstCome')
   const categories = useStoreCategories(storeId)
   const products = useStoreProductPages(storeId, {
     keyword,
@@ -51,7 +61,7 @@ function StoreProducts({ storeId }: { storeId: number }) {
     recommendedOnly,
     newOnly,
   })
-  const filtered = category !== '' || recommendedOnly || newOnly
+  const filtered = category !== '' || recommendedOnly || newOnly || clearanceOnly || firstComeOnly
   const {
     ref: pullRef,
     pull,
@@ -71,12 +81,14 @@ function StoreProducts({ storeId }: { storeId: number }) {
     setCategory('')
     setRecommendedOnly(false)
     setNewOnly(false)
+    setClearanceOnly(false)
+    setFirstComeOnly(false)
   }
 
   return (
     <section ref={pullRef} className="space-y-4">
       <PullIndicator pull={pull} ready={ready} />
-      <Link to="/customer" className="inline-flex items-center gap-1 text-sm text-slate-500">
+      <Link to="/customer/stores" className="inline-flex items-center gap-1 text-sm text-slate-500">
         <ChevronLeft className="size-4" />
         점포 찾기
       </Link>
@@ -132,7 +144,17 @@ function StoreProducts({ storeId }: { storeId: number }) {
         ))}
       </div>
       <div className="flex items-center justify-between gap-2 text-sm">
-        <div className="flex gap-2">
+        <div className="-ml-4 flex gap-2 overflow-x-auto pl-4">
+          <Chip
+            label="마감세일"
+            pressed={clearanceOnly}
+            onClick={() => setClearanceOnly((v) => !v)}
+          />
+          <Chip
+            label="선착순"
+            pressed={firstComeOnly}
+            onClick={() => setFirstComeOnly((v) => !v)}
+          />
           <Chip
             label="추천상품"
             pressed={recommendedOnly}
@@ -158,6 +180,8 @@ function StoreProducts({ storeId }: { storeId: number }) {
         storeName={storeName}
         keyword={keyword.trim()}
         filtered={filtered}
+        clearanceOnly={clearanceOnly}
+        firstComeOnly={firstComeOnly}
         onClearSearch={clearSearch}
       />
     </section>
@@ -172,6 +196,10 @@ interface ListProps {
   keyword: string
   /** 카테고리·추천상품·신상품 조건이 하나라도 걸려 있는지 */
   filtered: boolean
+  /** 받아 온 목록에서 마감세일 상품만 */
+  clearanceOnly: boolean
+  /** 받아 온 목록에서 선착순 상품만 */
+  firstComeOnly: boolean
   onClearSearch: () => void
 }
 
@@ -181,6 +209,8 @@ function ProductList({
   storeName,
   keyword,
   filtered,
+  clearanceOnly,
+  firstComeOnly,
   onClearSearch,
 }: ListProps) {
   if (products.isPending) {
@@ -204,7 +234,9 @@ function ProductList({
       </div>
     )
   }
-  const items = products.data.pages.flat()
+  const items = products.data.pages
+    .flat()
+    .filter((p) => (!clearanceOnly || isClearanceProduct(p)) && (!firstComeOnly || p.firstCome))
   if (items.length === 0) {
     if (keyword || filtered) {
       return (
@@ -346,7 +378,7 @@ function BackToHome({ message }: { message: string }) {
   return (
     <section className="space-y-3 py-6 text-center">
       <p className="text-sm text-slate-500">{message}</p>
-      <Link to="/customer" className="text-sm text-emerald-600 underline">
+      <Link to="/customer/stores" className="text-sm text-emerald-600 underline">
         점포 찾기로
       </Link>
     </section>

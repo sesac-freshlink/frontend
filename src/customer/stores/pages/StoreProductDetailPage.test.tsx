@@ -30,7 +30,7 @@ function renderAt(path: string, state?: { storeName: string }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createMemoryRouter(
     [
-      { path: '/customer', element: <p>점포 찾기 화면</p> },
+      { path: '/customer/stores', element: <p>점포 찾기 화면</p> },
       { path: '/customer/stores/:storeId', element: <p>상품 목록 화면</p> },
       {
         path: '/customer/stores/:storeId/products/:productId',

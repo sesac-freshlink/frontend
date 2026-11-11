@@ -318,6 +318,12 @@ function kstEndOfDay(days: number): string {
   return `${date.toISOString().slice(0, 10)}T23:59:59+09:00`
 }
 
+/** 지금부터 hours 시간 뒤(+09:00). 홈 마감세일 줄의 남은 시간이 상품마다 다르게 보이게 쓴다 */
+function kstHoursFromNow(hours: number): string {
+  const date = new Date(Date.now() + 9 * 60 * 60 * 1000 + hours * 60 * 60 * 1000)
+  return `${date.toISOString().slice(0, 19)}+09:00`
+}
+
 /** U-10 점포 상품. 점포마다 같은 목록을 준다. 상품 1~3 은 orderHandlers 의 상품과 같아 가짜 주문까지 이어진다 */
 /** 가짜 최근 7일 순판매. 추천순(POPULAR) 정렬에 쓴다 */
 const storeProductSold: Record<number, number> = { 1: 12, 2: 7, 3: 3 }
@@ -391,10 +397,72 @@ const storeProducts: StoreProduct[] = [
     firstCome: false,
     nearestExpiry: null,
   },
+  // 아래는 가짜 API 모드에서 홈 카테고리 8칸·마감세일 줄이 비지 않게 더한 상품
+  {
+    productId: 6,
+    name: '제육볶음 도시락',
+    category: '도시락',
+    price: 5500,
+    imageUrl: null,
+    availableQuantity: 4,
+    soldOut: false,
+    recommended: true,
+    newArrival: false,
+    firstCome: false,
+    nearestExpiry: kstEndOfDay(1),
+    clearanceQuantity: 3,
+    clearancePrice: 3850,
+    clearanceExpiry: kstHoursFromNow(2.5),
+  },
+  {
+    productId: 7,
+    name: '닭가슴살 샐러드',
+    category: '샐러드',
+    price: 4900,
+    imageUrl: null,
+    availableQuantity: 6,
+    soldOut: false,
+    recommended: false,
+    newArrival: true,
+    firstCome: false,
+    nearestExpiry: kstEndOfDay(1),
+    clearanceQuantity: 2,
+    clearancePrice: 3430,
+    clearanceExpiry: kstHoursFromNow(5),
+  },
+  {
+    productId: 8,
+    name: '계란 10구',
+    category: '신선식품',
+    price: 4800,
+    imageUrl: null,
+    availableQuantity: 8,
+    soldOut: false,
+    recommended: true,
+    newArrival: false,
+    firstCome: false,
+    nearestExpiry: kstEndOfDay(6),
+  },
+  {
+    productId: 9,
+    name: '불고기 김밥',
+    category: '김밥',
+    price: 3800,
+    imageUrl: null,
+    availableQuantity: 5,
+    soldOut: false,
+    recommended: false,
+    newArrival: true,
+    firstCome: false,
+    nearestExpiry: kstEndOfDay(1),
+    clearanceQuantity: 1,
+    clearancePrice: 2660,
+    clearanceExpiry: kstHoursFromNow(0.7),
+  },
 ]
 
 /** 점주가 추천으로 정한 상품 (가짜) */
-const recommendedIds = new Set<number>([2, 5])
+const recommendedIds = new Set<number>([2, 5, 6, 8])
 /** 점주가 정한 선착순 한도 (가짜) */
 const firstComeLimits = new Map<number, number>([[3, 2]])
 
