@@ -82,9 +82,15 @@ const recommendedProducts = [
 interface Setup {
   banners?: unknown
   productsError?: boolean
+  /** 내 지역 점포 목록(점포명순으로 온다고 본다) */
+  stores?: unknown[]
 }
 
-function mockApi({ banners = notFound, productsError = false }: Setup = {}) {
+function mockApi({
+  banners = notFound,
+  productsError = false,
+  stores = [gangnam, yeoksam, noCoords],
+}: Setup = {}) {
   get.mockImplementation(async (url, config) => {
     const params = (config as { params?: Record<string, unknown> } | undefined)?.params ?? {}
     if (url === '/members/me') return { data: me }
@@ -92,8 +98,8 @@ function mockApi({ banners = notFound, productsError = false }: Setup = {}) {
       if (banners instanceof Error) throw banners
       return { data: banners }
     }
-    if (url === '/stores') return { data: [gangnam, yeoksam, noCoords] }
-    if (url === '/stores/1/products') {
+    if (url === '/stores') return { data: stores }
+    if (/^\/stores\/\d+\/products$/.test(String(url))) {
       if (params.recommended) return { data: recommendedProducts }
       if (params.newOnly) return { data: [] }
       if (productsError) throw new Error('500')
@@ -103,11 +109,13 @@ function mockApi({ banners = notFound, productsError = false }: Setup = {}) {
   })
 }
 
-function mockPosition(ok: boolean) {
+/** ok = 허용(강남역 근처), false = 거절, 'never' = 답이 아직 없음(권한 창을 띄운 채) */
+function mockPosition(ok: boolean | 'never') {
   Object.defineProperty(navigator, 'geolocation', {
     configurable: true,
     value: {
       getCurrentPosition: (success: PositionCallback, failure: PositionErrorCallback) => {
+        if (ok === 'never') return
         if (ok) {
           success({ coords: { latitude: 37.4979, longitude: 127.0276 } } as GeolocationPosition)
         } else {
@@ -155,12 +163,65 @@ describe('고객 홈 (U-01)', () => {
     Reflect.deleteProperty(navigator, 'geolocation')
   })
 
-  it('픽업 점포를 안 골랐으면 점포 고르기 안내만 보이고 상품을 부르지 않는다', async () => {
+  it('점포를 안 골랐고 위치를 허용하면 가장 가까운 점포로 홈 전체를 채우고, 이 기기에 저장하지 않는다', async () => {
+    // 목록 첫 점포(좌표 없음)가 아니라 가장 가까운 강남점을 고른다
+    mockApi({ stores: [noCoords, yeoksam, gangnam] })
+    renderHome()
+    const row = await screen.findByRole('link', { name: /^가까운 점포 프레시 강남점, 100m/ })
+    expect(within(row).getByText('바꾸기')).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: '오늘 마감세일' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: '카테고리' })).toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/stores/1/products')
+    expect(localStorage.getItem('freshlink.pickupStore')).toBeNull()
+    // 임시 점포에는 내 주변 점포 목록에서 "픽업 점포" 표시를 붙이지 않는다
+    const nearby = screen.getByRole('region', { name: '내 주변 점포' })
+    expect(await within(nearby).findByText('프레시 역삼점')).toBeInTheDocument()
+    expect(within(nearby).queryByText('픽업 점포')).not.toBeInTheDocument()
+  })
+
+  it('점포를 안 골랐고 위치를 거절하면 내 지역 첫 점포로 홈을 채운다', async () => {
+    mockPosition(false)
+    mockApi({ stores: [noCoords, gangnam, yeoksam] })
+    renderHome()
+    const row = await screen.findByRole('link', { name: /^내 지역 점포 프레시 좌표없음점/ })
+    expect(within(row).getByText('바꾸기')).toBeInTheDocument()
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/stores/3/products'))
+    expect(localStorage.getItem('freshlink.pickupStore')).toBeNull()
+  })
+
+  it('임시 점포로 보다가 주변 점포를 누르면 그 점포를 픽업 점포로 저장한다', async () => {
     mockApi()
+    renderHome()
+    const nearby = await screen.findByRole('region', { name: '내 주변 점포' })
+    await userEvent.click(await within(nearby).findByRole('link', { name: /프레시 역삼점/ }))
+    expect(JSON.parse(localStorage.getItem('freshlink.pickupStore') ?? 'null')).toEqual({
+      storeId: 2,
+      name: '프레시 역삼점',
+    })
+  })
+
+  it('위치 답을 기다리는 동안 빈 화면 대신 자리표시를 보인다', async () => {
+    mockPosition('never')
+    mockApi()
+    renderHome()
+    expect(await screen.findByText('가까운 점포를 찾는 중')).toBeInTheDocument()
+    expect(get).not.toHaveBeenCalledWith('/stores/1/products')
+  })
+
+  it('내 지역에 점포가 하나도 없을 때만 점포 고르기 안내를 보인다', async () => {
+    mockApi({ stores: [] })
     const router = renderHome()
     await userEvent.click(await screen.findByRole('link', { name: '점포 고르기' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/customer/stores'))
-    expect(get).not.toHaveBeenCalledWith('/stores/1/products')
+  })
+
+  it('점포 목록을 못 불러오면 다시 시도를 보인다', async () => {
+    get.mockImplementation(async (url) => {
+      if (url === '/members/me') return { data: me }
+      throw new Error('500')
+    })
+    renderHome()
+    expect(await screen.findByRole('button', { name: '다시 시도' })).toBeInTheDocument()
   })
 
   it('픽업 점포 한 줄에 이름과 거리를 보이고, 누르면 점포 검색으로 간다', async () => {

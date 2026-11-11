@@ -3,6 +3,7 @@ import type { StoreProduct, StoreSummary } from './api'
 import {
   categoryPhotos,
   clearanceRow,
+  defaultPickupStore,
   HOME_ROW_LIMIT,
   homeRow,
   isClearanceProduct,
@@ -143,5 +144,32 @@ describe('remainingText', () => {
     expect(remainingText('2026-11-11T10:00:30+09:00', now)).toBe('곧 마감')
     expect(remainingText('2026-11-11T09:00:00+09:00', now)).toBe('곧 마감')
     expect(remainingText(null, now)).toBeNull()
+  })
+})
+
+describe('defaultPickupStore', () => {
+  const origin = { latitude: 37.498, longitude: 127.027 }
+  it('위치를 알면 좌표 있는 점포 중 가장 가까운 곳', () => {
+    expect(
+      defaultPickupStore(
+        [store(1, 37.6, 127.1), store(2, null, null), store(3, 37.499, 127.028)],
+        origin,
+      ),
+    ).toEqual({ store: store(3, 37.499, 127.028), reason: 'nearest' })
+  })
+  it('위치를 모르면 목록의 첫 점포', () => {
+    expect(defaultPickupStore([store(1, 37.6, 127.1), store(3, 37.499, 127.028)], null)).toEqual({
+      store: store(1, 37.6, 127.1),
+      reason: 'region',
+    })
+  })
+  it('위치는 알지만 좌표 있는 점포가 없으면 목록의 첫 점포', () => {
+    expect(defaultPickupStore([store(2, null, null), store(4, null, null)], origin)).toEqual({
+      store: store(2, null, null),
+      reason: 'region',
+    })
+  })
+  it('지역에 점포가 없으면 null', () => {
+    expect(defaultPickupStore([], origin)).toBeNull()
   })
 })
