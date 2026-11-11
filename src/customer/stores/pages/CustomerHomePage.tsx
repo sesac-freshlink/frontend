@@ -14,7 +14,7 @@ import { NearbyStores } from '../components/home/NearbyStores'
 import { PickupStoreButton } from '../components/home/PickupStoreButton'
 import { ProductRail } from '../components/home/ProductRail'
 import { defaultPickupStore, storeDistance, type DefaultStoreReason } from '../homeRows'
-import { readPickupStore, savePickupStore, type PickupStore } from '../pickupStore'
+import { readPickupStore, type PickupStore } from '../pickupStore'
 import { useCurrentPosition, type PositionState } from '../useCurrentPosition'
 import { usePullToRefresh } from '../usePullToRefresh'
 
@@ -22,12 +22,13 @@ import { usePullToRefresh } from '../usePullToRefresh'
  * U-01 고객 홈 (/customer). 위에서 아래로: 픽업 점포 한 줄 → 메인 배너 → 카테고리 4×2 → 점포 상품 검색 →
  * 상품 줄 3개(오늘 마감세일·점주 추천·신상품) → 내 주변 점포. 로고·알림 종·하단 메뉴는 CustomerLayout 이 그린다.
  * 픽업 점포를 아직 안 골랐으면 임시 픽업 점포(위치 허용이면 가장 가까운 점포, 아니면 내 지역 첫 점포)로 홈 전체를 채운다.
- * 임시 점포는 이 기기에 저장하지 않고, 손님이 점포를 직접 고를 때만 저장한다. 내 지역에 점포가 없을 때만 점포 고르기 안내를 보인다.
+ * 임시 점포는 이 기기에 저장하지 않고, 손님이 [픽업 점포로 정하기]를 누를 때만 저장한다(11/11). 내 지역에 점포가 없을 때만 점포 찾기 안내를 보인다.
  * 점포 찾기는 하단 메뉴 [점포 검색](StoreSearchPage)으로 옮겼다
  */
 export function CustomerHomePage() {
   const profile = useMyProfile()
-  const [pickup, setPickup] = useState<PickupStore | null>(readPickupStore)
+  // 픽업 점포는 점포 둘러보기·점포 검색의 [픽업 점포로 정하기]로만 바뀐다. 홈은 들어올 때 한 번 읽는다
+  const [pickup] = useState<PickupStore | null>(readPickupStore)
 
   if (profile.isPending) return <FullScreenSpinner />
   // 로그인했는데 프로필이 없으면 프로필 등록 마무리 화면으로 (기능명세 M1)
@@ -35,34 +36,17 @@ export function CustomerHomePage() {
 
   const me = profile.data?.role === 'CUSTOMER' ? profile.data : undefined
   const region = me && isRegionCode(me.region) ? me.region : DEFAULT_REGION
-  return (
-    <HomeWithStore
-      saved={pickup}
-      region={region}
-      onPick={(store) => {
-        savePickupStore(store)
-        setPickup(store)
-      }}
-    />
-  )
+  return <HomeWithStore saved={pickup} region={region} />
 }
 
 /**
  * 홈에 쓸 점포를 정한다. 고른 점포(saved)가 있으면 그것, 없으면 임시 점포(defaultPickupStore).
  * 임시 점포는 위치 답(허용·거절·8초 시간 초과)과 내 지역 점포 목록을 기다린 뒤 정한다. 그동안은 자리표시를 보인다
  */
-function HomeWithStore({
-  saved,
-  region,
-  onPick,
-}: {
-  saved: PickupStore | null
-  region: RegionCode
-  onPick: (store: PickupStore) => void
-}) {
+function HomeWithStore({ saved, region }: { saved: PickupStore | null; region: RegionCode }) {
   const position = useCurrentPosition(true)
   const stores = useStores({ region, keyword: '' })
-  const homeProps = { region, position, stores, onPick }
+  const homeProps = { region, position, stores }
 
   if (saved) return <Home pickup={saved} temporary={null} {...homeProps} />
   if (stores.isError) {
@@ -113,13 +97,15 @@ function ChooseStore() {
         <h1 id="choose-store" className="text-xl font-bold text-slate-900">
           내 지역에는 아직 점포가 없어요
         </h1>
-        <p className="text-sm text-slate-600">점포 검색에서 다른 지역의 점포를 골라 주세요.</p>
+        <p className="text-sm text-slate-600">
+          점포 검색에서 다른 지역 점포를 찾아 [픽업 점포로 정하기]를 눌러 주세요.
+        </p>
       </div>
       <Link
         to="/customer/stores?pick=1"
         className="inline-flex min-h-12 items-center rounded-xl bg-emerald-700 px-6 text-base font-semibold text-white hover:bg-emerald-800"
       >
-        점포 고르기
+        점포 찾기
       </Link>
     </section>
   )
@@ -130,7 +116,6 @@ function Home({
   temporary,
   position,
   stores,
-  onPick,
 }: {
   pickup: PickupStore
   /** 임시 점포면 고른 까닭, 손님이 고른 점포면 null */
@@ -138,7 +123,6 @@ function Home({
   region: RegionCode
   position: PositionState
   stores: ReturnType<typeof useStores>
-  onPick: (store: PickupStore) => void
 }) {
   const { storeId, name } = pickup
   const origin = position.status === 'ok' ? position.position : null
@@ -178,7 +162,6 @@ function Home({
         position={position}
         stores={stores}
         pickupId={temporary ? undefined : storeId}
-        onPick={onPick}
       />
     </div>
   )

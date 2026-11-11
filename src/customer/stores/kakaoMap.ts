@@ -1,13 +1,42 @@
-/** 카카오맵 JavaScript SDK 중 점포 위치 표시에 쓰는 부분만 (지도 하나, 표시 하나) */
+/**
+ * 카카오맵 JavaScript SDK 중 이 앱이 쓰는 부분만.
+ * 점포 상세: 지도 하나·표시 하나. 점포 검색(11/11): 여러 점포 핀(CustomOverlay)·범위 맞추기(LatLngBounds·setBounds)·내 위치로 옮기기(panTo).
+ * 근거: apis.map.kakao.com/web/documentation (CustomOverlay options·setMap(null), LatLngBounds.extend, Map.setBounds·panTo·relayout)
+ */
 export interface KakaoLatLng {
   readonly _brand?: 'LatLng'
+}
+
+export interface KakaoLatLngBounds {
+  extend(latlng: KakaoLatLng): void
+}
+
+export interface KakaoMap {
+  setBounds(bounds: KakaoLatLngBounds): void
+  panTo(latlng: KakaoLatLng): void
+  setLevel(level: number): void
+  relayout(): void
+}
+
+export interface KakaoCustomOverlay {
+  setMap(map: KakaoMap | null): void
 }
 
 export interface KakaoMaps {
   load(callback: () => void): void
   LatLng: new (lat: number, lng: number) => KakaoLatLng
-  Map: new (container: HTMLElement, options: { center: KakaoLatLng; level: number }) => object
-  Marker: new (options: { map: object; position: KakaoLatLng }) => object
+  LatLngBounds: new () => KakaoLatLngBounds
+  Map: new (container: HTMLElement, options: { center: KakaoLatLng; level: number }) => KakaoMap
+  Marker: new (options: { map: KakaoMap; position: KakaoLatLng }) => object
+  CustomOverlay: new (options: {
+    map?: KakaoMap
+    position: KakaoLatLng
+    content: HTMLElement
+    clickable?: boolean
+    xAnchor?: number
+    yAnchor?: number
+    zIndex?: number
+  }) => KakaoCustomOverlay
 }
 
 declare global {

@@ -39,6 +39,28 @@ const stores: StoreSummary[] = [
     address: '부산 해운대구 해운대로 3',
     region: 'BUSAN',
   },
+  // 점포 검색 지도(11/11)용 서울 점포. 관리자 가짜 DB(adminHandlers)와 같은 번호·이름
+  {
+    storeId: 4,
+    storeCode: 'S4',
+    name: '프레시 선릉점',
+    address: '서울 강남구 선릉로 4',
+    region: 'SEOUL',
+  },
+  {
+    storeId: 5,
+    storeCode: 'S5',
+    name: '프레시 삼성점',
+    address: '서울 강남구 삼성로 5',
+    region: 'SEOUL',
+  },
+  {
+    storeId: 6,
+    storeCode: 'S6',
+    name: '프레시 논현점',
+    address: '서울 강남구 논현로 6',
+    region: 'SEOUL',
+  },
 ]
 
 export const memberHandlers = [
