@@ -8,9 +8,11 @@ import type {
   NoticeRequest,
   NoticeSummary,
 } from '@/board/api'
+import type { AdminBanner, BannerRequest } from '@/board/banners'
+import type { HomeBanner } from '@/customer/banners/api'
 import { mockSessionUser } from './authHandlers'
 
-/** member-service 가짜 API (김경우): 게시판 BD-01~03, 관리자 공지·FAQ (추가 명세 A17) */
+/** member-service 가짜 API (김경우): 게시판 BD-01~03, 관리자 공지·FAQ (추가 명세 A17), 메인배너 BN-01·AD-13~17 (A18) */
 const PAGE_SIZE = 20
 
 const seedNotices: NoticeDetail[] = [
@@ -75,17 +77,46 @@ const seedFaqs: FaqItem[] = [
   },
 ]
 
+const seedBanners: Omit<AdminBanner, 'noticeTitle'>[] = [
+  {
+    bannerId: 1,
+    title: '마감세일, 오늘 23:59까지 픽업',
+    imageUrl: '/banners/clearance.svg',
+    noticeId: 1,
+  },
+  { bannerId: 2, title: '선착순 신상품', imageUrl: '/banners/first-come.svg', noticeId: null },
+  {
+    bannerId: 3,
+    title: '픽업 신청 잊지 마세요',
+    imageUrl: '/banners/pickup-request.svg',
+    noticeId: 2,
+  },
+  { bannerId: 4, title: 'FreshLink 이용 안내', imageUrl: '/banners/guide.svg', noticeId: null },
+].map((b, i) => ({
+  ...b,
+  sortOrder: i,
+  visible: true,
+  startsAt: null,
+  endsAt: null,
+  createdAt: '2026-11-11T09:00:00+09:00',
+  updatedAt: '2026-11-11T09:00:00+09:00',
+}))
+
 let notices: NoticeDetail[] = []
 let faqs: FaqItem[] = []
+let banners: Omit<AdminBanner, 'noticeTitle'>[] = []
 let nextNoticeId = 1
 let nextFaqId = 1
+let nextBannerId = 1
 
 /** 테스트마다 처음 글로 되돌린다 */
 export function resetMockBoard() {
   notices = seedNotices.map((n) => ({ ...n }))
   faqs = seedFaqs.map((f) => ({ ...f }))
+  banners = seedBanners.map((b) => ({ ...b }))
   nextNoticeId = seedNotices.length + 1
   nextFaqId = seedFaqs.length + 1
+  nextBannerId = seedBanners.length + 1
 }
 resetMockBoard()
 
@@ -164,6 +195,72 @@ const faqNotFound = () =>
     status: 404,
   })
 
+/** 메인배너 (A18): 서버 BannerRequest·BannerService 와 같은 규칙 */
+const BANNER_IMAGE = /^\/(images\/)?banners\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpg|jpeg|png|webp|svg)$/
+const HOME_LIMIT = 5
+
+function invalidBanner(req: BannerRequest): boolean {
+  const title = req.title?.trim() ?? ''
+  return (
+    !title ||
+    title.length > 50 ||
+    typeof req.imageUrl !== 'string' ||
+    !BANNER_IMAGE.test(req.imageUrl) ||
+    !Number.isInteger(req.sortOrder) ||
+    req.sortOrder < 0 ||
+    req.sortOrder > 9999 ||
+    (req.noticeId !== null && (!Number.isInteger(req.noticeId) || req.noticeId < 1))
+  )
+}
+
+const bannerOrder = (
+  a: { sortOrder: number; bannerId: number },
+  b: { sortOrder: number; bannerId: number },
+) => a.sortOrder - b.sortOrder || a.bannerId - b.bannerId
+
+function withNoticeTitle(b: Omit<AdminBanner, 'noticeTitle'>): AdminBanner {
+  const notice = b.noticeId === null ? undefined : notices.find((n) => n.noticeId === b.noticeId)
+  return { ...b, noticeTitle: notice?.title ?? null }
+}
+
+function showingNow(b: Omit<AdminBanner, 'noticeTitle'>, now: number): boolean {
+  return (
+    b.visible &&
+    (b.startsAt === null || Date.parse(b.startsAt) <= now) &&
+    (b.endsAt === null || Date.parse(b.endsAt) > now)
+  )
+}
+
+/** 저장 전 확인: 기간 앞뒤, 연결할 공지 */
+function bannerProblem(req: BannerRequest) {
+  if (req.startsAt && req.endsAt && Date.parse(req.startsAt) >= Date.parse(req.endsAt)) {
+    return HttpResponse.json(
+      errorBody('BANNER_PERIOD_INVALID', '노출 시작은 끝보다 빨라야 합니다'),
+      {
+        status: 400,
+      },
+    )
+  }
+  if (req.noticeId !== null && !notices.some((n) => n.noticeId === req.noticeId))
+    return noticeNotFound()
+  return null
+}
+
+const bannerNotFound = () =>
+  HttpResponse.json(errorBody('BANNER_NOT_FOUND', '배너가 없습니다'), { status: 404 })
+
+function bannerFields(req: BannerRequest) {
+  return {
+    title: req.title.trim(),
+    imageUrl: req.imageUrl,
+    noticeId: req.noticeId,
+    sortOrder: req.sortOrder,
+    visible: req.visible !== false,
+    startsAt: req.startsAt,
+    endsAt: req.endsAt,
+  }
+}
+
 export const boardHandlers = [
   // BD-01 공지 목록
   http.get('/api/members/notices', ({ request }) => {
@@ -239,7 +336,10 @@ export const boardHandlers = [
     if (denied) return denied
     const before = notices.length
     notices = notices.filter((n) => n.noticeId !== Number(params.id))
-    return before === notices.length ? noticeNotFound() : new HttpResponse(null, { status: 204 })
+    if (before === notices.length) return noticeNotFound()
+    // 서버 외래 키 ON DELETE SET NULL 처럼 배너 연결만 끊는다 (A18)
+    for (const b of banners) if (b.noticeId === Number(params.id)) b.noticeId = null
+    return new HttpResponse(null, { status: 204 })
   }),
 
   http.get('/api/admin/faqs', () => adminOnly() ?? HttpResponse.json([...faqs].sort(faqOrder))),
@@ -279,5 +379,85 @@ export const boardHandlers = [
     const before = faqs.length
     faqs = faqs.filter((f) => f.faqId !== Number(params.id))
     return before === faqs.length ? faqNotFound() : new HttpResponse(null, { status: 204 })
+  }),
+
+  // BN-01 홈 배너: 고객만, 보이기 + 기간 안, 순서대로 5장
+  http.get('/api/members/banners', () => {
+    if (mockSessionUser()?.role !== 'CUSTOMER') {
+      return HttpResponse.json(errorBody('FORBIDDEN', '권한이 없습니다'), { status: 403 })
+    }
+    const now = Date.now()
+    const home: HomeBanner[] = banners
+      .filter((b) => showingNow(b, now))
+      .sort(bannerOrder)
+      .slice(0, HOME_LIMIT)
+      .map(({ bannerId, title, imageUrl, noticeId }) => ({ bannerId, title, imageUrl, noticeId }))
+    return HttpResponse.json(home)
+  }),
+  // AD-13~17 관리자 배너
+  http.get(
+    '/api/admin/banners',
+    () => adminOnly() ?? HttpResponse.json([...banners].sort(bannerOrder).map(withNoticeTitle)),
+  ),
+  http.post('/api/admin/banners', async ({ request }) => {
+    const denied = adminOnly()
+    if (denied) return denied
+    const req = (await request.json()) as BannerRequest
+    if (invalidBanner(req)) return validation()
+    const problem = bannerProblem(req)
+    if (problem) return problem
+    const now = new Date().toISOString()
+    const created = {
+      bannerId: nextBannerId++,
+      ...bannerFields(req),
+      createdAt: now,
+      updatedAt: now,
+    }
+    banners.push(created)
+    return HttpResponse.json(withNoticeTitle(created), { status: 201 })
+  }),
+  // 순서 바꾸기는 :id 보다 먼저 둔다
+  http.put('/api/admin/banners/order', async ({ request }) => {
+    const denied = adminOnly()
+    if (denied) return denied
+    const { bannerIds } = (await request.json()) as { bannerIds?: number[] }
+    if (!Array.isArray(bannerIds)) return validation()
+    const current = new Set(banners.map((b) => b.bannerId))
+    if (
+      bannerIds.length !== banners.length ||
+      new Set(bannerIds).size !== bannerIds.length ||
+      !bannerIds.every((id) => current.has(id))
+    ) {
+      return HttpResponse.json(
+        errorBody('BANNER_ORDER_INVALID', '지금 있는 배너를 모두 한 번씩 보내 주세요'),
+        {
+          status: 400,
+        },
+      )
+    }
+    bannerIds.forEach((id, i) => {
+      const b = banners.find((x) => x.bannerId === id)
+      if (b) b.sortOrder = i
+    })
+    return HttpResponse.json([...banners].sort(bannerOrder).map(withNoticeTitle))
+  }),
+  http.put('/api/admin/banners/:id', async ({ params, request }) => {
+    const denied = adminOnly()
+    if (denied) return denied
+    const found = banners.find((b) => b.bannerId === Number(params.id))
+    if (!found) return bannerNotFound()
+    const req = (await request.json()) as BannerRequest
+    if (invalidBanner(req)) return validation()
+    const problem = bannerProblem(req)
+    if (problem) return problem
+    Object.assign(found, bannerFields(req), { updatedAt: new Date().toISOString() })
+    return HttpResponse.json(withNoticeTitle(found))
+  }),
+  http.delete('/api/admin/banners/:id', ({ params }) => {
+    const denied = adminOnly()
+    if (denied) return denied
+    const before = banners.length
+    banners = banners.filter((b) => b.bannerId !== Number(params.id))
+    return before === banners.length ? bannerNotFound() : new HttpResponse(null, { status: 204 })
   }),
 ]

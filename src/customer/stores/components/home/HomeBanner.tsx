@@ -13,7 +13,8 @@ function prefersReducedMotion(): boolean {
 }
 
 /**
- * 홈 ③ 메인 배너(2:1). 미확정(member 배너 V6 전) API 라 못 받거나 비어 있으면 칸을 숨긴다.
+ * 홈 ③ 메인 배너(가로 2:1, member A18 BN-01). 못 받거나(404·오류) 비어 있으면 칸을 숨긴다.
+ * 연결한 공지가 있으면 눌러서 그 공지로 가고, 없으면 눌러도 아무 일이 없다.
  * 4초마다 다음 장으로 넘어가고, [멈춤] 버튼·손으로 넘기기·키보드로 들어오면 멈춘다.
  * 움직임 줄이기를 켠 사람에게는 저절로 넘기지 않는다
  */
@@ -22,7 +23,7 @@ export function HomeBanner() {
   if (banners.isPending) {
     return <div aria-hidden className="aspect-2/1 animate-pulse rounded-2xl bg-slate-200" />
   }
-  // 미확정 API 라 모양이 다르게 올 수 있다. 목록이 아니거나 비면 숨긴다(홈 전체가 깨지지 않게)
+  // 목록이 아니거나 비면 숨긴다(홈 전체가 깨지지 않게)
   if (banners.isError || !Array.isArray(banners.data)) return null
   const valid = banners.data.filter(isBanner)
   if (valid.length === 0) return null
@@ -110,14 +111,8 @@ function BannerCarousel({ banners }: { banners: Banner[] }) {
 }
 
 function BannerSlide({ banner }: { banner: Banner }) {
-  const body = (
-    <>
-      <img src={banner.imageUrl} alt="" className="size-full object-cover" />
-      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-900/80 to-transparent px-4 pt-10 pr-28 pb-4 text-base leading-snug font-semibold text-white">
-        {banner.title}
-      </span>
-    </>
-  )
+  // 제목은 그림 위에 쓰지 않고 대체 텍스트로만 쓴다 (A18 결정 9, 그림 안에 이미 글자가 있다)
+  const body = <img src={banner.imageUrl} alt={banner.title} className="size-full object-cover" />
   if (banner.noticeId === null) return <div className="relative size-full">{body}</div>
   return (
     <Link to={`/customer/notices/${banner.noticeId}`} className="relative block size-full">

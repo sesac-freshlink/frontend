@@ -4,6 +4,7 @@ import { StoreRegisterPage } from '@/admin/stores/pages/StoreRegisterPage'
 import { LoginPage } from '@/auth/pages/LoginPage'
 import { SignupPage } from '@/auth/pages/SignupPage'
 import { PasswordChangePage } from '@/auth/pages/PasswordChangePage'
+import { AdminBannersPage } from '@/board/pages/AdminBannersPage'
 import { AdminFaqsPage } from '@/board/pages/AdminFaqsPage'
 import { AdminNoticesPage } from '@/board/pages/AdminNoticesPage'
 import { FaqPage } from '@/board/pages/FaqPage'
@@ -108,6 +109,7 @@ export const routes: RouteObject[] = [
           { path: 'stores/new', element: <StoreRegisterPage /> },
           { path: 'notices', element: <AdminNoticesPage /> },
           { path: 'faqs', element: <AdminFaqsPage /> },
+          { path: 'banners', element: <AdminBannersPage /> },
         ],
       },
     ],
