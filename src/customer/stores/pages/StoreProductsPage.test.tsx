@@ -252,7 +252,7 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     )
   })
 
-  it('점주 추천·신상품 아이콘과 추천순 정렬을 같이 서버에 넘긴다', async () => {
+  it('아이콘 조건은 하나만 켜진다: 다른 것을 누르면 앞의 것이 꺼지고 정렬은 같이 걸린다', async () => {
     serve(() => Promise.resolve({ data: products }))
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
     await screen.findByText('매운 컵라면 115g')
@@ -261,9 +261,81 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     await userEvent.click(screen.getByRole('button', { name: '신상품' }))
     await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), '추천순')
 
+    expect(screen.getByRole('button', { name: '신상품' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '점주 추천' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
-        params: { sort: 'POPULAR', recommended: true, newOnly: true, page: 0, size: 20 },
+        params: { sort: 'POPULAR', newOnly: true, page: 0, size: 20 },
+      }),
+    )
+  })
+
+  it('켜진 아이콘을 다시 누르면 꺼지고 전체로 돌아간다. 카테고리는 그대로 같이 걸린다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1?category=%EB%9D%BC%EB%A9%B4', { storeName: '프레시 강남점' })
+    await screen.findByText('매운 컵라면 115g')
+
+    await userEvent.click(screen.getByRole('button', { name: '점주 추천' }))
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { category: '라면', recommended: true, page: 0, size: 20 },
+      }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: '점주 추천' }))
+    expect(screen.getByRole('button', { name: '점주 추천' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { category: '라면', page: 0, size: 20 },
+      }),
+    )
+  })
+
+  it('목록에서 거르는 마감세일·선착순도 하나만: 선착순을 누르면 마감세일이 꺼진다', async () => {
+    serve(() =>
+      Promise.resolve({
+        data: [
+          {
+            ...products[0],
+            clearanceQuantity: 2,
+            clearancePrice: 1190,
+            clearanceExpiry: '2099-12-30T23:59:59+09:00',
+          },
+          products[1],
+        ],
+      }),
+    )
+    renderAt('/customer/stores/1?show=clearance', { storeName: '프레시 강남점' })
+    expect(await screen.findByText('매운 컵라면 115g')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '선착순' }))
+    expect(screen.getByRole('button', { name: '마감세일' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    expect(await screen.findByText('샌드위치 햄치즈')).toBeInTheDocument()
+    expect(screen.queryByText('매운 컵라면 115g')).not.toBeInTheDocument()
+  })
+
+  it('주소에 ?show= 가 여러 개 오면 알맞은 값 중 맨 앞 하나만 켠다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1?show=oops&show=new&show=recommended', {
+      storeName: '프레시 강남점',
+    })
+    await screen.findByText('샌드위치 햄치즈')
+    expect(screen.getByRole('button', { name: '신상품' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '점주 추천' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { newOnly: true, page: 0, size: 20 },
       }),
     )
   })
