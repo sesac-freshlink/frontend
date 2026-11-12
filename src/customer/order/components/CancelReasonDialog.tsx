@@ -154,12 +154,12 @@ export function CancelReasonDialog({
             </div>
           )}
           {touched && reason === null && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-rose-700">
               취소 사유를 골라 주세요
             </p>
           )}
           {touched && detailMissing && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-rose-700">
               기타 사유를 입력해 주세요
             </p>
           )}
@@ -169,7 +169,7 @@ export function CancelReasonDialog({
       )}
 
       {step === 'confirm' && error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-rose-700">
           {error}
         </p>
       )}
@@ -197,7 +197,7 @@ export function CancelReasonDialog({
             onClick={() => reason && onSubmit(cancelBody(reason, detail))}
             disabled={pending}
             aria-busy={pending}
-            className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-rose-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {pending && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
             취소하고 환불

@@ -18,7 +18,7 @@ export function PeriodFilter({ period, onChange, hint }: PeriodFilterProps) {
   const empty = period.from === '' && period.to === ''
   const inputClass = cn(
     'min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-1.5 text-sm text-slate-900 lg:w-40 lg:flex-none',
-    reversed && 'border-red-600',
+    reversed && 'border-rose-700',
   )
 
   return (
@@ -55,7 +55,7 @@ export function PeriodFilter({ period, onChange, hint }: PeriodFilterProps) {
         {hint && <span className="hidden shrink-0 text-xs text-slate-400 lg:inline">{hint}</span>}
       </div>
       {reversed && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-rose-700">
           시작 날짜가 끝 날짜보다 늦어요.
         </p>
       )}

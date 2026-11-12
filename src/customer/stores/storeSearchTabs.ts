@@ -122,3 +122,18 @@ export function groupOverlapping<T extends { storeId: number }>(
   }
   return groups.map((g) => g.members)
 }
+
+/**
+ * 가까운순 탭 목록 위 정렬 안내(11/12). 문구 해석을 경우님께 확인 중이라 한 곳에 모아 둔다
+ */
+export const SORT_NOTICE = {
+  near: '가까운순으로 보여드려요',
+  name: '이름순으로 보여드려요',
+  unknown: '위치를 알 수 없어 이름순으로 보여드려요',
+} as const
+
+export function sortNotice(locating: boolean, status: 'pending' | 'ok' | 'unavailable'): string {
+  if (locating && status === 'ok') return SORT_NOTICE.near
+  if (locating && status === 'unavailable') return SORT_NOTICE.unknown
+  return SORT_NOTICE.name
+}

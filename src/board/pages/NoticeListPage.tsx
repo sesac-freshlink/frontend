@@ -29,7 +29,7 @@ export function NoticeListPage({ basePath, back }: Props) {
         </p>
       )}
       {notices.isError && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-rose-700">
           공지사항을 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.
         </p>
       )}

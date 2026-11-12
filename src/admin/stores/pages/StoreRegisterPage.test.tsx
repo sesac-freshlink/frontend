@@ -71,10 +71,10 @@ describe('점포·점주 등록 (A-01)', () => {
     renderPage()
     await submit()
     for (const text of ['2~30자로 입력하세요', '주소를 입력하세요', '시도를 고르세요']) {
-      expect(await screen.findByText(text)).toHaveClass('text-red-600')
+      expect(await screen.findByText(text)).toHaveClass('text-rose-700')
     }
-    expect(screen.getByText('이메일 형식이 아닙니다')).toHaveClass('text-red-600')
-    expect(screen.getByText('8자 이상 입력하세요')).toHaveClass('text-red-600')
+    expect(screen.getByText('이메일 형식이 아닙니다')).toHaveClass('text-rose-700')
+    expect(screen.getByText('8자 이상 입력하세요')).toHaveClass('text-rose-700')
     expect(post).not.toHaveBeenCalled()
   })
 
@@ -90,7 +90,7 @@ describe('점포·점주 등록 (A-01)', () => {
     renderPage()
     await fill({ name: '  가 ' })
     await submit()
-    expect(await screen.findByText('2~30자로 입력하세요')).toHaveClass('text-red-600')
+    expect(await screen.findByText('2~30자로 입력하세요')).toHaveClass('text-rose-700')
     expect(post).not.toHaveBeenCalled()
   })
 
@@ -98,7 +98,7 @@ describe('점포·점주 등록 (A-01)', () => {
     renderPage()
     await fill({ initialPassword: 'abcd1234' })
     await submit()
-    expect(await screen.findByText('대문자를 넣어 주세요')).toHaveClass('text-red-600')
+    expect(await screen.findByText('대문자를 넣어 주세요')).toHaveClass('text-rose-700')
     expect(post).not.toHaveBeenCalled()
   })
 

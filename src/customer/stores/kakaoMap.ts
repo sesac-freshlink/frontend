@@ -24,6 +24,8 @@ export interface KakaoMap {
   setLevel(level: number): void
   getLevel(): number
   relayout(): void
+  /** 지금 지도에 보이는 범위. 지도 안 점포 수를 셀 때 쓴다(11/12) */
+  getBounds(): { contain(latlng: KakaoLatLng): boolean }
   /** 좌표 → 지도 화면 점(px). 핀이 화면에서 겹치는지 볼 때 쓴다 */
   getProjection(): { pointFromCoords(latlng: KakaoLatLng): KakaoPoint }
 }
@@ -40,8 +42,8 @@ export interface KakaoMaps {
   Marker: new (options: { map: KakaoMap; position: KakaoLatLng }) => object
   /** 지도 확대 단계가 바뀌면 핀 묶음을 다시 계산한다(zoom_changed) */
   event: {
-    addListener(target: KakaoMap, type: 'zoom_changed', handler: () => void): void
-    removeListener(target: KakaoMap, type: 'zoom_changed', handler: () => void): void
+    addListener(target: KakaoMap, type: 'zoom_changed' | 'idle', handler: () => void): void
+    removeListener(target: KakaoMap, type: 'zoom_changed' | 'idle', handler: () => void): void
   }
   CustomOverlay: new (options: {
     map?: KakaoMap

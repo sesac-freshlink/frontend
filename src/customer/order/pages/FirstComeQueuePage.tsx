@@ -92,7 +92,7 @@ function QueueView({ item }: { item: CheckoutItem }) {
   if (join.isError && joinCode !== 'NOT_FIRST_COME') {
     return (
       <section className="space-y-4 py-10 text-center">
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-rose-700" role="alert">
           {firstComeErrorMessage(joinCode) ?? '줄을 서지 못했어요. 다시 시도해 주세요.'}
         </p>
         {joinCode === 'FIRST_COME_ALREADY_ORDERED' ? (

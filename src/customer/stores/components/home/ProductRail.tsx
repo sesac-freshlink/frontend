@@ -13,7 +13,7 @@ import type { ProductShortcut } from '../../pickupStore'
 export type RailKind = Extract<ProductShortcut, 'clearance' | 'recommended' | 'new'>
 
 const TITLES: Record<RailKind, { title: string; empty: string }> = {
-  clearance: { title: '오늘 마감세일', empty: '지금 마감세일 중인 상품이 없어요.' },
+  clearance: { title: '마감세일', empty: '지금 마감세일 중인 상품이 없어요.' },
   recommended: { title: '점주 추천', empty: '점주가 고른 추천 상품이 아직 없어요.' },
   new: { title: '신상품', empty: '이번 주에 새로 들어온 상품이 없어요.' },
 }
@@ -165,14 +165,14 @@ function ProductCard({
       {clearance ? (
         <span className="block">
           <span className="flex items-baseline gap-1">
-            <span className="text-sm font-bold text-red-600">{CLEARANCE_DISCOUNT_PERCENT}%</span>
+            <span className="text-sm font-bold text-rose-700">{CLEARANCE_DISCOUNT_PERCENT}%</span>
             <span className="text-base font-bold text-slate-900">{formatWon(clearance.price)}</span>
           </span>
           <span className="block text-sm text-slate-600 line-through">
             <span className="sr-only">원래 가격 </span>
             {formatWon(product.price)}
           </span>
-          {left && <span className="block text-sm font-medium text-red-700">{left}</span>}
+          {left && <span className="block text-sm font-medium text-rose-700">{left}</span>}
           <span className="block text-sm text-slate-600">{clearance.quantity}개 남음</span>
         </span>
       ) : (

@@ -1,5 +1,6 @@
 import { Home, QrCode, ReceiptText, Store, UserRound, type LucideIcon } from 'lucide-react'
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { useEffect } from 'react'
+import { NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { NotificationBell } from '@/shared/notifications/NotificationBell'
 import { cn } from '@/shared/ui/cn'
 
@@ -30,6 +31,12 @@ const RIGHT_TABS: Tab[] = [
  */
 export function CustomerLayout() {
   const { pathname } = useLocation()
+  const navigationType = useNavigationType()
+  // 새 화면으로 이동하면 맨 위부터 보이게 한다(11/12: 홈 아래 '내 주변 점포'를 누르면 점포 화면이 중간부터 열리던 문제).
+  // 뒤로·앞으로 가기(POP)는 브라우저가 이전 위치를 되살리게 그대로 둔다
+  useEffect(() => {
+    if (navigationType !== 'POP') window.scrollTo(0, 0)
+  }, [pathname, navigationType])
   const onPickupQr = pathname.startsWith(PICKUP_QR_PATH)
   // 픽업 QR 화면에서는 [주문 내역] 칸을 켜지 않는다(주소가 /customer/orders/… 라도)
   const ordersInactive = onPickupQr

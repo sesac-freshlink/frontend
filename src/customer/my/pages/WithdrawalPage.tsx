@@ -37,7 +37,7 @@ export function WithdrawalPage() {
       </ul>
 
       {flow.error && (
-        <div role="alert" className="space-y-1 text-sm text-red-600">
+        <div role="alert" className="space-y-1 text-sm text-rose-700">
           <p>{flow.error}</p>
           {flow.blockedByOrders && (
             <Link to="/customer/orders" className="text-slate-600 underline">
@@ -62,7 +62,7 @@ export function WithdrawalPage() {
             type="button"
             onClick={flow.askConfirm}
             disabled={!flow.acknowledged}
-            className="min-h-11 w-full rounded-lg bg-red-600 py-2 font-medium text-white disabled:opacity-50"
+            className="min-h-11 w-full rounded-lg bg-rose-700 py-2 font-medium text-white disabled:opacity-50"
           >
             탈퇴하기
           </button>
@@ -70,7 +70,7 @@ export function WithdrawalPage() {
       )}
 
       {flow.step === 'confirm' && (
-        <div className="space-y-3 rounded-lg bg-red-50 p-4">
+        <div className="space-y-3 rounded-lg bg-rose-50 p-4">
           <p className="font-medium text-slate-900">정말 탈퇴할까요? 되돌릴 수 없어요.</p>
           <div className="flex gap-2">
             <button
@@ -85,7 +85,7 @@ export function WithdrawalPage() {
               type="button"
               onClick={() => void flow.withdraw()}
               disabled={flow.submitting}
-              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-rose-700 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {flow.submitting && <LoaderCircle className="size-4 animate-spin" />}
               탈퇴

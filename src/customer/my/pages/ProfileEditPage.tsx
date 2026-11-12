@@ -26,7 +26,7 @@ export function ProfileEditPage() {
   }
   if (profile.isError) {
     return (
-      <p role="alert" className="text-sm text-red-600">
+      <p role="alert" className="text-sm text-rose-700">
         내 정보를 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.
       </p>
     )

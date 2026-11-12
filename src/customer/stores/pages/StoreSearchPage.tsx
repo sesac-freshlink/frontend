@@ -1,4 +1,13 @@
-import { ChevronDown, ChevronRight, Heart, List, MapPin, Search, X } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Heart,
+  List,
+  LocateFixed,
+  MapPin,
+  Search,
+  X,
+} from 'lucide-react'
 import {
   useCallback,
   useEffect,
@@ -29,6 +38,7 @@ import {
 import { formatDistance, type LatLng } from '../nearby'
 import { readPickupStore, savePickupStore, type PickupStore } from '../pickupStore'
 import {
+  sortNotice,
   favoriteRows,
   nearRows,
   recentRows,
@@ -74,7 +84,12 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
   const [region, setRegion] = useState<RegionCode>(initialRegion)
   const [draft, setDraft] = useState('')
   const [keyword, setKeyword] = useState('')
-  const [tab, setTab] = useState<StoreSearchTab>('near')
+  const [searchParams] = useSearchParams()
+  // 마이페이지 [단골 점포](?tab=favorite)로 들어오면 단골 탭으로 시작한다(11/12)
+  const [tab, setTab] = useState<StoreSearchTab>(() => {
+    const t = searchParams.get('tab')
+    return t === 'recent' || t === 'favorite' ? t : 'near'
+  })
   const [showMap, setShowMap] = useState(true)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   // 겹친 핀 묶음을 더 확대할 수 없을 때 지도 위에 보여 줄 점포들(목록 시트)
@@ -104,8 +119,11 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
   const located = useCurrentPosition(locating)
   const position = locating && located.status === 'ok' ? located.position : null
   const [focusPinId, setFocusPinId] = useState<number | null>(null)
+  // 지도 안에 보이는 점포 수(지도를 움직이면 바뀐다). 지도가 없거나 아직 모르면 null
+  const [visibleCount, setVisibleCount] = useState<number | null>(null)
+  // [내 위치로]를 누를 때마다 지도를 내 위치로 옮기게 하는 신호
+  const [recenterToken, setRecenterToken] = useState(0)
   const tabRefs = useRef<Map<StoreSearchTab, HTMLButtonElement>>(new Map())
-  const [searchParams] = useSearchParams()
   const picking = searchParams.get('pick') === '1'
   const navigate = useNavigate()
   const regionName = REGIONS.find((r) => r.code === region)?.name ?? ''
@@ -271,25 +289,6 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
           </button>
         </div>
 
-        {tab === 'near' && !locating && (
-          <p className="flex flex-wrap items-center gap-x-1 text-sm text-slate-600">
-            {regionName} 점포를 이름순으로 보여 드려요.
-            <button
-              type="button"
-              onClick={requestLocation}
-              className="inline-flex min-h-11 items-center font-semibold text-emerald-700 underline underline-offset-2"
-            >
-              내 위치로 가까운 순 보기
-            </button>
-          </p>
-        )}
-        {tab === 'near' && locating && located.status === 'unavailable' && (
-          <p className="text-sm text-slate-600">
-            위치를 알 수 없어 {regionName} 점포를 이름순으로 보여 드려요. 위치 권한을 켜면 가까운
-            순으로 보여 드려요.
-          </p>
-        )}
-
         {/* 화면 읽기 프로그램에 점포 칸이 열린 것을 알린다(포커스도 칸 제목으로 옮긴다) */}
         <p aria-live="polite" className="sr-only">
           {selectedId !== null ? '지도에서 고른 점포 정보를 열었어요' : ''}
@@ -304,7 +303,7 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
             favorites={favorites}
             position={position}
           >
-            {(rows) => {
+            {(rows, label) => {
               const selected = rows.find((r) => r.storeId === selectedId) ?? null
               const clustered = clusterIds ? rows.filter((r) => clusterIds.includes(r.storeId)) : []
               return (
@@ -316,8 +315,9 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
                       pickupId={pickup?.storeId}
                       position={position}
                       onSelect={onSelect}
-                      onRequestLocation={requestLocation}
                       onClusterList={onClusterList}
+                      recenterToken={recenterToken}
+                      onVisibleCountChange={setVisibleCount}
                       focusPinId={focusPinId}
                       onPinFocused={onPinFocused}
                       sheet={
@@ -358,6 +358,31 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
                       }
                     />
                   )}
+                  {/* 목록 위 한 줄: 개수(지도가 있으면 지금 지도 안에 보이는 점포 수) + 정렬 안내 + [내 위치로] (11/12 경우 결정) */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    <p className="text-sm text-slate-600">
+                      <span className="font-semibold text-slate-800">
+                        {showMap && visibleCount !== null
+                          ? `이 지도 안 ${visibleCount}곳`
+                          : `${label} ${rows.length}곳`}
+                      </span>
+                      {tab === 'near' && (
+                        <span className="block">{sortNotice(locating, located.status)}</span>
+                      )}
+                    </p>
+                    {tab === 'near' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (position) setRecenterToken((n) => n + 1)
+                          else requestLocation()
+                        }}
+                        className="inline-flex min-h-11 items-center gap-1 rounded-full border border-slate-300 px-3 text-sm font-medium text-slate-800"
+                      >
+                        <LocateFixed className="size-4 text-emerald-700" aria-hidden />내 위치로
+                      </button>
+                    )}
+                  </div>
                   <StoreList
                     rows={rows}
                     pickupId={pickup?.storeId}
@@ -383,7 +408,7 @@ interface TabRowsProps {
   regionName: string
   favorites: FavoriteStore[]
   position: LatLng | null
-  children: (rows: StoreRow[]) => ReactNode
+  children: (rows: StoreRow[], label: string) => ReactNode
 }
 
 /** 탭마다 목록 줄을 만든다. 점포 목록을 읽는 중·실패·빈 목록은 여기서 보여 준다 */
@@ -502,17 +527,15 @@ function RowsCaption({
   render,
 }: {
   label: string
-  /** 목록 수 옆에 붙이는 한 줄 설명(최근 주문 탭) */
+  /** 목록 위에 붙이는 한 줄 설명(최근 주문 탭) */
   note?: string
   rows: StoreRow[]
-  render: (rows: StoreRow[]) => ReactNode
+  render: (rows: StoreRow[], label: string) => ReactNode
 }) {
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-600">
-        {label} {rows.length}곳{note && <span className="block">{note}</span>}
-      </p>
-      {render(rows)}
+      {note && <p className="text-sm text-slate-600">{note}</p>}
+      {render(rows, label)}
     </div>
   )
 }
@@ -715,7 +738,7 @@ function FavoriteButton({
       className="flex size-11 shrink-0 items-center justify-center rounded-full"
     >
       <Heart
-        className={cn('size-5', active ? 'fill-red-600 text-red-600' : 'text-slate-500')}
+        className={cn('size-5', active ? 'fill-rose-600 text-rose-600' : 'text-slate-500')}
         aria-hidden
       />
     </button>

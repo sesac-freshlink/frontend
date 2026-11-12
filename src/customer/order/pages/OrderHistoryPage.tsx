@@ -9,7 +9,7 @@ import {
   X,
 } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { type DatePeriod, EMPTY_PERIOD, isReversedPeriod } from '@/shared/api/period'
 import { cn } from '@/shared/ui/cn'
 import { PeriodFilter } from '@/shared/ui/PeriodFilter'
@@ -51,8 +51,19 @@ const EMPTY_TEXT: Record<CustomerOrderTab, string> = {
  * 기간(주문일 기준)은 구분과 같이 쓴다. 진입·구분·기간 변경·[새로 고침]·당겨서 새로고침 때만 조회한다.
  * 줄을 누르면 주문 상세(/customer/orders/:id)로 간다
  */
+const ORDER_TABS: readonly CustomerOrderTab[] = ['ALL', 'PICKUP_WAITING', 'PICKED_UP', 'CANCELED']
+
+function isOrderTab(value: string | null): value is CustomerOrderTab {
+  return value !== null && (ORDER_TABS as readonly string[]).includes(value)
+}
+
 export function OrderHistoryPage() {
-  const [tab, setTab] = useState<CustomerOrderTab>('ALL')
+  // 마이페이지 숫자 칸·메뉴(?tab=PICKUP_WAITING 등)로 들어오면 그 구분으로 시작한다(11/12)
+  const [searchParams] = useSearchParams()
+  const [tab, setTab] = useState<CustomerOrderTab>(() => {
+    const t = searchParams.get('tab')
+    return isOrderTab(t) ? t : 'ALL'
+  })
   const [period, setPeriod] = useState<DatePeriod>(EMPTY_PERIOD)
   // 상품명 검색: 치는 동안(draft)은 묻지 않고 [검색]·Enter 때만 keyword 로 서버에 묻는다
   const [draft, setDraft] = useState('')
@@ -185,7 +196,7 @@ export function OrderHistoryPage() {
           <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
         </div>
       ) : orders.isError ? (
-        <p className="py-16 text-center text-sm text-red-600">주문 내역을 불러오지 못했어요.</p>
+        <p className="py-16 text-center text-sm text-rose-700">주문 내역을 불러오지 못했어요.</p>
       ) : orders.data.pages.every((p) => p.content.length === 0) ? (
         <p className="py-16 text-center text-sm text-slate-500">
           {keyword
@@ -254,7 +265,7 @@ function OrderRow({ order, nowMs }: { order: CustomerOrderSummary; nowMs: number
               className={cn(
                 'shrink-0 rounded px-1.5 py-0.5 text-xs font-medium',
                 done && 'bg-slate-100 text-slate-600',
-                closed && 'bg-red-50 text-red-700',
+                closed && 'bg-rose-50 text-rose-700',
                 !done && !closed && 'bg-emerald-50 text-emerald-700',
               )}
             >

@@ -1,4 +1,4 @@
-import { LocateFixed, MapPin } from 'lucide-react'
+import { MapPin } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/shared/ui/cn'
 import {
@@ -105,8 +105,10 @@ interface StoreSearchMapProps {
   pickupId: number | undefined
   position: LatLng | null
   onSelect: (storeId: number) => void
-  /** 내 위치를 모를 때 [내 위치로]를 누르면 부른다(이때 위치 권한을 묻는다) */
-  onRequestLocation: () => void
+  /** 바뀔 때마다 지도를 내 위치로 옮긴다(목록 위 [내 위치로] 버튼, 11/12) */
+  recenterToken: number
+  /** 지금 지도 범위 안에 보이는 점포 수(지도를 움직이면 다시 센다). 지도가 없으면 null */
+  onVisibleCountChange: (count: number | null) => void
   /** 지도 위에 겹쳐 띄울 점포 칸(바텀 시트). 없으면 null */
   sheet: ReactNode
   /** 겹친 핀 묶음을 더 확대할 수 없을 때 그 점포들을 목록으로 보여 달라고 부른다 */
@@ -127,7 +129,8 @@ export function StoreSearchMap({
   pickupId,
   position,
   onSelect,
-  onRequestLocation,
+  recenterToken,
+  onVisibleCountChange,
   onClusterList,
   sheet,
   focusPinId,
@@ -265,6 +268,27 @@ export function StoreSearchMap({
     onPinFocused()
   }, [focusPinId, onPinFocused])
 
+  // 목록 위 [내 위치로]를 누르면 내 위치로 옮긴다(처음 그릴 때 0 은 건너뛴다)
+  useEffect(() => {
+    if (!map || !position || recenterToken === 0) return
+    map.map.panTo(new map.maps.LatLng(position.latitude, position.longitude))
+  }, [map, position, recenterToken])
+
+  // 지도 안 점포 수: 지도가 멈출 때마다(idle — 끌기·확대 뒤) 다시 센다. 지도가 없어지면 null 로 돌려준다
+  useEffect(() => {
+    if (!map) return
+    const count = () => {
+      const bounds = map.map.getBounds()
+      onVisibleCountChange(
+        pins.filter((p) => bounds.contain(new map.maps.LatLng(p.latitude, p.longitude))).length,
+      )
+    }
+    count()
+    map.maps.event.addListener(map.map, 'idle', count)
+    return () => map.maps.event.removeListener(map.map, 'idle', count)
+  }, [map, pins, onVisibleCountChange])
+  useEffect(() => () => onVisibleCountChange(null), [onVisibleCountChange])
+
   // 고른 점포로 지도를 옮긴다
   useEffect(() => {
     if (!map || selectedId === null) return
@@ -287,23 +311,6 @@ export function StoreSearchMap({
     // 지도 높이 h-72: 390×844 화면에서 지도 아래 목록이 한두 줄 보이게(11/11 검수)
     <div className="relative h-72 overflow-hidden rounded-xl bg-slate-100">
       <div ref={ref} role="region" aria-label="점포 지도" className="size-full" />
-      <button
-        type="button"
-        aria-label="내 위치로"
-        onClick={() => {
-          if (!map || !position) {
-            onRequestLocation()
-            return
-          }
-          map.map.panTo(new map.maps.LatLng(position.latitude, position.longitude))
-        }}
-        className={cn(
-          'absolute top-3 right-3 z-10 flex size-11 items-center justify-center rounded-full bg-white shadow ring-1 ring-slate-200',
-          position ? 'text-emerald-700' : 'text-slate-600',
-        )}
-      >
-        <LocateFixed className="size-5" aria-hidden />
-      </button>
       {sheet}
     </div>
   )

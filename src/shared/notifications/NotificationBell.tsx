@@ -57,7 +57,7 @@ export function NotificationBell({ align = 'end', className }: Props) {
       >
         <Bell className="size-5" />
         {count > 0 && (
-          <span className="absolute top-1.5 right-1.5 min-w-4 rounded-full bg-red-600 px-1 text-center text-[10px] leading-4 font-bold text-white tabular-nums">
+          <span className="absolute top-1.5 right-1.5 min-w-4 rounded-full bg-rose-700 px-1 text-center text-[10px] leading-4 font-bold text-white tabular-nums">
             {count > 99 ? '99+' : count}
           </span>
         )}
@@ -115,7 +115,7 @@ function NotificationPanel({
             <LoaderCircle className="size-5 animate-spin" aria-label="불러오는 중" />
           </div>
         ) : list.isError ? (
-          <p className="py-8 text-center text-sm text-red-600">알림을 불러오지 못했어요.</p>
+          <p className="py-8 text-center text-sm text-rose-700">알림을 불러오지 못했어요.</p>
         ) : list.data.content.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-500">새 알림이 없어요.</p>
         ) : (

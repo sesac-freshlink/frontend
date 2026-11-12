@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { CustomerLayout } from './CustomerLayout'
@@ -7,6 +7,10 @@ import { CustomerLayout } from './CustomerLayout'
 vi.mock('@/shared/notifications/NotificationBell', () => ({ NotificationBell: () => null }))
 
 function renderAt(path: string) {
+  return renderRouter(path)
+}
+
+function renderRouter(path: string) {
   const router = createMemoryRouter(
     [
       {
@@ -18,6 +22,7 @@ function renderAt(path: string) {
     { initialEntries: [path] },
   )
   render(<RouterProvider router={router} />)
+  return router
 }
 
 const ordersTab = () => screen.getByRole('link', { name: '주문 내역' })
@@ -31,5 +36,17 @@ describe('CustomerLayout 하단 메뉴', () => {
   it('픽업 QR 화면에서는 [주문 내역] 칸을 켜지 않는다', () => {
     renderAt('/customer/orders/pickup-qr')
     expect(ordersTab()).not.toHaveClass('font-semibold')
+  })
+
+  it('새 화면으로 가면 맨 위부터, 뒤로 가기는 그대로 둔다(11/12)', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
+    const router = renderRouter('/customer')
+    scrollTo.mockClear()
+    await act(() => router.navigate('/customer/stores/2'))
+    expect(scrollTo).toHaveBeenCalledWith(0, 0)
+    scrollTo.mockClear()
+    await act(() => router.navigate(-1))
+    expect(scrollTo).not.toHaveBeenCalled()
+    scrollTo.mockRestore()
   })
 })

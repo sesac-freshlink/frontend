@@ -86,7 +86,7 @@ export function LoginPage() {
       {notice && (
         <p
           role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600"
+          className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"
         >
           {notice}
         </p>
@@ -99,7 +99,7 @@ export function LoginPage() {
             {...register('email')}
             className="w-full rounded-lg border border-slate-300 px-3 py-2"
           />
-          <span className="text-xs text-red-600">{formState.errors.email?.message}</span>
+          <span className="text-xs text-rose-700">{formState.errors.email?.message}</span>
         </label>
         <label className="block space-y-1">
           <span className="text-sm font-medium">비밀번호</span>
@@ -108,7 +108,7 @@ export function LoginPage() {
             {...register('password')}
             className="w-full rounded-lg border border-slate-300 px-3 py-2"
           />
-          <span className="text-xs text-red-600">{formState.errors.password?.message}</span>
+          <span className="text-xs text-rose-700">{formState.errors.password?.message}</span>
         </label>
         <button
           type="submit"

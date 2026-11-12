@@ -37,7 +37,7 @@ export function ErrorState({
 }) {
   return (
     <div role="alert" className={cn('space-y-3 py-10 text-center', className)}>
-      <p className="text-sm text-red-600">{message}</p>
+      <p className="text-sm text-rose-700">{message}</p>
       <button
         type="button"
         onClick={onRetry}

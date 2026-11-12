@@ -204,7 +204,7 @@ describe('고객 주문 내역 (A3)', () => {
     fireEvent.change(screen.getByLabelText('끝 날짜'), { target: { value: '2026-10-10' } })
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('시작 날짜가 끝 날짜보다 늦어요.')
-    expect(alert).toHaveClass('text-red-600')
+    expect(alert).toHaveClass('text-rose-700')
     expect(screen.queryByText('FL-20261020-000123')).not.toBeInTheDocument()
     expect(get).toHaveBeenCalledTimes(calls)
 
