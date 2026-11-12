@@ -6,6 +6,7 @@ import {
   MIN_QUANTITY,
   type CheckoutItem,
 } from '@/customer/order/checkout'
+import { PendingOrderDialog } from '@/customer/order/components/PendingOrderDialog'
 import { useBuyNow } from '@/customer/order/useBuyNow'
 import { BuyBar, BuyButton } from './BuyBar'
 
@@ -68,6 +69,7 @@ export function QuantityBuy({ item }: { item: CheckoutItem }) {
           }
         />
       </BuyBar>
+      {buyNow.pendingDialog && <PendingOrderDialog {...buyNow.pendingDialog} />}
     </section>
   )
 }

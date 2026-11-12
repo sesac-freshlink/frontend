@@ -3,6 +3,7 @@ import { BuyBar, BuyButton } from './BuyBar'
 import { Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { MAX_QUANTITY, type CheckoutItem } from '@/customer/order/checkout'
+import { PendingOrderDialog } from '@/customer/order/components/PendingOrderDialog'
 import { useBuyNow } from '@/customer/order/useBuyNow'
 import { formatHHmm, formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
@@ -108,6 +109,7 @@ export function ClearanceSheet({
           }
         />
       </BuyBar>
+      {buyNow.pendingDialog && <PendingOrderDialog {...buyNow.pendingDialog} />}
     </section>
   )
 }
