@@ -1,6 +1,8 @@
 import { ChevronLeft, LoaderCircle } from 'lucide-react'
+import { useId } from 'react'
 import { Link } from 'react-router'
-import { useWithdrawal } from '../useWithdrawal'
+import { cn } from '@/shared/ui/cn'
+import { CONFIRM_PHRASE, useWithdrawal } from '../useWithdrawal'
 
 const GUIDE = [
   '로그인 계정과 회원정보(이름·닉네임·거주 지역)가 지워지고, 다시 로그인할 수 없어요.',
@@ -10,9 +12,16 @@ const GUIDE = [
   '같은 이메일·닉네임으로 다시 가입할 수 있어요.',
 ]
 
-/** /customer/my/withdraw 고객 회원탈퇴 (추가 명세 A6): 안내 → 확인 체크 → 마지막 확인 → 탈퇴 */
+/**
+ * /customer/my/withdraw 고객 회원탈퇴 (추가 명세 A6): 안내 → 확인 체크 → 마지막 확인 → 탈퇴.
+ * 마지막 확인에서 "탈퇴합니다"를 직접 입력해야 [탈퇴]가 켜진다(11/12 경우 결정, 실수로 누르는 것을 막는다)
+ */
 export function WithdrawalPage() {
   const flow = useWithdrawal()
+  const inputId = useId()
+  const hintId = useId()
+  // 입력했는데 다를 때만 오류로 본다. 비어 있으면 위 안내 글자만 보인다
+  const mismatch = flow.confirmText.trim() !== '' && !flow.confirmMatches
 
   return (
     <section className="space-y-5">
@@ -72,6 +81,33 @@ export function WithdrawalPage() {
       {flow.step === 'confirm' && (
         <div className="space-y-3 rounded-lg bg-rose-50 p-4">
           <p className="font-medium text-slate-900">정말 탈퇴할까요? 되돌릴 수 없어요.</p>
+          <div className="space-y-1">
+            <label htmlFor={inputId} className="block text-sm text-slate-900">
+              확인을 위해 <strong>{CONFIRM_PHRASE}</strong>를 입력해 주세요
+            </label>
+            <input
+              id={inputId}
+              type="text"
+              value={flow.confirmText}
+              onChange={(e) => flow.setConfirmText(e.target.value)}
+              // 확인 창이 열리면 바로 칠 수 있게 칸으로 포커스를 옮긴다
+              autoFocus
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              disabled={flow.submitting}
+              aria-invalid={mismatch}
+              aria-describedby={hintId}
+              className={cn(
+                'min-h-11 w-full rounded-lg border bg-white px-3 text-base text-slate-900',
+                mismatch ? 'border-rose-700' : 'border-slate-300',
+              )}
+            />
+            {/* 위 글자와 겹치지 않게, 입력했는데 다를 때만 오류 안내를 보여 준다(화면 읽기 프로그램도 바로 읽는다) */}
+            <p id={hintId} aria-live="polite" className="text-sm text-rose-700 empty:hidden">
+              {mismatch ? `${CONFIRM_PHRASE}를 똑같이 입력해 주세요` : ''}
+            </p>
+          </div>
           <div className="flex gap-2">
             <button
               type="button"
@@ -84,7 +120,7 @@ export function WithdrawalPage() {
             <button
               type="button"
               onClick={() => void flow.withdraw()}
-              disabled={flow.submitting}
+              disabled={flow.submitting || !flow.confirmMatches}
               className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-rose-700 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {flow.submitting && <LoaderCircle className="size-4 animate-spin" />}
