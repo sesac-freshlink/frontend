@@ -15,7 +15,7 @@ export interface InventoryItem {
   totalQuantity: number
   reservedQuantity: number
   availableQuantity: number
-  /** 수량이 남은 lot 중 가장 빠른 유통기한(+09:00). 없으면 null */
+  /** 수량이 남은 lot 중 가장 빠른 소비기한(+09:00). 없으면 null */
   nearestExpiry: string | null
   imminentLotCount: number
   expiredLotCount: number
@@ -220,7 +220,7 @@ export interface AdjustmentHistoryItem {
   createdAt: string
 }
 
-/** 유통기한 달력의 lot 하나. 상태는 서버가 지금 시각으로 계산한다 */
+/** 소비기한 달력의 lot 하나. 상태는 서버가 지금 시각으로 계산한다 */
 export interface ExpiryCalendarLot {
   lotId: number
   productId: number
@@ -233,7 +233,7 @@ export interface ExpiryCalendarLot {
   status: InventoryLotStatus
 }
 
-/** 유통기한 달력의 하루. lot 이 있는 날만 온다 */
+/** 소비기한 달력의 하루. lot 이 있는 날만 온다 */
 export interface ExpiryCalendarDay {
   /** "YYYY-MM-DD" */
   date: string
@@ -243,7 +243,7 @@ export interface ExpiryCalendarDay {
   lots: ExpiryCalendarLot[]
 }
 
-/** 유통기한 달력. inventory-service ExpiryCalendarResponse 와 같은 모양 */
+/** 소비기한 달력. inventory-service ExpiryCalendarResponse 와 같은 모양 */
 export interface ExpiryCalendar {
   /** "YYYY-MM" */
   month: string
@@ -333,7 +333,7 @@ export function inventoryParams(query: InventoryQuery): Record<string, string | 
 }
 
 /**
- * S-11 상품 하나의 lot 목록 (유통기한 빠른 순, 수량 0 제외).
+ * S-11 상품 하나의 lot 목록 (소비기한 빠른 순, 수량 0 제외).
  * 패널이 열려 있는 동안만 쓰이므로 같은 주기로 폴링해 목록과 숫자가 어긋나지 않게 한다
  */
 export function useInventoryLots(productId: number) {
@@ -363,7 +363,7 @@ export function useLedger({ type }: { type?: LedgerType } = {}) {
   })
 }
 
-/** S-30 임박·경과 lot (유통기한 빠른 순). 폐기 뒤 수량이 줄어드는 것이 보이도록 같은 주기로 다시 읽는다 */
+/** S-30 임박·경과 lot (소비기한 빠른 순). 폐기 뒤 수량이 줄어드는 것이 보이도록 같은 주기로 다시 읽는다 */
 export function useExpiring() {
   return useQuery({
     queryKey: ['owner', 'expiring'],
@@ -584,7 +584,7 @@ export function useAdjustments() {
   })
 }
 
-/** 유통기한 달력 (그 달에 기한이 끝나는 lot 을 날짜별로). 달을 바꿀 때 읽고, 폐기·조정하면 다시 읽는다 */
+/** 소비기한 달력 (그 달에 기한이 끝나는 lot 을 날짜별로). 달을 바꿀 때 읽고, 폐기·조정하면 다시 읽는다 */
 export function useExpiryCalendar(month: string) {
   return useQuery({
     queryKey: ['owner', 'expiryCalendar', month],

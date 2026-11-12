@@ -68,7 +68,7 @@ export function DisposeConfirmDialog({ lots, onClose }: Props) {
             <li key={lot.lotId} className="flex items-center justify-between gap-3 px-3 py-2">
               <div>
                 <p className="font-medium text-slate-900">{lot.productName}</p>
-                <p className="text-xs text-slate-400">유통기한 {formatDateTime(lot.expiryDate)}</p>
+                <p className="text-xs text-slate-400">소비기한 {formatDateTime(lot.expiryDate)}</p>
               </div>
               <span className="font-semibold text-slate-900 tabular-nums">
                 {lot.disposableQuantity}개

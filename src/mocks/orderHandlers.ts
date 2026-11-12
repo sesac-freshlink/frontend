@@ -68,7 +68,7 @@ function orderNo(id: number, ms = Date.now()) {
   return `FL-${kstDate(ms).replaceAll('-', '')}-${String(id).padStart(6, '0')}`
 }
 
-/** 픽업 기한: 오늘부터 days 일 뒤 그날 23:59:59 KST (진짜는 lot 유통기한 중 가장 빠른 날) */
+/** 픽업 기한: 오늘부터 days 일 뒤 그날 23:59:59 KST (진짜는 lot 소비기한 중 가장 빠른 날) */
 function pickupDeadline(days: number) {
   const kstDate = new Date(Date.now() + 9 * 3_600_000 + days * 86_400_000)
     .toISOString()

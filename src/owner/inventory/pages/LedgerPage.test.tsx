@@ -99,7 +99,7 @@ describe('재고 변동 이력 (S-13)', () => {
     expect(within(inbound).getByText('입고')).toHaveClass('bg-emerald-100', 'text-emerald-800')
     expect(within(inbound).getByText('+10')).toHaveClass('text-emerald-700')
     expect(within(inbound).getByText('10/20 05:00')).toBeInTheDocument()
-    expect(within(inbound).getByText('유통기한 10/20')).toBeInTheDocument()
+    expect(within(inbound).getByText('소비기한 10/20')).toBeInTheDocument()
 
     const sale = await rowOf('1024')
     expect(within(sale).getByText('판매')).toHaveClass('bg-sky-100', 'text-sky-800')

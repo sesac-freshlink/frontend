@@ -21,7 +21,7 @@ import { usePullToRefresh } from '../usePullToRefresh'
 import { useStoreName } from '../useStoreName'
 
 /**
- * U-10 고객 상품 상세 (/customer/stores/:storeId/products/:productId). 가격·남은 수량·먼저 받게 될 상품의 유통기한·점포를
+ * U-10 고객 상품 상세 (/customer/stores/:storeId/products/:productId). 가격·남은 수량·먼저 받게 될 상품의 소비기한·점포를
  * 보여 주고, 여기서 수량을 고른 뒤 [N원 구매하기]를 누르면 주문을 만들고 바로 결제 대기 화면으로 간다
  * (주문·결제 화면 U-21 /customer/orders/new 는 11/11 경우 결정으로 없앴다). 폴링하지 않고 들어올 때만 읽는다.
  * 품절이면 "재입고 알림 받기"로 notification-service 에 신청한다(다시 입고되면 화면 알림이 한 번 온다)
@@ -55,7 +55,7 @@ function toId(raw: string | undefined): number | undefined {
 function ProductDetail({ storeId, productId }: { storeId: number; productId: number }) {
   const storeName = useStoreName(storeId)
   const product = useStoreProduct(storeId, productId)
-  // 화면 맨 위에서 당겼다 놓으면 남은 수량·유통기한을 다시 읽는다
+  // 화면 맨 위에서 당겼다 놓으면 남은 수량·소비기한을 다시 읽는다
   const { ref: pullRef, pull, ready } = usePullToRefresh<HTMLElement>(() => void product.refetch())
 
   return (
@@ -156,7 +156,7 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <dt className="flex items-center gap-1.5 text-slate-500">
               <CalendarClock className="size-4" aria-hidden />
-              유통기한
+              소비기한
             </dt>
             <dd className="text-right">
               <span className="flex items-center justify-end gap-1.5">
@@ -165,7 +165,7 @@ function DetailBody({ product, storeId, storeName }: BodyProps) {
                   {formatDateTime(product.nearestExpiry)}까지
                 </span>
               </span>
-              <span className="block text-xs text-slate-500">유통기한이 빠른 상품부터 드려요</span>
+              <span className="block text-xs text-slate-500">소비기한이 빠른 상품부터 드려요</span>
             </dd>
           </div>
         )}

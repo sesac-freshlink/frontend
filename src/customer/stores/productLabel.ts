@@ -31,7 +31,7 @@ export function productLabel(
   const clearance = clearanceOf(product)
   if (clearance) parts.push(`마감세일 ${formatWon(clearance.price)} ${clearance.quantity}개`)
   const expiry = expiryBadge(product.nearestExpiry, now)
-  if (expiry) parts.push(`유통기한 ${expiry.label}`)
+  if (expiry) parts.push(`소비기한 ${expiry.label}`)
   if (product.recommended) parts.push('추천')
   if (product.newArrival) parts.push('신상품')
   if (product.firstCome) parts.push('선착순')

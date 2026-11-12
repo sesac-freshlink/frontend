@@ -203,7 +203,7 @@ describe('점주 재고 목록 (S-10)', () => {
     expect(await screen.findByText(/아직 입고된 상품이 없어요/)).toBeInTheDocument()
   })
 
-  it('상품 코드·이름·카테고리·가격·수량 3종·유통기한을 서버 순서대로 보여 준다', async () => {
+  it('상품 코드·이름·카테고리·가격·수량 3종·소비기한을 서버 순서대로 보여 준다', async () => {
     get.mockImplementation(serveInventory(items))
     renderPage()
 
@@ -339,7 +339,7 @@ describe('lot 상세 패널 (S-11)', () => {
     })
   }
 
-  it('행을 누르면 그 상품의 lot 을 유통기한·수량·상태 배지와 함께 보여 준다', async () => {
+  it('행을 누르면 그 상품의 lot 을 소비기한·수량·상태 배지와 함께 보여 준다', async () => {
     mockInventoryAndLots(() => Promise.resolve({ data: lots }))
     renderPage()
 
@@ -362,7 +362,7 @@ describe('lot 상세 패널 (S-11)', () => {
     const normal = within(panel).getByText('10/30').closest('tr')!
     expect(within(normal).getByText('정상')).toBeInTheDocument()
 
-    // 유통기한 빠른 순서를 화면에서 바꾸지 않는다
+    // 소비기한 빠른 순서를 화면에서 바꾸지 않는다
     const dates = within(panel)
       .getAllByRole('row')
       .slice(1)
@@ -389,7 +389,7 @@ describe('lot 상세 패널 (S-11)', () => {
     await userEvent.click(await screen.findByRole('button', { name: '10/30 lot 조정' }))
 
     const dialog = screen.getByRole('dialog', { name: '재고 조정' })
-    expect(within(dialog).getByText('흰 우유 500ml · 유통기한 10/30')).toBeInTheDocument()
+    expect(within(dialog).getByText('흰 우유 500ml · 소비기한 10/30')).toBeInTheDocument()
     expect(within(dialog).getByLabelText('실제 수량')).toHaveValue(6)
 
     await userEvent.click(within(dialog).getByRole('button', { name: '취소' }))

@@ -55,14 +55,14 @@ export function DisposeExpiredDialog({ lots, onClose }: Props) {
           경과 lot 전부 폐기
         </h2>
         <p className="text-sm text-slate-500">
-          유통기한이 지난 lot마다 폐기 가능 수량 전부를 한 번에 요청해요.
+          소비기한이 지난 lot마다 폐기 가능 수량 전부를 한 번에 요청해요.
         </p>
         <ul className="max-h-64 divide-y divide-slate-200 overflow-y-auto rounded-lg border border-slate-200 text-sm">
           {lots.map((lot) => (
             <li key={lot.lotId} className="flex items-center justify-between gap-3 px-3 py-2">
               <div>
                 <p className="font-medium text-slate-900">{lot.productName}</p>
-                <p className="text-xs text-slate-400">유통기한 {formatDateTime(lot.expiryDate)}</p>
+                <p className="text-xs text-slate-400">소비기한 {formatDateTime(lot.expiryDate)}</p>
               </div>
               <span className="font-semibold text-slate-900 tabular-nums">
                 {lot.disposableQuantity}개

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/api/client'
 
-/** 알림 종류 (10/30 확정). 점주: 유통기한 임박·경과, 고객: 재입고 */
+/** 알림 종류 (10/30 확정). 점주: 소비기한 임박·경과, 고객: 재입고 */
 export type NotificationKind = 'EXPIRY_IMMINENT' | 'EXPIRED' | 'RESTOCKED'
 
 /** notification-service 알림 한 건. 목록 API 와 SSE 이벤트 data 가 같은 모양 */

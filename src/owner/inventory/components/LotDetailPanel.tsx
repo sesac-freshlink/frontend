@@ -39,7 +39,7 @@ interface Props {
 }
 
 /**
- * S-11 lot 상세 패널: 유통기한 빠른 순으로 lot 별 실물·예약·구매 가능 수량과 상태를 보여 준다.
+ * S-11 lot 상세 패널: 소비기한 빠른 순으로 lot 별 실물·예약·구매 가능 수량과 상태를 보여 준다.
  * lot 마다 S-14 수동 조정(실사) 버튼이 있다
  */
 export function LotDetailPanel({ productId, productName, onClose }: Props) {
@@ -57,7 +57,7 @@ export function LotDetailPanel({ productId, productName, onClose }: Props) {
       <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div>
           <h2 className="font-bold text-slate-900">{title}</h2>
-          <p className="text-xs text-slate-500">유통기한별 lot · 빠른 순</p>
+          <p className="text-xs text-slate-500">소비기한별 lot · 빠른 순</p>
         </div>
         {onClose && (
           <button
@@ -111,7 +111,7 @@ function LotTable({
     <table className="w-full text-sm">
       <thead className="bg-slate-50 text-left whitespace-nowrap text-slate-500">
         <tr>
-          <th className="py-2 pr-1.5 pl-3 font-medium">유통기한</th>
+          <th className="py-2 pr-1.5 pl-3 font-medium">소비기한</th>
           <th className="px-1.5 py-2 text-right font-medium">실물</th>
           <th className="px-1.5 py-2 text-right font-medium">예약</th>
           <th className="px-1.5 py-2 text-right font-medium">구매 가능</th>

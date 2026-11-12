@@ -4,7 +4,7 @@ import { mockSessionUser } from './authHandlers'
 
 /**
  * notification-service 가짜 API (김진아): 화면 알림 목록·안 읽은 수·읽음, 재입고 알림 신청, 알림 SSE.
- * 점주는 유통기한 임박·경과, 고객은 재입고 알림을 받는다. SSE 는 연결하고 5초 뒤 가짜 알림을 하나 보낸다
+ * 점주는 소비기한 임박·경과, 고객은 재입고 알림을 받는다. SSE 는 연결하고 5초 뒤 가짜 알림을 하나 보낸다
  */
 let nextId = 100
 const notifications: (AppNotification & { role: 'OWNER' | 'CUSTOMER' })[] = [
@@ -12,8 +12,8 @@ const notifications: (AppNotification & { role: 'OWNER' | 'CUSTOMER' })[] = [
     id: 3,
     role: 'OWNER',
     kind: 'EXPIRY_IMMINENT',
-    title: '유통기한 임박',
-    body: '삼각김밥 참치마요 4개의 유통기한이 10월 31일 23:59에 끝나요',
+    title: '소비기한 임박',
+    body: '삼각김밥 참치마요 4개의 소비기한이 10월 31일 23:59에 끝나요',
     link: '/owner/expiring',
     read: false,
     createdAt: '2026-10-31T00:00:00+09:00',
@@ -22,8 +22,8 @@ const notifications: (AppNotification & { role: 'OWNER' | 'CUSTOMER' })[] = [
     id: 2,
     role: 'OWNER',
     kind: 'EXPIRED',
-    title: '유통기한 경과',
-    body: '흰 우유 500ml 2개의 유통기한이 지났어요. 폐기해 주세요',
+    title: '소비기한 경과',
+    body: '흰 우유 500ml 2개의 소비기한이 지났어요. 폐기해 주세요',
     link: '/owner/expiring',
     read: true,
     createdAt: '2026-10-30T00:00:00+09:00',
@@ -66,8 +66,8 @@ const streamHandlers =
                     id: nextId++,
                     role,
                     kind: 'EXPIRY_IMMINENT',
-                    title: '유통기한 임박',
-                    body: '샌드위치 햄치즈 2개의 유통기한이 곧 끝나요',
+                    title: '소비기한 임박',
+                    body: '샌드위치 햄치즈 2개의 소비기한이 곧 끝나요',
                     link: '/owner/expiring',
                     read: false,
                     createdAt: new Date().toISOString(),

@@ -64,7 +64,7 @@ function AdjustmentRow({ item }: { item: AdjustmentHistoryItem }) {
       </td>
       <td className="px-3 py-3 whitespace-nowrap">
         <p className="font-medium">{item.productName}</p>
-        <p className="text-xs text-slate-400">유통기한 {formatExpiry(item.expiryDate)}</p>
+        <p className="text-xs text-slate-400">소비기한 {formatExpiry(item.expiryDate)}</p>
       </td>
       <td className="px-3 py-3 whitespace-nowrap">
         <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">

@@ -86,7 +86,7 @@ function renderPage() {
 
 const disposeButton = () => screen.getByRole('button', { name: /선택 폐기/ })
 
-describe('유통기한 관리 (S-30·S-32)', () => {
+describe('소비기한 관리 (S-30·S-32)', () => {
   beforeEach(() => {
     get.mockReset()
     post.mockReset()

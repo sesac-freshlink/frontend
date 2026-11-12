@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { monthGrid, monthLabel, shiftMonth, thisMonth, today, worstStatus } from './calendar'
 
-describe('유통기한 달력 계산', () => {
+describe('소비기한 달력 계산', () => {
   it('2026년 10월은 목요일에 시작해 5주이고, 앞뒤 빈칸은 다른 달 날짜로 채운다', () => {
     const weeks = monthGrid('2026-10')
 

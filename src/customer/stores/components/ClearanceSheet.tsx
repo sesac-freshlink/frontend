@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { MAX_QUANTITY, type CheckoutItem } from '@/customer/order/checkout'
 import { PendingOrderDialog } from '@/customer/order/components/PendingOrderDialog'
 import { useBuyNow } from '@/customer/order/useBuyNow'
-import { formatHHmm, formatWon } from '@/customer/order/format'
+import { formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import type { StoreProductDetail } from '../api'
 import {
@@ -19,6 +19,10 @@ import {
   type SheetRow,
   type SheetSelection,
 } from '../clearance'
+
+/** 마감세일 시트 설명 한 줄 (11/12 경우 문구. 상품별 "몇 시까지 드세요"는 뺐다) */
+export const CLEARANCE_SHEET_NOTICE =
+  '소비기한이 임박한 상품을 할인받아 당일 23시까지 구매할 수 있어요.'
 
 /**
  * 마감세일 구매 시트. 기본(정가)과 마감세일 두 줄에서 수량을 고르고 [N원 구매하기]로 바로 주문을 만든다(주문·결제 화면은 11/11 없앴다).
@@ -50,10 +54,7 @@ export function ClearanceSheet({
         <h2 id="clearance-sheet-title" className="text-sm font-semibold text-slate-900">
           마감세일 {CLEARANCE_DISCOUNT_PERCENT}%
         </h2>
-        <p className="text-xs text-slate-500">
-          유통기한이 하루 안 남은 상품을 싸게 팔아요.
-          {product.clearanceExpiry && ` ${formatHHmm(product.clearanceExpiry)}까지 드세요.`}
-        </p>
+        <p className="text-xs break-keep text-slate-500">{CLEARANCE_SHEET_NOTICE}</p>
       </div>
 
       <ul className="divide-y divide-rose-100">
