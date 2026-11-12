@@ -243,19 +243,12 @@ export async function fetchBestProducts(storeId: number, category = ''): Promise
 }
 
 /**
- * 베스트에서 최근 7일에 한 개도 안 팔린 상품은 뺀다(inventory #72 soldRecently, 11/12).
- * 판매 수가 오지 않는 옛 배포에서는 그대로 둔다
- */
-export function soldOnly(products: StoreProduct[]): StoreProduct[] {
-  return products.filter((p) => p.soldRecently === undefined || p.soldRecently > 0)
-}
-
-/** 홈 베스트 상품(분류별, 11/12). 실패하면 다시 묻지 않고(화면은 칸을 숨긴다) 들어올 때·당겨서 새로고침 때·분류를 바꿀 때만 읽는다 */
+ * 홈 베스트 상품(분류별, 11/12). 판매 기록이 없어도 추천순 앞 5개를 그대로 보여 준다(11/12 경우 결정, #94 방식).
+ * 실패하면 다시 묻지 않고(화면은 칸을 숨긴다) 들어올 때·당겨서 새로고침 때·분류를 바꿀 때만 읽는다 */
 export function useBestProducts(storeId: number, category = '') {
   return useQuery({
     queryKey: ['customer', 'stores', storeId, 'products', 'best', category],
     queryFn: () => fetchBestProducts(storeId, category),
-    select: soldOnly,
     retry: false,
     placeholderData: keepPreviousData,
   })

@@ -107,7 +107,7 @@ function mockApi({
       if (params.recommended) return { data: recommendedProducts }
       if (params.newOnly) return { data: [] }
       if (params.sort === 'POPULAR' && params.category === '김밥') {
-        // 분류별 베스트: 판매 0개(soldRecently 0)는 화면이 뺀다
+        // 분류별 베스트: 판매 0개(soldRecently 0)도 추천순 그대로 보여 준다(11/12)
         return {
           data: [
             { ...allProducts[0], soldRecently: 3 },
@@ -116,7 +116,8 @@ function mockApi({
         }
       }
       if (params.sort === 'POPULAR' && params.category === '도시락') {
-        return { data: [{ ...allProducts[0], soldRecently: 0 }] }
+        // 이 분류에는 상품이 없다
+        return { data: [] }
       }
       if (params.sort === 'POPULAR') {
         if (bestError) throw new Error('404')
@@ -314,7 +315,7 @@ describe('고객 홈 (U-01)', () => {
     )
   })
 
-  it('베스트는 분류 버튼으로 그 분류 판매순을 보고, 판매 0개는 빼고, 없으면 안내한다(11/12)', async () => {
+  it('베스트는 분류 버튼으로 그 분류 추천순 앞 5개를 판매 0개도 그대로 보고, 상품이 없으면 안내한다(11/12)', async () => {
     pickGangnam()
     mockApi()
     renderHome()
@@ -331,9 +332,9 @@ describe('고객 홈 (U-01)', () => {
         params: { sort: 'POPULAR', page: 0, size: 5, category: '김밥' },
       }),
     )
-    await waitFor(() => expect(within(best).getAllByRole('listitem')).toHaveLength(1))
+    await waitFor(() => expect(within(best).getAllByRole('listitem')).toHaveLength(2))
     await userEvent.click(within(chips).getByRole('button', { name: '도시락' }))
-    expect(await within(best).findByText('아직 판매 기록이 없어요.')).toBeInTheDocument()
+    expect(await within(best).findByText('이 분류에는 아직 상품이 없어요.')).toBeInTheDocument()
   })
 
   it('베스트 상품을 못 불러오면 칸을 숨긴다', async () => {
@@ -482,5 +483,21 @@ describe('고객 홈 (U-01)', () => {
     get.mockRejectedValue(notFound)
     renderHome()
     expect(await screen.findByText('프로필 등록')).toBeInTheDocument()
+  })
+
+  it('최근 7일 판매가 모두 0인 점포도 베스트 칸에 추천순 앞 5개를 보여 준다(11/12)', async () => {
+    pickGangnam()
+    mockApi()
+    const base = get.getMockImplementation()
+    get.mockImplementation(async (url, config) => {
+      const params = (config as { params?: Record<string, unknown> } | undefined)?.params ?? {}
+      if (/^\/stores\/\d+\/products$/.test(String(url)) && params.sort === 'POPULAR') {
+        return { data: allProducts.slice(0, 3).map((p) => ({ ...p, soldRecently: 0 })) }
+      }
+      return base?.(url, config)
+    })
+    renderHome()
+    const best = await screen.findByRole('region', { name: '베스트 상품' })
+    await waitFor(() => expect(within(best).getAllByRole('listitem')).toHaveLength(3))
   })
 })
