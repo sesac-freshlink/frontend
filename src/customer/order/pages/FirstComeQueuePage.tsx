@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { apiErrorCode } from '@/shared/api/errors'
 import { useJoinQueue, useLeaveQueue, useQueueStatus, type QueueStatusResponse } from '../api'
+import { PendingOrderDialog } from '../components/PendingOrderDialog'
 import { parseCheckout, productPath as productPathOf, type CheckoutItem } from '../checkout'
 import { firstComeErrorMessage } from '../firstCome'
 import { useBuyNow } from '../useBuyNow'
@@ -68,7 +69,10 @@ function QueueView({ item }: { item: CheckoutItem }) {
     if (ordering.current) return
     ordering.current = true
     setOrderFailed(false)
-    void buy({ storeId, storeName, productId, quantity: 1 }, { replace: true }).then((ok) => {
+    void buy(
+      { storeId, storeName, productId, quantity: 1, firstCome: true },
+      { replace: true },
+    ).then((ok) => {
       if (ok) return
       ordering.current = false
       setOrderFailed(true)
@@ -163,6 +167,8 @@ function QueueView({ item }: { item: CheckoutItem }) {
         <p className="font-medium text-slate-900">
           {admitted ? '차례예요! 결제 화면으로 가요' : '줄을 서고 있어요'}
         </p>
+        {/* 같은 선착순 상품의 결제 대기 주문이 있으면 [이어서 결제하기]·[닫기]만 묻는다 */}
+        {buyNow.pendingDialog && <PendingOrderDialog {...buyNow.pendingDialog} />}
       </section>
     )
   }

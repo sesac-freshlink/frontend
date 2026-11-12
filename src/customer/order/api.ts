@@ -225,6 +225,39 @@ export function useOrder(orderId: number | undefined) {
   })
 }
 
+/** 결제 대기 주문을 찾을 때 볼 최신 주문 수. 결제 대기는 10분이면 만료돼 늘 최신 주문 안에 있다 */
+export const PENDING_LOOKUP_SIZE = 10
+
+/**
+ * 같은 점포·같은 상품의 결제 대기 주문 (11/12 경우 결정, 화면만으로 찾는다).
+ * 주문 내역 전체 최신 10개에서 결제 대기만 골라 상세를 읽고 점포·상품 번호로 비교한다. 없으면 null
+ */
+export async function fetchPendingOrder(
+  storeId: number,
+  storeName: string,
+  productId: number,
+): Promise<{ order: Order; receivedAtMs: number } | null> {
+  const page = (
+    await api.get<OrderPage<CustomerOrderSummary>>('/orders', {
+      params: { tab: 'ALL', page: 0, size: PENDING_LOOKUP_SIZE },
+    })
+  ).data
+  const candidates = page.content.filter(
+    (row) => row.status === 'PAYMENT_WAITING' && row.storeName === storeName,
+  )
+  for (const row of candidates) {
+    const order = (await api.get<Order>(`/orders/${row.orderId}`)).data
+    if (
+      order.status === 'PAYMENT_WAITING' &&
+      order.storeId === storeId &&
+      order.productId === productId
+    ) {
+      return { order, receivedAtMs: Date.now() }
+    }
+  }
+  return null
+}
+
 /** U-21 주문 생성 (OR-01). 같은 구매 시도의 재시도에는 같은 Idempotency-Key 를 보낸다 */
 export function useCreateOrder() {
   return useMutation({
