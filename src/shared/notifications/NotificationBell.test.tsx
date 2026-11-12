@@ -51,8 +51,8 @@ class FakeEventSource {
 const expiry: AppNotification = {
   id: 7,
   kind: 'EXPIRY_IMMINENT',
-  title: '유통기한 임박',
-  body: '우유 2개의 유통기한이 10월 31일 23:59에 끝나요',
+  title: '소비기한 임박',
+  body: '우유 2개의 소비기한이 10월 31일 23:59에 끝나요',
   link: '/owner/expiring',
   read: false,
   createdAt: '2026-10-31T00:00:00+09:00',
@@ -111,7 +111,7 @@ describe('알림 종', () => {
     expect(bell).toHaveTextContent('3')
     await userEvent.click(bell)
 
-    const item = await screen.findByRole('button', { name: /우유 2개의 유통기한/ })
+    const item = await screen.findByRole('button', { name: /우유 2개의 소비기한/ })
     expect(get).toHaveBeenCalledWith('/notifications', { params: { page: 0, size: 20 } })
     await userEvent.click(item)
 
@@ -145,7 +145,7 @@ describe('알림 종', () => {
 
     expect(toast).toHaveBeenCalledTimes(1)
     expect(toast).toHaveBeenCalledWith(
-      '유통기한 임박',
+      '소비기한 임박',
       expect.objectContaining({
         description: expiry.body,
         action: expect.objectContaining({ label: '보기' }),

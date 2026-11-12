@@ -20,8 +20,8 @@ export function DetailGuide({ clearance, firstCome }: { clearance: boolean; firs
         {clearance && (
           <>
             <li className="font-medium text-slate-900">
-              마감세일 상품은 유통기한이 하루 안 남은 상품이라 30% 싸게 팔아요. 06~23시에만 팔고,
-              마감세일이 들어간 주문은 결제하면 바로 픽업 신청돼요.
+              마감세일 상품은 소비기한이 24시간 안에 끝나는 상품이라 30% 싸게 팔아요. 06~23시에만
+              팔고, 마감세일이 들어간 주문은 결제하면 바로 픽업 신청돼요.
             </li>
             {SAME_DAY_PICKUP_NOTICE.map((line) => (
               <li key={line} className="font-medium text-rose-700">

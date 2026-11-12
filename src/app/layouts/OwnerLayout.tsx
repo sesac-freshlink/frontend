@@ -32,7 +32,7 @@ const STORE_SUBMENU = [
   { to: '/owner/store/password', label: '비밀번호 변경', end: false, passwordOnly: true },
 ]
 
-/** 점주 화면: 매장 포스기(가로 화면)용 왼쪽 사이드 메뉴. 맨 위에 알림 종(유통기한 임박·경과) */
+/** 점주 화면: 매장 포스기(가로 화면)용 왼쪽 사이드 메뉴. 맨 위에 알림 종(소비기한 임박·경과) */
 export function OwnerLayout() {
   const { user, signOut } = useAuthStore()
 

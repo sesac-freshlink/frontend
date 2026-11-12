@@ -104,7 +104,7 @@ function safetyStockOf(productId: number): number {
   return safetyStocks.get(productId) ?? DEFAULT_SAFETY_STOCK
 }
 
-/** S-11 상품별 lot. 유통기한 빠른 순, 수량 0 은 서버가 빼고 내려 준다 */
+/** S-11 상품별 lot. 소비기한 빠른 순, 수량 0 은 서버가 빼고 내려 준다 */
 const lots: Record<number, InventoryLotItem[]> = {
   1: [
     {
@@ -238,7 +238,7 @@ let ledger: LedgerItem[] = [
 ]
 
 /**
- * S-30 임박·경과 lot. 유통기한 빠른 순, 수량 0 은 서버가 빼고 내려 준다.
+ * S-30 임박·경과 lot. 소비기한 빠른 순, 수량 0 은 서버가 빼고 내려 준다.
  * S-32 로 폐기하면 1초 뒤(쪽지 처리 흉내) 수량을 줄여 폴링으로 줄어드는 모습을 볼 수 있다
  */
 let expiring: ExpiringLot[] = [
@@ -312,7 +312,7 @@ let disposals: DisposalHistoryItem[] = [
   },
 ]
 
-/** 오늘(한국 날짜)부터 days 일 뒤 23:59:59(+09:00). 가짜 유통기한이 화면의 D-day 배지로 보이게 지금 기준으로 만든다 */
+/** 오늘(한국 날짜)부터 days 일 뒤 23:59:59(+09:00). 가짜 소비기한이 화면의 D-day 배지로 보이게 지금 기준으로 만든다 */
 function kstEndOfDay(days: number): string {
   const date = new Date(Date.now() + 9 * 60 * 60 * 1000 + days * 24 * 60 * 60 * 1000)
   return `${date.toISOString().slice(0, 10)}T23:59:59+09:00`
@@ -718,7 +718,7 @@ export const handlers = [
       [...new Set(storeProducts.map((p) => p.category))].sort((a, b) => a.localeCompare(b, 'ko')),
     ),
   ),
-  // U-10 상품 상세. 목록 한 줄과 같은 값(먼저 받게 될 상품의 유통기한 포함)
+  // U-10 상품 상세. 목록 한 줄과 같은 값(먼저 받게 될 상품의 소비기한 포함)
   http.get('/api/stores/:storeId/products/:productId', ({ params }) => {
     const product = storeProducts.find((p) => p.productId === Number(params.productId))
     if (!product) {
@@ -990,7 +990,7 @@ export const handlers = [
     return HttpResponse.json(type ? ledger.filter((item) => item.type === type) : ledger)
   }),
   http.get('/api/owner/inventory/expiring', () => HttpResponse.json(expiring)),
-  // 유통기한 달력. 가짜 lot(상품별)에서 그 달에 기한이 끝나고 수량이 남은 것을 날짜별로 묶는다
+  // 소비기한 달력. 가짜 lot(상품별)에서 그 달에 기한이 끝나고 수량이 남은 것을 날짜별로 묶는다
   http.get('/api/owner/inventory/expiry-calendar', ({ request }) => {
     const month =
       new URL(request.url).searchParams.get('month') ?? new Date().toISOString().slice(0, 7)

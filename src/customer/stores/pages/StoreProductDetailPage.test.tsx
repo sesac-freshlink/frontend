@@ -63,7 +63,7 @@ describe('고객 상품 상세 (U-10)', () => {
     expect(screen.getByLabelText('불러오는 중')).toBeInTheDocument()
   })
 
-  it('가격·남은 수량·먼저 받게 될 상품의 유통기한·점포를 보여 준다', async () => {
+  it('가격·남은 수량·먼저 받게 될 상품의 소비기한·점포를 보여 준다', async () => {
     get.mockResolvedValue({ data: milk })
     renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
 
@@ -75,7 +75,7 @@ describe('고객 상품 상세 (U-10)', () => {
     expect(screen.getByText('1,900원')).toBeInTheDocument()
     expect(screen.getByText('7개')).toBeInTheDocument()
     expect(screen.getByText('10/30 23:59까지')).toBeInTheDocument()
-    expect(screen.getByText('유통기한이 빠른 상품부터 드려요')).toBeInTheDocument()
+    expect(screen.getByText('소비기한이 빠른 상품부터 드려요')).toBeInTheDocument()
     expect(screen.getByText('프레시 강남점')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: '흰 우유 500ml' })).toHaveAttribute(
       'src',
@@ -140,7 +140,7 @@ describe('고객 상품 상세 (U-10)', () => {
     expect(changed).not.toBe(first)
   })
 
-  it('품절이면 유통기한을 보여 주지 않고 구매할 수 없다', async () => {
+  it('품절이면 소비기한을 보여 주지 않고 구매할 수 없다', async () => {
     get.mockResolvedValue({
       data: { ...milk, availableQuantity: 0, soldOut: true, nearestExpiry: null },
     })
@@ -480,6 +480,11 @@ describe('마감세일 구매 시트', () => {
     const router = renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
 
     const sheet = await screen.findByRole('region', { name: '마감세일 30%' })
+    // 시트 설명은 한 문장만(11/12). 상품별 "몇 시까지 드세요"는 보이지 않는다
+    expect(sheet).toHaveTextContent(
+      '소비기한이 임박한 상품을 할인받아 당일 23시까지 구매할 수 있어요.',
+    )
+    expect(sheet).not.toHaveTextContent('까지 드세요')
     expect(screen.getByText('마감세일 남은 수량').nextSibling).toHaveTextContent('2개')
     // 처음에는 마감세일 1개
     expect(within(sheet).getByLabelText('마감세일 1개')).toBeInTheDocument()

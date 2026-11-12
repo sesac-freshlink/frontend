@@ -404,7 +404,7 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     expect(get).not.toHaveBeenCalled()
   })
 
-  it('유통기한이 가까운 상품에는 D-day 배지를 붙인다', async () => {
+  it('소비기한이 가까운 상품에는 D-day 배지를 붙인다', async () => {
     // 한국 날짜로 오늘 끝나는 상품
     const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
     serve(() =>
@@ -415,10 +415,10 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
 
     const noodle = (await screen.findByText('매운 컵라면 115g')).closest('li')!
-    expect(within(noodle).getByLabelText('유통기한 오늘까지')).toHaveTextContent('오늘까지')
+    expect(within(noodle).getByLabelText('소비기한 오늘까지')).toHaveTextContent('오늘까지')
     // 품절 상품은 기한이 없어 배지가 없다
     const sandwich = screen.getByText('샌드위치 햄치즈').closest('li')!
-    expect(within(sandwich).queryByLabelText(/유통기한/)).not.toBeInTheDocument()
+    expect(within(sandwich).queryByLabelText(/소비기한/)).not.toBeInTheDocument()
   })
 
   it('마감세일 수량이 있으면 배지와 할인가·수량을 붙이고 읽는 이름에도 넣는다', async () => {

@@ -13,7 +13,7 @@ import { formatDateTime } from '../format'
 type Tab = 'imminent' | 'expired' | 'calendar'
 
 /**
- * S-30·S-32 유통기한 관리. 임박(24시간 이내)·경과 lot 을 탭으로 나누고, 골라서 폐기 요청한다.
+ * S-30·S-32 소비기한 관리. 임박(24시간 이내)·경과 lot 을 탭으로 나누고, 골라서 폐기 요청한다.
  * 폐기 수량은 lot 의 폐기 가능 수량 전량이다(부분 폐기는 미정).
  * 달력 탭은 달마다 기한이 끝나는 lot 을 날짜 칸에 보여 준다(날짜를 누르면 그날 lot 목록).
  * 경과 탭에서는 고르지 않고 경과 lot 전부를 한 번에 폐기 요청할 수도 있다
@@ -65,7 +65,7 @@ export function ExpiringPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">임박·폐기</h1>
           <p className="text-sm text-slate-500">
-            유통기한이 24시간 안에 끝나거나 지난 lot이에요. 폐기는 고른 lot의 폐기 가능 수량 전부를
+            소비기한이 24시간 안에 끝나거나 지난 lot이에요. 폐기는 고른 lot의 폐기 가능 수량 전부를
             요청해요.
           </p>
         </div>
@@ -173,7 +173,7 @@ function ExpiringTable({ expiring, rows, selected, onToggle }: TableProps) {
               <span className="sr-only">선택</span>
             </th>
             <th className="px-3 py-3 font-medium">상품</th>
-            <th className="px-3 py-3 font-medium">유통기한</th>
+            <th className="px-3 py-3 font-medium">소비기한</th>
             <th className="px-3 py-3 font-medium">상태</th>
             <th className="px-3 py-3 text-right font-medium">실물</th>
             <th className="px-3 py-3 text-right font-medium">예약</th>

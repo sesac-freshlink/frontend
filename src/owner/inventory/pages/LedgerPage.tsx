@@ -166,7 +166,7 @@ function LedgerRow({ item }: { item: LedgerItem }) {
       </td>
       <td className="px-3 py-3 whitespace-nowrap">
         <p className="font-medium">{item.productName}</p>
-        <p className="text-xs text-slate-400">유통기한 {formatExpiry(item.expiryDate)}</p>
+        <p className="text-xs text-slate-400">소비기한 {formatExpiry(item.expiryDate)}</p>
       </td>
       <td
         className={cn(

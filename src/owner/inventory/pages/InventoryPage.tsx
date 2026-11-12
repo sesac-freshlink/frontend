@@ -100,7 +100,7 @@ export function InventoryPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">재고</h1>
           <p className="text-sm text-slate-500">
-            3초마다 새로 읽어요. 상품을 누르면 유통기한별 lot이 보여요.
+            3초마다 새로 읽어요. 상품을 누르면 소비기한별 lot이 보여요.
           </p>
         </div>
         {lowStockCount > 0 && (

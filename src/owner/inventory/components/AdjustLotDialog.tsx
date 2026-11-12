@@ -81,7 +81,7 @@ export function AdjustLotDialog({ productName, lot, onClose }: Props) {
             재고 조정
           </h2>
           <p className="text-sm text-slate-500">
-            {productName} · 유통기한 {formatExpiry(lot.expiryDate)}
+            {productName} · 소비기한 {formatExpiry(lot.expiryDate)}
           </p>
         </div>
 

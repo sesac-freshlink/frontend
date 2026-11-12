@@ -107,7 +107,7 @@ async function dayCell(name: string) {
   return screen.getByRole('button', { name })
 }
 
-describe('유통기한 달력', () => {
+describe('소비기한 달력', () => {
   beforeEach(() => {
     get.mockReset()
     // 오늘 = 2026-10-25 12:00 KST. 날짜만 고정하고 타이머는 그대로 둔다
