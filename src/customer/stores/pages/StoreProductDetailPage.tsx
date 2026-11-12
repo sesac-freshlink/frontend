@@ -75,7 +75,7 @@ function ProductDetail({ storeId, productId }: { storeId: number; productId: num
         </div>
       ) : product.isError ? (
         <div className="space-y-2 py-10 text-center">
-          <p className="text-sm text-red-600">상품을 불러오지 못했어요.</p>
+          <p className="text-sm text-rose-700">상품을 불러오지 못했어요.</p>
           <button
             type="button"
             onClick={() => void product.refetch()}

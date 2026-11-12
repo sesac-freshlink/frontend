@@ -88,6 +88,8 @@ export interface StoreProduct {
   clearancePrice?: number | null
   /** 마감세일 상품의 유통기한(+09:00). clearanceQuantity 가 0이면 null */
   clearanceExpiry?: string | null
+  /** 이 점포의 최근 7일 순판매 수량(판매 − 환불 복원, 0 아래면 0). 추천순과 같은 값(inventory #72). 배포 전 응답에는 없다 */
+  soldRecently?: number
 }
 
 /** U-10 상품 상세. inventory-service StoreProductDetailResponse 와 같은 모양(목록 한 줄과 필드가 같다) */
@@ -119,6 +121,10 @@ export interface StoreProductFilter {
   recommendedOnly?: boolean
   /** 신상품만 */
   newOnly?: boolean
+  /** 지금 마감세일로 살 수 있는 상품만(inventory #71 clearance=true, 06~23시·선착순 제외) */
+  clearanceOnly?: boolean
+  /** 선착순 상품만(inventory #71 firstCome=true) */
+  firstComeOnly?: boolean
 }
 
 /** 서버로 보낼 쿼리. 기본값인 조건은 넣지 않는다 */
@@ -130,6 +136,8 @@ export function storeProductParams(filter: StoreProductFilter): Record<string, s
   if (filter.sort && filter.sort !== 'NAME') params.sort = filter.sort
   if (filter.recommendedOnly) params.recommended = true
   if (filter.newOnly) params.newOnly = true
+  if (filter.clearanceOnly) params.clearance = true
+  if (filter.firstComeOnly) params.firstCome = true
   return params
 }
 
@@ -191,11 +199,20 @@ function allProductsQuery(storeId: number) {
 }
 
 /**
- * 홈 '오늘 마감세일' 줄. inventory 에 마감세일 조건이 없어(11/11) 상품 전부를 받아 homeRows.clearanceRow 로 거른다.
- * 마감세일 조건(예: clearanceOnly)이 생기면 여기서 그 조건으로 부르고 homeRows 의 거르기만 고친다
+ * 홈 '마감세일' 줄. inventory 서버 조건(clearance=true, #71)으로 지금 마감세일로 살 수 있는 상품만 받고,
+ * homeRows.clearanceRow 로 마감 빠른 순으로 줄 세운다(서버가 조건을 모르는 옛 배포에서도 걸러지게 거르기는 남긴다)
  */
 export function useClearanceProducts(storeId: number) {
-  return useQuery({ ...allProductsQuery(storeId), select: clearanceRow })
+  return useQuery({
+    queryKey: ['customer', 'stores', storeId, 'products', { clearance: true }],
+    queryFn: async () =>
+      (
+        await api.get<StoreProduct[]>(`/stores/${storeId}/products`, {
+          params: { clearance: true },
+        })
+      ).data,
+    select: clearanceRow,
+  })
 }
 
 /** 홈 카테고리 칸 사진(분류별 첫 상품 사진). 마감세일 줄과 같은 상품 전부 목록을 쓴다 */
@@ -215,20 +232,32 @@ export const BEST_PRODUCT_COUNT = 5
  * 홈 베스트 상품 읽기(11/11). 고객용 판매 순위 API 가 따로 없어, U-10 목록의 추천순(sort=POPULAR = 최근 7일 순판매 많은 순,
  * inventory StoreProductBadges POPULAR_WINDOW) 앞 5개를 쓴다. 판매 순위 API 가 새로 생기면 이 함수 하나만 바꾼다
  */
-export async function fetchBestProducts(storeId: number): Promise<StoreProduct[]> {
-  return (
-    await api.get<StoreProduct[]>(`/stores/${storeId}/products`, {
-      params: { sort: 'POPULAR', page: 0, size: BEST_PRODUCT_COUNT },
-    })
-  ).data
+export async function fetchBestProducts(storeId: number, category = ''): Promise<StoreProduct[]> {
+  const params: Record<string, string | number> = {
+    sort: 'POPULAR',
+    page: 0,
+    size: BEST_PRODUCT_COUNT,
+  }
+  if (category) params.category = category
+  return (await api.get<StoreProduct[]>(`/stores/${storeId}/products`, { params })).data
 }
 
-/** 홈 베스트 상품. 실패하면 다시 묻지 않고(화면은 칸을 숨긴다) 들어올 때·당겨서 새로고침 때만 읽는다 */
-export function useBestProducts(storeId: number) {
+/**
+ * 베스트에서 최근 7일에 한 개도 안 팔린 상품은 뺀다(inventory #72 soldRecently, 11/12).
+ * 판매 수가 오지 않는 옛 배포에서는 그대로 둔다
+ */
+export function soldOnly(products: StoreProduct[]): StoreProduct[] {
+  return products.filter((p) => p.soldRecently === undefined || p.soldRecently > 0)
+}
+
+/** 홈 베스트 상품(분류별, 11/12). 실패하면 다시 묻지 않고(화면은 칸을 숨긴다) 들어올 때·당겨서 새로고침 때·분류를 바꿀 때만 읽는다 */
+export function useBestProducts(storeId: number, category = '') {
   return useQuery({
-    queryKey: ['customer', 'stores', storeId, 'products', 'best'],
-    queryFn: () => fetchBestProducts(storeId),
+    queryKey: ['customer', 'stores', storeId, 'products', 'best', category],
+    queryFn: () => fetchBestProducts(storeId, category),
+    select: soldOnly,
     retry: false,
+    placeholderData: keepPreviousData,
   })
 }
 

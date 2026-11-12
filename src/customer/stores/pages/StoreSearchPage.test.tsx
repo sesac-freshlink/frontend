@@ -40,6 +40,7 @@ function fakeKakao(): KakaoMaps {
       setLevel = vi.fn()
       relayout = vi.fn()
       getLevel = () => fakeLevel
+      getBounds = () => ({ contain: () => true })
       getProjection = () => ({
         pointFromCoords: (p: { lat: number; lng: number }) => ({
           x: p.lng * 100000,
@@ -279,16 +280,22 @@ describe('점포 검색 (U-01)', () => {
       expect(screen.getByRole('link', { name: /프레시 강남점/ })).toBeInTheDocument()
     })
 
-    it('처음에는 위치를 묻지 않고 이름순, [내 위치로 가까운 순 보기]를 누르면 묻고 못 얻으면 알린다', async () => {
+    it('목록 위에 개수·정렬 안내·[내 위치로]가 있고, 처음에는 이름순, 누르면 위치를 묻고 못 얻으면 알린다(11/12)', async () => {
       serveSeoul()
       renderSearch('/customer/stores')
-      expect(
-        await screen.findByText(/서울특별시 점포를 이름순으로 보여 드려요\./),
-      ).toBeInTheDocument()
-      await userEvent.click(screen.getByRole('button', { name: '내 위치로 가까운 순 보기' }))
-      expect(
-        await screen.findByText(/위치를 알 수 없어 서울특별시 점포를 이름순으로 보여 드려요/),
-      ).toBeInTheDocument()
+      expect(await screen.findByText('이름순으로 보여드려요')).toBeInTheDocument()
+      // 지도가 없으면(키 없음) 지역 점포 수
+      expect(screen.getByText('서울특별시 2곳')).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: '내 위치로' }))
+      expect(await screen.findByText('위치를 알 수 없어 이름순으로 보여드려요')).toBeInTheDocument()
+    })
+
+    it('지도가 있으면 지금 지도 안에 보이는 점포 수를 보인다', async () => {
+      vi.mocked(kakaoMapKey).mockReturnValue('test-key')
+      vi.mocked(loadKakaoMaps).mockResolvedValue(fakeKakao())
+      serveSeoul()
+      renderSearch('/customer/stores')
+      expect(await screen.findByText('이 지도 안 2곳')).toBeInTheDocument()
     })
 
     it('위치를 알면 가까운 순으로 거리와 함께 보여 준다', async () => {

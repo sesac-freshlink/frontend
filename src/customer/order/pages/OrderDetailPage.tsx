@@ -81,7 +81,7 @@ function OrderView({ orderId }: { orderId: number }) {
     if (status === 403 || status === 404) return <NotFound />
     return (
       <section className="space-y-3 py-10 text-center">
-        <p className="text-sm text-red-600">주문을 불러오지 못했어요.</p>
+        <p className="text-sm text-rose-700">주문을 불러오지 못했어요.</p>
         <button
           type="button"
           onClick={() => void order.refetch()}
@@ -217,7 +217,7 @@ function Payable({
           role="timer"
           className={cn(
             'rounded-lg p-3 text-center text-lg font-bold',
-            timeUp ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700',
+            timeUp ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700',
           )}
         >
           {timeUp ? '결제 시간이 끝났어요' : formatRemaining(remaining)}
@@ -345,7 +345,7 @@ function RefundSection({ order }: { order: Order }) {
         </p>
       )}
       {retry && (
-        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+        <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
           환불에 실패했어요. 다시 신청해 주세요.
         </p>
       )}
@@ -485,7 +485,7 @@ function Failed({ order, title }: { order: Order; title: string }) {
   return (
     <section className="space-y-4">
       <div className="flex flex-col items-center gap-2 py-6">
-        <CircleX className="size-12 text-red-600" />
+        <CircleX className="size-12 text-rose-700" />
         <h1 className="text-center text-lg font-bold text-slate-900">{title}</h1>
         <p className="text-sm text-slate-500">주문번호 {order.orderNo}</p>
         {shortage && <p className="text-center text-sm text-slate-700">{shortage}</p>}

@@ -1,5 +1,11 @@
 @import 'tailwindcss';
 
+/* PC 웹에서 세로 스크롤바가 생기고 없어질 때 화면이 옆으로 밀리지 않게 스크롤바 자리를 늘 남겨 둔다(11/12).
+   스크롤바가 화면 위에 겹쳐 그려지는 핸드폰에는 영향이 없다 */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }

@@ -41,7 +41,7 @@ export function PickupQrPage() {
       )}
       {qr.error && (
         <div className="space-y-2">
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-rose-700">
             {qr.error}
           </p>
           <button

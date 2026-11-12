@@ -16,7 +16,7 @@ export function ExpiryBadge({
       aria-label={`유통기한 ${badge.label}`}
       className={cn(
         'rounded-full px-1.5 py-0.5 text-xs font-medium tabular-nums',
-        badge.tone === 'urgent' && 'bg-red-50 text-red-700',
+        badge.tone === 'urgent' && 'bg-rose-50 text-rose-700',
         badge.tone === 'soon' && 'bg-orange-50 text-orange-700',
         className,
       )}

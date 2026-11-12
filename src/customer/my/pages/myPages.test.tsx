@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { toast } from 'sonner'
@@ -35,6 +35,18 @@ function apiError(status: number, code: string) {
 function answerGet(available = true) {
   get.mockImplementation(async (url: string, config?: { params?: unknown }) => {
     if (url === '/members/me') return { data: profile }
+    if (url === '/orders') {
+      const tab = (config?.params as { tab?: string } | undefined)?.tab
+      return {
+        data: {
+          content: [],
+          page: 0,
+          size: 10,
+          totalPages: 1,
+          totalElements: tab === 'PICKED_UP' ? 12 : 1,
+        },
+      }
+    }
     if (url === '/members/nickname-availability')
       return { data: { params: config?.params, available } }
     throw new Error(`예상 못 한 GET ${url}`)
@@ -67,36 +79,70 @@ beforeEach(() => {
 })
 
 describe('MyPage (/customer/my)', () => {
-  it('내 정보 4칸과 메뉴(회원정보 수정·비밀번호 변경·주문 내역)를 보여 준다', async () => {
+  it('인사 카드는 닉네임만 보이고 이름·이메일·지역은 보이지 않는다(11/12)', async () => {
     answerGet()
     renderAt('/customer/my')
+    expect(await screen.findByText('안녕하세요 Fresh01님,')).toBeInTheDocument()
+    expect(screen.queryByText('kim@test.com')).not.toBeInTheDocument()
+    expect(screen.queryByText('김경우')).not.toBeInTheDocument()
+    expect(screen.queryByText('서울특별시')).not.toBeInTheDocument()
+  })
 
-    expect(await screen.findByText('Fresh01')).toBeInTheDocument()
-    expect(screen.getByText('kim@test.com')).toBeInTheDocument()
-    expect(screen.getByText('김경우')).toBeInTheDocument()
-    expect(screen.getByText('서울특별시')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /회원정보 수정/ })).toHaveAttribute(
+  it('숫자 3칸: 픽업 대기·픽업 완료(주문 내역 개수)·단골 점포, 누르면 그 탭으로 간다', async () => {
+    localStorage.clear()
+    localStorage.setItem(
+      `freshlink.favoriteStores.${customer.userId}`,
+      JSON.stringify([{ storeId: 1, name: '프레시 강남점', address: '서울' }]),
+    )
+    answerGet()
+    renderAt('/customer/my')
+    const summary = await screen.findByRole('navigation', { name: '내 주문·단골 요약' })
+    const waiting = await within(summary).findByRole('link', { name: /픽업 대기/ })
+    await waitFor(() => expect(waiting).toHaveTextContent('1픽업 대기'))
+    expect(waiting).toHaveAttribute('href', '/customer/orders?tab=PICKUP_WAITING')
+    const done = within(summary).getByRole('link', { name: /픽업 완료/ })
+    await waitFor(() => expect(done).toHaveTextContent('12픽업 완료'))
+    expect(done).toHaveAttribute('href', '/customer/orders?tab=PICKED_UP')
+    const fav = within(summary).getByRole('link', { name: /단골 점포/ })
+    expect(fav).toHaveTextContent('1단골 점포')
+    expect(fav).toHaveAttribute('href', '/customer/stores?tab=favorite')
+  })
+
+  it('메뉴: 내 정보·주문·고객지원 두 줄 글자 메뉴', async () => {
+    answerGet()
+    renderAt('/customer/my')
+    const info = await screen.findByRole('region', { name: '내 정보' })
+    expect(within(info).getByRole('link', { name: '회원정보수정' })).toHaveAttribute(
       'href',
       '/customer/my/profile',
     )
-    expect(screen.getByRole('link', { name: /주문 내역/ })).toHaveAttribute(
-      'href',
-      '/customer/orders',
-    )
-    expect(screen.getByRole('link', { name: /비밀번호 변경/ })).toHaveAttribute(
+    expect(within(info).getByRole('link', { name: '비밀번호변경' })).toHaveAttribute(
       'href',
       '/customer/my/password',
     )
-    expect(screen.queryByText('준비 중')).not.toBeInTheDocument()
+    const order = screen.getByRole('region', { name: '주문' })
+    expect(within(order).getByRole('link', { name: '구매내역' })).toHaveAttribute(
+      'href',
+      '/customer/orders',
+    )
+    expect(within(order).getByRole('link', { name: '취소·환불' })).toHaveAttribute(
+      'href',
+      '/customer/orders?tab=CANCELED',
+    )
+    const help = screen.getByRole('region', { name: '고객지원' })
+    expect(within(help).getByRole('link', { name: '공지사항' })).toHaveAttribute(
+      'href',
+      '/customer/notices',
+    )
+    expect(within(help).getByRole('button', { name: '이용약관' })).toBeInTheDocument()
   })
 
-  it('구글 가입 계정(passwordLogin false)은 비밀번호 변경 메뉴가 없다', async () => {
+  it('구글 가입 계정(passwordLogin false)은 비밀번호변경 메뉴가 없다', async () => {
     answerGet()
     useAuthStore.setState({ user: { ...customer, passwordLogin: false } })
     renderAt('/customer/my')
-
-    expect(await screen.findByText('Fresh01')).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /비밀번호 변경/ })).not.toBeInTheDocument()
+    expect(await screen.findByText('안녕하세요 Fresh01님,')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '비밀번호변경' })).not.toBeInTheDocument()
   })
 
   it('이용약관을 누르면 두 약관을 창으로 보여 준다 (A16)', async () => {
@@ -136,10 +182,10 @@ describe('MyPage (/customer/my)', () => {
     expect(signOut).toHaveBeenCalled()
   })
 
-  it('내 정보를 못 읽으면 오류 안내', async () => {
+  it('내 정보를 못 읽어도 화면은 열리고 "고객님"으로 인사한다', async () => {
     get.mockRejectedValue(apiError(500, 'INTERNAL_ERROR'))
     renderAt('/customer/my')
-    expect(await screen.findByRole('alert')).toHaveTextContent('내 정보를 불러오지 못했어요')
+    expect(await screen.findByText('안녕하세요 고객님,')).toBeInTheDocument()
   })
 })
 

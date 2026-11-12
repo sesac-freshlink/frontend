@@ -753,6 +753,10 @@ export const handlers = [
     if (category) list = list.filter((p) => p.category === category)
     if (params.get('recommended') === 'true') list = list.filter((p) => p.recommended)
     if (params.get('newOnly') === 'true') list = list.filter((p) => p.newArrival)
+    // inventory #71: 지금 마감세일로 살 수 있는 상품만, 선착순 상품만
+    if (params.get('clearance') === 'true')
+      list = list.filter((p) => !p.firstCome && (p.clearanceQuantity ?? 0) > 0)
+    if (params.get('firstCome') === 'true') list = list.filter((p) => p.firstCome)
     if (params.get('sort') === 'POPULAR') {
       list.sort(
         (a, b) => (storeProductSold[b.productId] ?? 0) - (storeProductSold[a.productId] ?? 0),
@@ -764,7 +768,10 @@ export const handlers = [
     if (page !== null && size !== null) {
       list = list.slice(Number(page) * Number(size), (Number(page) + 1) * Number(size))
     }
-    return HttpResponse.json(list)
+    // inventory #72: 최근 7일 순판매 수량
+    return HttpResponse.json(
+      list.map((p) => ({ ...p, soldRecently: storeProductSold[p.productId] ?? 0 })),
+    )
   }),
   // 서버처럼 검색(q)·상태(status, 쉼표로 여러 개는 모두 만족)·메모·페이지를 처리한다
   http.get('/api/owner/inventory', ({ request }) => {

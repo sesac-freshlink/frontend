@@ -24,7 +24,7 @@ export function DetailGuide({ clearance, firstCome }: { clearance: boolean; firs
               마감세일이 들어간 주문은 결제하면 바로 픽업 신청돼요.
             </li>
             {SAME_DAY_PICKUP_NOTICE.map((line) => (
-              <li key={line} className="font-medium text-red-700">
+              <li key={line} className="font-medium text-rose-700">
                 {line}
               </li>
             ))}
@@ -49,7 +49,7 @@ export function DetailGuide({ clearance, firstCome }: { clearance: boolean; firs
         )}
         <li>점주가 준비를 마치면 알려 드려요. 점포에서 [픽업 QR]을 보여 주고 받아 가세요.</li>
         {!clearance && (
-          <li className="text-red-700">
+          <li className="text-rose-700">
             픽업 신청을 하지 않거나 기한 안에 받아 가지 않으면 환불되지 않아요.
           </li>
         )}

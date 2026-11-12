@@ -46,7 +46,7 @@ function StoreDetailView({ storeId }: { storeId: number }) {
         </div>
       ) : store.isError ? (
         <div className="space-y-2 py-10 text-center">
-          <p className="text-sm text-red-600">점포 정보를 불러오지 못했어요.</p>
+          <p className="text-sm text-rose-700">점포 정보를 불러오지 못했어요.</p>
           <button
             type="button"
             onClick={() => void store.refetch()}

@@ -27,7 +27,7 @@ export function NoticeDetailPage({ basePath }: Props) {
         공지사항
       </Link>
       {!validId && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-rose-700">
           없는 공지예요.
         </p>
       )}
@@ -38,7 +38,7 @@ export function NoticeDetailPage({ basePath }: Props) {
         </p>
       )}
       {notice.isError && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-rose-700">
           {apiErrorCode(notice.error) === 'NOTICE_NOT_FOUND'
             ? '없는 공지예요.'
             : '공지를 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.'}

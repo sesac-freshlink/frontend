@@ -28,7 +28,6 @@ import { PhotoOrIcon } from '../components/PhotoOrIcon'
 import { PullIndicator } from '../components/PullIndicator'
 import { productLabel } from '../productLabel'
 import { CLEARANCE_DISCOUNT_PERCENT, clearanceOf } from '../clearance'
-import { isClearanceProduct } from '../homeRows'
 import {
   isProductShortcut,
   type ProductShortcut,
@@ -78,7 +77,7 @@ function StoreProducts({ storeId }: { storeId: number }) {
     setShortcut((current) => (current === next ? null : next))
   const recommendedOnly = shortcut === 'recommended'
   const newOnly = shortcut === 'new'
-  // 마감세일·선착순은 서버 조건이 없어 받아 온 목록에서 거른다(마감세일 거르기는 homeRows 한 곳)
+  // 마감세일·선착순도 서버가 거른다(inventory #71 clearance·firstCome, 11/12). 묶음(20개) 안에서만 걸리던 한계가 없어졌다
   const clearanceOnly = shortcut === 'clearance'
   const firstComeOnly = shortcut === 'firstCome'
   const categories = useStoreCategories(storeId)
@@ -89,6 +88,8 @@ function StoreProducts({ storeId }: { storeId: number }) {
     sort,
     recommendedOnly,
     newOnly,
+    clearanceOnly,
+    firstComeOnly,
   })
   const filtered = category !== '' || recommendedOnly || newOnly || clearanceOnly || firstComeOnly
   const {
@@ -176,8 +177,6 @@ function StoreProducts({ storeId }: { storeId: number }) {
         storeName={storeName}
         keyword={keyword.trim()}
         filtered={filtered}
-        clearanceOnly={clearanceOnly}
-        firstComeOnly={firstComeOnly}
         onClearSearch={clearSearch}
       />
     </section>
@@ -350,10 +349,6 @@ interface ListProps {
   keyword: string
   /** 카테고리·추천상품·신상품 조건이 하나라도 걸려 있는지 */
   filtered: boolean
-  /** 받아 온 목록에서 마감세일 상품만 */
-  clearanceOnly: boolean
-  /** 받아 온 목록에서 선착순 상품만 */
-  firstComeOnly: boolean
   onClearSearch: () => void
 }
 
@@ -363,8 +358,6 @@ function ProductList({
   storeName,
   keyword,
   filtered,
-  clearanceOnly,
-  firstComeOnly,
   onClearSearch,
 }: ListProps) {
   if (products.isPending) {
@@ -377,7 +370,7 @@ function ProductList({
   if (products.isError) {
     return (
       <div className="space-y-2 py-10 text-center">
-        <p className="text-sm text-red-600">상품을 불러오지 못했어요.</p>
+        <p className="text-sm text-rose-700">상품을 불러오지 못했어요.</p>
         <button
           type="button"
           onClick={() => void products.refetch()}
@@ -388,9 +381,7 @@ function ProductList({
       </div>
     )
   }
-  const items = products.data.pages
-    .flat()
-    .filter((p) => (!clearanceOnly || isClearanceProduct(p)) && (!firstComeOnly || p.firstCome))
+  const items = products.data.pages.flat()
   if (items.length === 0) {
     if (keyword || filtered) {
       return (
@@ -500,7 +491,7 @@ function ProductCard({
         />
         <span className="absolute top-2 left-2 flex flex-wrap gap-1">
           {clearance && (
-            <span className="rounded-full bg-rose-600 px-1.5 py-0.5 text-xs font-semibold text-white">
+            <span className="rounded-full bg-rose-700 px-1.5 py-0.5 text-xs font-semibold text-white">
               마감세일
             </span>
           )}
@@ -511,7 +502,7 @@ function ProductCard({
       {clearance ? (
         <span className="block">
           <span className="flex items-baseline gap-1">
-            <span className="text-sm font-bold text-red-600">{CLEARANCE_DISCOUNT_PERCENT}%</span>
+            <span className="text-sm font-bold text-rose-700">{CLEARANCE_DISCOUNT_PERCENT}%</span>
             <span className="text-base font-bold text-slate-900 tabular-nums">
               {formatWon(clearance.price)}
             </span>
@@ -532,14 +523,14 @@ function ProductCard({
         </span>
       ) : clearance && left === 0 ? (
         // 기본 수량이 0이고 마감세일만 남았으면 "0개 남음"을 보이지 않는다(품절로 보이지 않게)
-        <span className="block text-sm font-medium text-red-700">
+        <span className="block text-sm font-medium text-rose-700">
           마감세일로만 {clearance.quantity}개 남았어요
         </span>
       ) : (
         <span
           className={cn(
             'block text-sm tabular-nums',
-            left <= LOW_STOCK ? 'font-medium text-red-700' : 'text-slate-600',
+            left <= LOW_STOCK ? 'font-medium text-rose-700' : 'text-slate-600',
           )}
         >
           {/* 숫자와 "개"가 줄바꿈으로 떨어지지 않게 묶음마다 줄바꿈을 막는다(11/11 dev 확인) */}

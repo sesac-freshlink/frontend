@@ -38,7 +38,7 @@ export function TossPaymentWidget(props: Props) {
   if (clientKey) return <RealWidget clientKey={clientKey} {...props} />
   if (import.meta.env.DEV) return <MockWidget {...props} />
   return (
-    <p className="text-sm text-red-600">결제를 준비하지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>
+    <p className="text-sm text-rose-700">결제를 준비하지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>
   )
 }
 
@@ -148,7 +148,7 @@ export function RealWidget({
     <div className="space-y-3">
       <div ref={containerRef} />
       {/* 약관 UI 바로 아래 빨간 안내 한 줄. 화면 읽기 프로그램에도 바로 읽힌다 */}
-      <p aria-live="assertive" className="text-sm font-medium text-red-700 empty:hidden">
+      <p aria-live="assertive" className="text-sm font-medium text-rose-700 empty:hidden">
         {agreementError ? AGREEMENT_REQUIRED_MESSAGE : ''}
       </p>
       {!ready && !loadFailed && (
@@ -157,7 +157,7 @@ export function RealWidget({
         </div>
       )}
       {loadFailed && (
-        <p className="text-sm text-red-600">결제 수단을 불러오지 못했어요. 새로 고침해 주세요.</p>
+        <p className="text-sm text-rose-700">결제 수단을 불러오지 못했어요. 새로 고침해 주세요.</p>
       )}
       <button
         type="button"

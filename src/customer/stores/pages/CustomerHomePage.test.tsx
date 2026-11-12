@@ -102,9 +102,22 @@ function mockApi({
       return { data: banners }
     }
     if (url === '/stores') return { data: stores }
+    if (String(url).endsWith('/products/categories')) return { data: ['김밥', '도시락'] }
     if (/^\/stores\/\d+\/products$/.test(String(url))) {
       if (params.recommended) return { data: recommendedProducts }
       if (params.newOnly) return { data: [] }
+      if (params.sort === 'POPULAR' && params.category === '김밥') {
+        // 분류별 베스트: 판매 0개(soldRecently 0)는 화면이 뺀다
+        return {
+          data: [
+            { ...allProducts[0], soldRecently: 3 },
+            { ...allProducts[1], soldRecently: 0 },
+          ],
+        }
+      }
+      if (params.sort === 'POPULAR' && params.category === '도시락') {
+        return { data: [{ ...allProducts[0], soldRecently: 0 }] }
+      }
       if (params.sort === 'POPULAR') {
         if (bestError) throw new Error('404')
         return { data: [...allProducts, ...recommendedProducts].slice(0, 5) }
@@ -176,7 +189,7 @@ describe('고객 홈 (U-01)', () => {
     renderHome()
     const row = await screen.findByRole('link', { name: /^가까운 점포 프레시 강남점, 100m/ })
     expect(within(row).getByText('바꾸기')).toBeInTheDocument()
-    expect(await screen.findByRole('region', { name: '오늘 마감세일' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: '마감세일' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: '카테고리' })).toBeInTheDocument()
     expect(get).toHaveBeenCalledWith('/stores/1/products')
     expect(localStorage.getItem('freshlink.pickupStore.s')).toBeNull()
@@ -247,7 +260,7 @@ describe('고객 홈 (U-01)', () => {
     pickGangnam()
     mockApi()
     renderHome()
-    const rail = await screen.findByRole('region', { name: '오늘 마감세일' })
+    const rail = await screen.findByRole('region', { name: '마감세일' })
     const cards = await within(rail).findAllByRole('link', { name: /도시락|김밥|우유/ })
     expect(cards.map((c) => c.getAttribute('href'))).toEqual([
       '/customer/stores/1/products/2',
@@ -258,7 +271,7 @@ describe('고객 홈 (U-01)', () => {
     expect(within(cards[0]).getByText('30%')).toBeInTheDocument()
     expect(within(cards[0]).getByText('1개 남음')).toBeInTheDocument()
     expect(within(cards[0]).getByText(/분 남음$/)).toBeInTheDocument()
-    expect(within(rail).getByRole('link', { name: '오늘 마감세일 전체 보기' })).toHaveAttribute(
+    expect(within(rail).getByRole('link', { name: '마감세일 전체 보기' })).toHaveAttribute(
       'href',
       '/customer/stores/1?show=clearance',
     )
@@ -301,6 +314,28 @@ describe('고객 홈 (U-01)', () => {
     )
   })
 
+  it('베스트는 분류 버튼으로 그 분류 판매순을 보고, 판매 0개는 빼고, 없으면 안내한다(11/12)', async () => {
+    pickGangnam()
+    mockApi()
+    renderHome()
+    const best = await screen.findByRole('region', { name: '베스트 상품' })
+    expect(within(best).queryByText('지난 7일 판매')).not.toBeInTheDocument()
+    const chips = within(best).getByRole('group', { name: '베스트 분류' })
+    expect(within(chips).getByRole('button', { name: '전체' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await userEvent.click(await within(chips).findByRole('button', { name: '김밥' }))
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/stores/1/products', {
+        params: { sort: 'POPULAR', page: 0, size: 5, category: '김밥' },
+      }),
+    )
+    await waitFor(() => expect(within(best).getAllByRole('listitem')).toHaveLength(1))
+    await userEvent.click(within(chips).getByRole('button', { name: '도시락' }))
+    expect(await within(best).findByText('아직 판매 기록이 없어요.')).toBeInTheDocument()
+  })
+
   it('베스트 상품을 못 불러오면 칸을 숨긴다', async () => {
     pickGangnam()
     mockApi({ bestError: true })
@@ -318,7 +353,7 @@ describe('고객 홈 (U-01)', () => {
     pickGangnam()
     mockApi({ productsError: true })
     renderHome()
-    const rail = await screen.findByRole('region', { name: '오늘 마감세일' })
+    const rail = await screen.findByRole('region', { name: '마감세일' })
     expect(await within(rail).findByRole('button', { name: '다시 시도' })).toBeInTheDocument()
   })
 
@@ -352,7 +387,7 @@ describe('고객 홈 (U-01)', () => {
     pickGangnam()
     mockApi()
     renderHome()
-    await screen.findByRole('region', { name: '오늘 마감세일' })
+    await screen.findByRole('region', { name: '마감세일' })
     await waitFor(() => expect(get).toHaveBeenCalledWith('/members/banners'))
     await waitFor(() =>
       expect(screen.queryByRole('region', { name: '알림 배너' })).not.toBeInTheDocument(),
@@ -363,7 +398,7 @@ describe('고객 홈 (U-01)', () => {
     pickGangnam()
     mockApi({ banners: { message: 'not a list' } })
     renderHome()
-    expect(await screen.findByRole('region', { name: '오늘 마감세일' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: '마감세일' })).toBeInTheDocument()
     await waitFor(() => expect(get).toHaveBeenCalledWith('/members/banners'))
     expect(screen.queryByRole('region', { name: '알림 배너' })).not.toBeInTheDocument()
   })
@@ -423,7 +458,7 @@ describe('고객 홈 (U-01)', () => {
     pickGangnam()
     mockApi()
     renderHome()
-    const rail = await screen.findByRole('region', { name: '오늘 마감세일' })
+    const rail = await screen.findByRole('region', { name: '마감세일' })
     await within(rail).findAllByRole('link', { name: /도시락|김밥/ })
     const area = screen.getByRole('heading', { name: 'freshLink 홈' }).parentElement!
     const count = (url: string) => get.mock.calls.filter(([u]) => u === url).length

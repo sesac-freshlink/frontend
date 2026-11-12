@@ -123,7 +123,7 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     const noodle = (await screen.findByText('매운 컵라면 115g')).closest('li')!
     expect(within(noodle).getByText('1,700원')).toBeInTheDocument()
     // 3개 이하로 남으면 빨갛게 "N개 남았어요"
-    expect(within(noodle).getByText('3개 남았어요').parentElement).toHaveClass('text-red-700')
+    expect(within(noodle).getByText('3개 남았어요').parentElement).toHaveClass('text-rose-700')
 
     // 2칸 사진 카드, 서버 순서 그대로
     const names = [...document.querySelectorAll('ul.grid > li')].map(
@@ -334,30 +334,24 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     )
   })
 
-  it('목록에서 거르는 마감세일·선착순도 하나만: 선착순을 누르면 마감세일이 꺼진다', async () => {
-    serve(() =>
-      Promise.resolve({
-        data: [
-          {
-            ...products[0],
-            clearanceQuantity: 2,
-            clearancePrice: 1190,
-            clearanceExpiry: '2099-12-30T23:59:59+09:00',
-          },
-          products[1],
-        ],
+  it('마감세일·선착순은 서버가 거른다(clearance·firstCome, 11/12): 하나만 켜지고 선착순을 누르면 마감세일이 꺼진다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1?show=clearance', { storeName: '프레시 강남점' })
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { clearance: true, page: 0, size: 20 },
       }),
     )
-    renderAt('/customer/stores/1?show=clearance', { storeName: '프레시 강남점' })
-    expect(await screen.findByText('매운 컵라면 115g')).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: '선착순' }))
+    await userEvent.click(await screen.findByRole('button', { name: '선착순' }))
     expect(screen.getByRole('button', { name: '마감세일' })).toHaveAttribute(
       'aria-pressed',
       'false',
     )
-    expect(await screen.findByText('샌드위치 햄치즈')).toBeInTheDocument()
-    expect(screen.queryByText('매운 컵라면 115g')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { firstCome: true, page: 0, size: 20 },
+      }),
+    )
   })
 
   it('주소에 ?show= 가 여러 개 오면 알맞은 값 중 맨 앞 하나만 켠다', async () => {
@@ -478,24 +472,16 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     )
   })
 
-  it('홈 [전체 보기](?show=clearance)로 들어오면 마감세일 칩이 켜지고 마감세일 상품만 보인다', async () => {
-    serve(() =>
-      Promise.resolve({
-        data: [
-          {
-            ...products[0],
-            clearanceQuantity: 2,
-            clearancePrice: 1190,
-            clearanceExpiry: '2099-12-30T23:59:59+09:00',
-          },
-          products[1],
-        ],
-      }),
-    )
+  it('홈 [전체 보기](?show=clearance)로 들어오면 마감세일 칩이 켜지고 서버에 마감세일만 묻는다', async () => {
+    serve(() => Promise.resolve({ data: products }))
     renderAt('/customer/stores/1?show=clearance', { storeName: '프레시 강남점' })
-    expect(await screen.findByText('매운 컵라면 115g')).toBeInTheDocument()
-    expect(screen.queryByText('샌드위치 햄치즈')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '마감세일' })).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByRole('button', { name: '마감세일' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(get).toHaveBeenCalledWith('/stores/1/products', {
+      params: { clearance: true, page: 0, size: 20 },
+    })
   })
 
   it('위 뒤로 링크는 홈으로 가고, 마감세일만 남은 상품에는 "0개 남음" 대신 마감세일로만 살 수 있다고 보인다', async () => {
