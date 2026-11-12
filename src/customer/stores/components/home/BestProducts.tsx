@@ -13,7 +13,7 @@ const TOP_RANK = 3
 
 /**
  * 홈 베스트 상품: 지난 7일 많이 팔린 상품 1~5위 세로 목록(11/11), 분류별로 고르기(11/12 경우 결정).
- * 제목 아래 분류 버튼 줄(전체 + 점포 분류), 고른 분류의 추천순 앞 5개에서 판매 0개는 뺀다.
+ * 제목 아래 분류 버튼 줄(전체 + 점포 분류), 고른 분류의 추천순 앞 5개를 보여 준다(판매 기록이 없어도 보여 준다, 11/12).
  * 사진 72px 왼쪽 위에 순위 숫자, 마감세일 중이면 작은 로즈 "마감세일" 표시와 할인가.
  * 처음(전체) 읽기에 실패하면 칸을 통째로 숨긴다(판매 순위를 못 받아도 홈이 깨지지 않게)
  */
@@ -61,7 +61,7 @@ export function BestProducts({ storeId, storeName }: { storeId: number; storeNam
         ))}
       </div>
       {best.data.length === 0 ? (
-        <p className="py-3 text-sm text-slate-600">아직 판매 기록이 없어요.</p>
+        <p className="py-3 text-sm text-slate-600">이 분류에는 아직 상품이 없어요.</p>
       ) : (
         <ol className="space-y-2.5">
           {best.data.map((p, i) => {
