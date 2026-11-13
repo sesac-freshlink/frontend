@@ -10,9 +10,11 @@ import {
   Store,
   TriangleAlert,
 } from 'lucide-react'
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { useAuthStore } from '@/shared/auth'
 import { PickupScanListener } from '@/owner/orders/pickup/components/PickupScanListener'
+import { PickupStreamDot } from '@/owner/orders/pickup/components/PickupStreamDot'
 import { AssistantLauncher } from '@/owner/assistant/components/AssistantLauncher'
 import { NotificationBell } from '@/shared/notifications/NotificationBell'
 import { useOwnerStore } from '@/owner/store/api'
@@ -60,6 +62,8 @@ const STORE_SUBMENU = [
 export function OwnerLayout() {
   const { user, signOut } = useAuthStore()
   const store = useOwnerStore()
+  // QR 알림 통로가 붙어 있는지 (점포명 옆 불). 처음 열리기 전에는 끊김으로 본다
+  const [qrConnected, setQrConnected] = useState(false)
 
   return (
     <div className="flex min-h-dvh">
@@ -67,7 +71,11 @@ export function OwnerLayout() {
         <div className="flex items-start justify-between px-5 py-4">
           <div className="min-w-0">
             <img src="/logo.png" alt="freshLink" className="h-7 w-auto" />
-            <p className="mt-1 truncate text-xs text-slate-500">{store.data?.name ?? ''}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+              <span className="min-w-0 truncate">{store.data?.name ?? ''}</span>
+              {/* QR 알림 연결 불: 초록 = 연결됨, 회색 = 끊김 (A16, 11/13) */}
+              <PickupStreamDot connected={qrConnected} />
+            </p>
           </div>
           <NotificationBell align="start" />
         </div>
@@ -123,7 +131,7 @@ export function OwnerLayout() {
         </button>
       </aside>
       {/* 점주 핸드폰이 고객 픽업 QR을 찍으면 어느 화면에 있든 승인 창이 뜬다 (추가 명세 A16) */}
-      <PickupScanListener />
+      <PickupScanListener onConnectionChange={setQrConnected} />
       {/* AI 점주 비서: 오른쪽 아래 버튼, 화면 이동 없이 대화창을 띄운다 */}
       <AssistantLauncher />
       <main className="min-w-0 flex-1 p-6">

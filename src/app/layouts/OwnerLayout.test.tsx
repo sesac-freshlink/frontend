@@ -47,6 +47,16 @@ describe('OwnerLayout', () => {
     }),
   )
 
+  it('점포명 옆에 QR 알림 연결 불이 있고, 통로가 열리기 전에는 끊김으로 보인다 (A16, 11/13)', () => {
+    renderAt('/owner/store')
+    const name = screen.getByText('프레시 강남점')
+    // 테스트 환경에는 EventSource 가 없어 통로가 열리지 않는다
+    expect(within(name.parentElement as HTMLElement).getByRole('status')).toHaveAttribute(
+      'title',
+      'QR 연결 끊김, 다시 연결 중',
+    )
+  })
+
   it('로고 아래 점포명, "내 점포" 아래에 비밀번호 변경 하위 메뉴가 늘 보인다 (A15, 11/12 결정)', () => {
     renderAt('/owner/store')
     expect(screen.getByText('프레시 강남점')).toBeInTheDocument()
