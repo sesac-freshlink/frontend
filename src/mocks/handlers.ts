@@ -996,6 +996,17 @@ export const handlers = [
     return HttpResponse.json(type ? ledger.filter((item) => item.type === type) : ledger)
   }),
   http.get('/api/owner/inventory/expiring', () => HttpResponse.json(expiring)),
+  // AI 점주 비서(가짜): 버튼 질문은 질문 번호를, 직접 입력은 질문을 그대로 돌려준다
+  http.post('/api/owner/inventory/assistant/ask', async ({ request }) => {
+    const body = (await request.json()) as { presetId?: string; question?: string }
+    return HttpResponse.json({
+      answer: body.presetId
+        ? `(가짜 답) ${body.presetId} 질문에 대한 답이에요.`
+        : `(가짜 답) "${body.question ?? ''}"에 대한 답이에요.`,
+      source: 'AI',
+      generatedAt: new Date().toISOString().replace('Z', '+09:00'),
+    })
+  }),
   // 소비기한 달력. 가짜 lot(상품별)에서 그 달에 기한이 끝나고 수량이 남은 것을 날짜별로 묶는다
   http.get('/api/owner/inventory/expiry-calendar', ({ request }) => {
     const month =
