@@ -37,7 +37,7 @@ export function MemoDialog({ productId, productName, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
       {memos.isPending ? (
-        <div className="rounded-lg bg-white p-6 text-slate-400 shadow-lg">
+        <div className="rounded-lg bg-white p-6 text-slate-500 shadow-lg">
           <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
         </div>
       ) : memos.isError ? (
@@ -98,10 +98,10 @@ function MemoForm({ productId, productName, latest, onClose }: FormProps) {
       { productId, version: memo.version },
       {
         onSuccess: () => {
-          toast.success(`${productName} 메모를 지웠어요`)
+          toast.success(`${productName} 메모를 삭제했어요`)
           onClose()
         },
-        onError: (e) => onError(e, '메모를 지우지 못했어요.'),
+        onError: (e) => onError(e, '메모를 삭제하지 못했어요.'),
       },
     )
 
@@ -160,7 +160,7 @@ function MemoForm({ productId, productName, latest, onClose }: FormProps) {
           placeholder="예: 냉장 2칸에 둠, 다음 주 입고 늘리기"
           className="w-full resize-none rounded-md border border-slate-200 px-3 py-2 focus:border-emerald-600 focus:outline-none"
         />
-        <p className="text-right text-xs text-slate-400 tabular-nums">
+        <p className="text-right text-xs text-slate-500 tabular-nums">
           {text.length}/{MEMO_MAX_LENGTH}
         </p>
       </div>
@@ -174,7 +174,7 @@ function MemoForm({ productId, productName, latest, onClose }: FormProps) {
             <TriangleAlert className="size-4" aria-hidden />
             {latest
               ? `다른 화면에서 ${formatDateTime(latest.updatedAt)}에 저장한 내용`
-              : '다른 화면에서 메모를 지웠어요'}
+              : '다른 화면에서 메모를 삭제했어요'}
           </p>
           {latest && <p className="whitespace-pre-wrap text-amber-800">{latest.content}</p>}
           <p className="text-xs text-amber-700">
@@ -211,7 +211,7 @@ function MemoForm({ productId, productName, latest, onClose }: FormProps) {
             type="submit"
             disabled={busy}
             aria-busy={busy}
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 disabled:hover:bg-emerald-600"
+            className="flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50 disabled:hover:bg-emerald-600"
           >
             {save.isPending && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
             저장

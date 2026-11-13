@@ -1,4 +1,4 @@
-import { LoaderCircle, RefreshCw } from 'lucide-react'
+import { Download, LoaderCircle, RefreshCw } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { DEFAULT_ORDER_PAGE_SIZE, ORDER_PAGE_SIZES, type OrderPageSize } from '@/customer/order/api'
@@ -29,6 +29,7 @@ import {
 } from '../api'
 import { PickupConfirmModal } from '../components/PickupConfirmModal'
 import { PickupCodeEntry } from '../pickup/components/PickupCodeEntry'
+import { downloadCsv, ordersToCsv } from '../ordersCsv'
 
 interface TabInfo {
   tab: OwnerOrderTab
@@ -83,6 +84,7 @@ export function OwnerOrdersPage() {
 
   return (
     <section className="space-y-4">
+      <h1 className="text-xl font-bold text-slate-900">결제·픽업</h1>
       <div
         role="tablist"
         aria-label="주문·판매 순위"
@@ -108,7 +110,8 @@ function SalesRanking() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">상품별 판매 순위</h1>
+        {/* 바로 위 탭 이름과 같아 화면에는 숨기고, 화면 읽기 프로그램의 구역 제목으로만 둔다 */}
+        <h2 className="sr-only">상품별 판매 순위</h2>
         <p className="text-sm text-slate-500">
           결제가 끝나 실제로 팔린 수량(환불로 되돌린 수량은 뺌)을 많이 판 순서로 보여 줘요.
         </p>
@@ -131,7 +134,8 @@ function OwnerOrderList() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">주문 목록</h1>
+          {/* 바로 위 탭 이름과 같아 화면에는 숨긴다 */}
+          <h2 className="sr-only">주문 목록</h2>
           <p className="text-sm text-slate-500">{info.description}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -144,6 +148,17 @@ function OwnerOrderList() {
           >
             <RefreshCw className={cn('size-4', orders.isFetching && 'animate-spin')} />
             새로 고침
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              downloadCsv(`주문목록-${info.label}.csv`, ordersToCsv(orders.data?.content ?? []))
+            }
+            disabled={(orders.data?.content.length ?? 0) === 0}
+            className="flex shrink-0 items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+          >
+            <Download className="size-4" aria-hidden />
+            목록 내려받기
           </button>
         </div>
       </div>
@@ -161,7 +176,7 @@ function OwnerOrderList() {
                 setPage(0)
               }}
               className={cn(
-                'rounded-md px-4 py-2 text-slate-500',
+                'rounded-md px-4 py-2 text-slate-600',
                 tab === t.tab && 'bg-white font-medium text-emerald-700 shadow-sm',
               )}
             >
@@ -180,11 +195,13 @@ function OwnerOrderList() {
       </div>
 
       {reversed ? null : orders.isPending ? (
-        <div className="flex justify-center py-16 text-slate-400">
+        <div className="flex justify-center py-16 text-slate-500">
           <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
         </div>
       ) : orders.isError ? (
-        <p className="py-16 text-center text-sm text-red-600">주문을 불러오지 못했어요.</p>
+        <p className="py-16 text-center text-sm text-red-600">
+          주문을 불러오지 못했어요. [새로 고침]을 눌러 다시 불러와 주세요.
+        </p>
       ) : orders.data.content.length === 0 && page === 0 ? (
         <p className="py-16 text-center text-sm text-slate-500">
           {period.from || period.to ? '고른 기간에 해당하는 주문이 없어요.' : info.empty}
@@ -244,8 +261,8 @@ const BASE_COLUMNS: Column[] = [
     ),
   },
   {
+    // 링크(글자)라 왼쪽 맞춤. 오른쪽 맞춤은 숫자 칸(수량·금액)만 쓴다
     label: '영수증',
-    right: true,
     cell: (o) => <ReceiptLink url={o.payment?.receiptUrl ?? null} />,
   },
 ]
@@ -332,7 +349,7 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
               type="button"
               onClick={() => setPickupOrderId(o.orderId)}
               aria-label={`${o.orderNo} 픽업 확인`}
-              className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+              className="rounded-lg bg-emerald-700 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-emerald-800"
             >
               픽업 확인
             </button>
@@ -371,7 +388,7 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
             type="button"
             onClick={() => setCancelOrderId(o.orderId)}
             aria-label={`${o.orderNo} 환불 재시도`}
-            className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+            className="rounded-lg bg-emerald-700 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-emerald-800"
           >
             환불 재시도
           </button>
@@ -415,7 +432,7 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
 }
 
 /** N-02 [준비 완료]: 포장을 끝내면 누른다. 확인 모달 없이 바로 바꾸고 고객에게 알림이 간다 */
-function ReadyButton({ order }: { order: OwnerOrder }) {
+export function ReadyButton({ order }: { order: OwnerOrder }) {
   const ready = useMarkReadyForPickup()
   const onClick = async () => {
     try {

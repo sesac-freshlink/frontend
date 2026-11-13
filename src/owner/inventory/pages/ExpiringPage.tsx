@@ -65,8 +65,8 @@ export function ExpiringPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">임박·폐기</h1>
           <p className="text-sm text-slate-500">
-            소비기한이 24시간 안에 끝나거나 지난 lot이에요. 폐기는 고른 lot의 폐기 가능 수량 전부를
-            요청해요.
+            소비기한이 24시간 안에 끝나거나 지난 상품이에요. 폐기는 고른 상품의 폐기 가능 수량
+            전부를 요청해요.
           </p>
         </div>
         {activeTab !== 'calendar' && (
@@ -76,16 +76,17 @@ export function ExpiringPage() {
                 type="button"
                 disabled={disposableExpired.length === 0}
                 onClick={() => setConfirmingAll(true)}
-                className="rounded-lg border border-red-600 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:hover:bg-transparent"
+                className="rounded-lg border border-rose-700 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50 disabled:hover:bg-transparent"
               >
-                경과 전부 폐기 ({disposableExpired.length})
+                {/* 확인 창 제목(소비기한 지난 상품 전부 폐기)과 같은 말 */}
+                소비기한 지난 상품 전부 폐기 ({disposableExpired.length})
               </button>
             )}
             <button
               type="button"
               disabled={selectedLots.length === 0}
               onClick={() => setConfirming(true)}
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:hover:bg-red-600"
+              className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-medium text-white hover:bg-rose-800 disabled:opacity-50 disabled:hover:bg-rose-700"
             >
               선택 폐기 ({selectedLots.length})
             </button>
@@ -95,7 +96,7 @@ export function ExpiringPage() {
 
       <div
         role="tablist"
-        aria-label="임박·경과·달력"
+        aria-label="임박·소비기한 지남·달력"
         className="flex gap-1 border-b border-slate-200"
       >
         <TabButton
@@ -104,7 +105,7 @@ export function ExpiringPage() {
           onSelect={() => changeTab('imminent')}
         />
         <TabButton
-          label={`경과 ${expired.length}`}
+          label={`소비기한 지남 ${expired.length}`}
           selected={activeTab === 'expired'}
           onSelect={() => changeTab('expired')}
         />
@@ -148,7 +149,7 @@ interface TableProps {
 function ExpiringTable({ expiring, rows, selected, onToggle }: TableProps) {
   if (expiring.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -161,7 +162,11 @@ function ExpiringTable({ expiring, rows, selected, onToggle }: TableProps) {
     )
   }
   if (rows.length === 0) {
-    return <p className="py-16 text-center text-sm text-slate-500">임박하거나 지난 lot이 없어요.</p>
+    return (
+      <p className="py-16 text-center text-sm text-slate-500">
+        소비기한이 임박하거나 지난 상품이 없어요.
+      </p>
+    )
   }
 
   return (
@@ -206,7 +211,7 @@ function ExpiringRow({
 }) {
   const disposable = lot.disposableQuantity > 0
   return (
-    <tr className={cn(checked && disposable && 'bg-red-50')}>
+    <tr className={cn(checked && disposable && 'bg-rose-50')}>
       <td className="px-4 py-3">
         <input
           type="checkbox"
@@ -214,7 +219,7 @@ function ExpiringRow({
           checked={checked && disposable}
           disabled={!disposable}
           onChange={onToggle}
-          className="size-4 accent-red-600 disabled:cursor-not-allowed"
+          className="size-4 accent-rose-700 disabled:cursor-not-allowed"
         />
       </td>
       <td className="px-3 py-3 font-medium whitespace-nowrap">{lot.productName}</td>
@@ -230,7 +235,7 @@ function ExpiringRow({
         {disposable ? (
           lot.disposableQuantity
         ) : (
-          <span className="text-xs font-normal text-slate-400">예약 중</span>
+          <span className="text-xs font-normal text-slate-500">예약 중</span>
         )}
       </td>
     </tr>

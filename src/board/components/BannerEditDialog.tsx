@@ -27,7 +27,7 @@ const SAVE_ERRORS: Record<string, string> = {
   BANNER_NOT_FOUND: '이미 지운 배너예요. 목록을 다시 확인해 주세요',
 }
 
-/** 관리자 메인배너 등록·고치기 창 (추가 명세 A18). 그림은 지금 frontend 가 가진 4장 중에서 고른다 */
+/** 관리자 메인배너 등록·수정 창 (추가 명세 A18). 그림은 지금 frontend 가 가진 4장 중에서 고른다 */
 export function BannerEditDialog({ banner, nextSortOrder, onClose }: Props) {
   const save = useSaveBanner()
   // 공지 고르기: 최근 공지 20개(고정 먼저). 지금 연결한 공지가 그 밖이면 따로 넣는다
@@ -55,7 +55,7 @@ export function BannerEditDialog({ banner, nextSortOrder, onClose }: Props) {
         bannerId: banner?.bannerId ?? null,
         body: toBannerRequest(values, banner?.sortOrder ?? nextSortOrder),
       })
-      toast.success(banner ? '배너를 고쳤어요' : '배너를 올렸어요')
+      toast.success(banner ? '배너를 수정했어요' : '배너를 올렸어요')
       onClose()
     } catch (e) {
       setFormError(
@@ -65,11 +65,7 @@ export function BannerEditDialog({ banner, nextSortOrder, onClose }: Props) {
   })
 
   return (
-    <BoardDialog
-      title={banner ? '배너 고치기' : '배너 올리기'}
-      busy={isSubmitting}
-      onClose={onClose}
-    >
+    <BoardDialog title={banner ? '배너 수정' : '배너 올리기'} busy={isSubmitting} onClose={onClose}>
       <form onSubmit={onSubmit} noValidate className="space-y-4">
         <FormField
           id="banner-title"

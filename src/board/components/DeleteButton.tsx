@@ -1,13 +1,13 @@
 import { useState } from 'react'
 
 interface Props {
-  /** 지울 글 이름 (화면 읽기용) */
+  /** 삭제할 글 이름 (화면 읽기용) */
   label: string
   busy: boolean
   onConfirm(): void
 }
 
-/** [지우기] → 한 번 더 [정말 지우기]·[취소]. 지운 글은 되돌릴 수 없다 */
+/** [삭제] → 한 번 더 [정말 삭제]·[취소]. 삭제한 글은 되돌릴 수 없다 */
 export function DeleteButton({ label, busy, onConfirm }: Props) {
   const [asking, setAsking] = useState(false)
 
@@ -16,10 +16,10 @@ export function DeleteButton({ label, busy, onConfirm }: Props) {
       <button
         type="button"
         onClick={() => setAsking(true)}
-        aria-label={`${label} 지우기`}
+        aria-label={`${label} 삭제`}
         className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
       >
-        지우기
+        삭제
       </button>
     )
   }
@@ -31,7 +31,7 @@ export function DeleteButton({ label, busy, onConfirm }: Props) {
         disabled={busy}
         className="rounded-lg bg-red-600 px-3 py-1 text-sm text-white disabled:opacity-50"
       >
-        정말 지우기
+        정말 삭제
       </button>
       <button
         type="button"

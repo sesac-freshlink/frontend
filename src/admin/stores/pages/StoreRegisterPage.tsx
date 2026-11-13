@@ -13,6 +13,7 @@ import { type StoreRegisterForm, type StoreRegisterValues, storeRegisterSchema }
 import { STORE_TEXT, storeErrorMessage } from '../storeText'
 
 /** A-01 점포·점주 등록 (member-service AD-01). 점주 초기 비밀번호는 요청 본문에만 싣고 어디에도 남기지 않는다 */
+// aria-invalid: 틀린 칸을 화면 읽기 프로그램에도 "잘못됨"으로 알린다(오류 글은 aria-describedby 로 이어져 있음)
 export function StoreRegisterPage() {
   const createStore = useCreateAdminStore()
   const [formError, setFormError] = useState<string | null>(null)
@@ -60,6 +61,7 @@ export function StoreRegisterPage() {
           <input
             id="store-name"
             aria-describedby={describedBy('store-name')}
+            aria-invalid={errors.name !== undefined}
             {...register('name')}
             className={inputClass}
           />
@@ -68,6 +70,7 @@ export function StoreRegisterPage() {
           <input
             id="store-address"
             aria-describedby={describedBy('store-address')}
+            aria-invalid={errors.address !== undefined}
             {...register('address')}
             className={inputClass}
           />
@@ -76,6 +79,7 @@ export function StoreRegisterPage() {
           <select
             id="store-region"
             aria-describedby={describedBy('store-region')}
+            aria-invalid={errors.region !== undefined}
             {...register('region')}
             className={inputClass}
           >
@@ -92,6 +96,7 @@ export function StoreRegisterPage() {
             id="store-owner-email"
             type="email"
             aria-describedby={describedBy('store-owner-email')}
+            aria-invalid={errors.ownerEmail !== undefined}
             {...register('ownerEmail')}
             autoComplete="off"
             className={inputClass}
@@ -107,6 +112,7 @@ export function StoreRegisterPage() {
             id="store-initial-password"
             type="password"
             aria-describedby={describedBy('store-initial-password')}
+            aria-invalid={errors.initialPassword !== undefined}
             {...register('initialPassword')}
             autoComplete="new-password"
             className={inputClass}

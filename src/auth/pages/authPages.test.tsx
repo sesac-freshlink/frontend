@@ -62,6 +62,7 @@ function renderAt(path: string, state?: { from: string }) {
       { path: '/customer', element: <p>고객 홈</p> },
       { path: '/customer/orders/new', element: <p>주문 화면</p> },
       { path: '/owner/inventory', element: <p>점주 재고</p> },
+      { path: '/admin', element: <p>관리자 홈</p> },
       { path: '/admin/stores', element: <p>관리자 점포</p> },
       { path: '/admin/stores/new', element: <p>점포 등록</p> },
     ],
@@ -237,11 +238,11 @@ describe('관리자 로그인', () => {
     })
   })
 
-  it('관리자는 점포 목록으로 가고 회원 프로필(MB-03)을 부르지 않는다', async () => {
+  it('관리자는 관리자 홈으로 가고 회원 프로필(MB-03)을 부르지 않는다', async () => {
     const router = renderAt('/login')
     await fillLogin()
-    expect(await screen.findByText('관리자 점포')).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/admin/stores')
+    expect(await screen.findByText('관리자 홈')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/admin')
     expect(get).not.toHaveBeenCalled()
   })
 
@@ -251,22 +252,22 @@ describe('관리자 로그인', () => {
     expect(await screen.findByText('점포 등록')).toBeInTheDocument()
   })
 
-  it('보던 화면이 다른 역할 영역이면 점포 목록으로 보낸다', async () => {
+  it('보던 화면이 다른 역할 영역이면 관리자 홈으로 보낸다', async () => {
     renderAt('/login', { from: '/owner/inventory' })
     await fillLogin()
-    expect(await screen.findByText('관리자 점포')).toBeInTheDocument()
+    expect(await screen.findByText('관리자 홈')).toBeInTheDocument()
   })
 
-  it('이미 로그인한 관리자가 로그인 화면에 오면 점포 목록으로 보낸다', async () => {
+  it('이미 로그인한 관리자가 로그인 화면에 오면 관리자 홈으로 보낸다', async () => {
     useAuthStore.setState({ user: admin })
     renderAt('/login')
-    expect(await screen.findByText('관리자 점포')).toBeInTheDocument()
+    expect(await screen.findByText('관리자 홈')).toBeInTheDocument()
   })
 
-  it('로그인한 관리자가 회원가입 화면에 오면 점포 목록으로 보낸다', async () => {
+  it('로그인한 관리자가 회원가입 화면에 오면 관리자 홈으로 보낸다', async () => {
     useAuthStore.setState({ user: admin })
     renderAt('/signup')
-    expect(await screen.findByText('관리자 점포')).toBeInTheDocument()
+    expect(await screen.findByText('관리자 홈')).toBeInTheDocument()
   })
 })
 

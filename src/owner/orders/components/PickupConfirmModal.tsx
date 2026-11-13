@@ -96,7 +96,7 @@ export function PickupConfirmModal({ order, onClose }: PickupConfirmModalProps) 
           onClick={() => void onConfirm()}
           disabled={pending}
           aria-busy={pending}
-          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {pending && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
           픽업 완료

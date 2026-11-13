@@ -64,7 +64,7 @@ export function ExpiryCalendar() {
       ) : (
         <div className="relative">
           {calendar.isPending && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 text-slate-400">
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 text-slate-500">
               <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
             </div>
           )}
@@ -107,7 +107,7 @@ export function ExpiryCalendar() {
                               className={cn(
                                 'self-start text-xs text-slate-500 tabular-nums',
                                 cell.date === todayDate &&
-                                  'rounded-full bg-emerald-600 px-1.5 font-semibold text-white',
+                                  'rounded-full bg-emerald-700 px-1.5 font-semibold text-white',
                               )}
                             >
                               {cell.day}
@@ -119,7 +119,7 @@ export function ExpiryCalendar() {
                                   CELL_CLASS[worstStatus(day.lots.map((lot) => lot.status))],
                                 )}
                               >
-                                {day.lotCount} lot · {day.quantity}개
+                                {day.quantity}개
                               </span>
                             )}
                           </button>
@@ -139,9 +139,14 @@ export function ExpiryCalendar() {
       )}
 
       {calendar.data && calendar.data.days.length === 0 && (
-        <p className="text-center text-sm text-slate-500">이 달에 기한이 끝나는 lot이 없어요.</p>
+        <p className="text-center text-sm text-slate-500">
+          이 달에 소비기한이 끝나는 상품이 없어요.
+        </p>
       )}
-      {selectedDate && <DayLots date={selectedDate} day={selectedDay} />}
+      {/* 이 달에 끝나는 상품이 하나도 없으면 위 한 줄로 충분하다. 같은 빈 안내를 두 번 보이지 않는다 */}
+      {selectedDate && (calendar.data?.days.length ?? 0) > 0 && (
+        <DayLots date={selectedDate} day={selectedDay} />
+      )}
     </div>
   )
 }
@@ -149,20 +154,20 @@ export function ExpiryCalendar() {
 function dayLabel(date: string, day: ExpiryCalendarDay | undefined): string {
   const [, mon, d] = date.split('-')
   const base = `${Number(mon)}월 ${Number(d)}일`
-  return day ? `${base}, lot ${day.lotCount}개 ${day.quantity}개` : base
+  return day ? `${base}, ${day.quantity}개` : base
 }
 
 /** 고른 날짜에 기한이 끝나는 lot 목록 */
 function DayLots({ date, day }: { date: string; day: ExpiryCalendarDay | undefined }) {
   const [, mon, d] = date.split('-')
   return (
-    <section aria-label={`${Number(mon)}월 ${Number(d)}일 lot`} className="space-y-2">
+    <section aria-label={`${Number(mon)}월 ${Number(d)}일 상품`} className="space-y-2">
       <h3 className="text-sm font-semibold text-slate-900">
-        {Number(mon)}월 {Number(d)}일에 기한이 끝나는 lot
+        {Number(mon)}월 {Number(d)}일에 소비기한이 끝나는 상품
       </h3>
       {!day ? (
         <p className="rounded-lg border border-slate-200 bg-white py-6 text-center text-sm text-slate-500">
-          이날 기한이 끝나는 lot이 없어요.
+          이날 소비기한이 끝나는 상품이 없어요.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
@@ -181,7 +186,7 @@ function DayLots({ date, day }: { date: string; day: ExpiryCalendarDay | undefin
                 <tr key={lot.lotId}>
                   <td className="px-4 py-2 whitespace-nowrap">
                     <p className="font-medium">{lot.name}</p>
-                    <p className="text-xs text-slate-400">{lot.productCode}</p>
+                    <p className="text-xs text-slate-500">{lot.productCode}</p>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-600 tabular-nums">
                     {formatDateTime(lot.expiryDate)}

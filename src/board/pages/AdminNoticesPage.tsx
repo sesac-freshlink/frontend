@@ -19,11 +19,11 @@ export function AdminNoticesPage() {
   const onDelete = async (noticeId: number) => {
     try {
       await remove.mutateAsync(noticeId)
-      // 이 페이지의 마지막 글을 지우면 빈 페이지가 되지 않게 앞 페이지로 간다
+      // 이 페이지의 마지막 글을 삭제하면 빈 페이지가 되지 않게 앞 페이지로 간다
       if (page > 0 && notices.data?.content.length === 1) setPage((p) => p - 1)
-      toast.success('공지를 지웠어요')
+      toast.success('공지를 삭제했어요')
     } catch {
-      toast.error('지우지 못했어요. 잠시 뒤 다시 시도해 주세요')
+      toast.error('삭제하지 못했어요. 잠시 뒤 다시 시도해 주세요')
     }
   }
 
@@ -38,13 +38,13 @@ export function AdminNoticesPage() {
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
         >
           공지 쓰기
         </button>
       </div>
       {notices.isPending && (
-        <div className="flex justify-center py-16 text-slate-400">
+        <div className="flex justify-center py-16 text-slate-500">
           <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
         </div>
       )}
@@ -84,10 +84,10 @@ export function AdminNoticesPage() {
                     <button
                       type="button"
                       onClick={() => setEditing(n.noticeId)}
-                      aria-label={`${n.title} 고치기`}
+                      aria-label={`${n.title} 수정`}
                       className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
                     >
-                      고치기
+                      수정
                     </button>
                     <DeleteButton
                       label={n.title}
@@ -135,7 +135,7 @@ export function AdminNoticesPage() {
   )
 }
 
-/** 본문까지 받아 온 뒤 고치기 창을 연다 */
+/** 본문까지 받아 온 뒤 수정 창을 연다 */
 function EditExisting({ noticeId, onClose }: { noticeId: number; onClose(): void }) {
   const notice = useAdminNotice(noticeId)
   if (notice.isError) {

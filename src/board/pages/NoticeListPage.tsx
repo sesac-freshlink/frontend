@@ -37,7 +37,7 @@ export function NoticeListPage({ basePath, back }: Props) {
         <p className="text-sm text-slate-500">공지사항이 없어요.</p>
       )}
       {data && data.content.length > 0 && (
-        <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
+        <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
           {data.content.map((n) => (
             <li key={n.noticeId}>
               <Link

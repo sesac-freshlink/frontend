@@ -116,7 +116,7 @@ describe('관리자 메인배너 (A18)', () => {
     expect(rows).toHaveLength(9)
     expect(within(rows[0]!).getByText('11월 마감세일 주간 안내')).toBeInTheDocument()
     expect(within(rows[0]!).getByText('홈에 보여요')).toBeInTheDocument()
-    expect(within(rows[0]!).getByText('늘')).toBeInTheDocument()
+    expect(within(rows[0]!).getByText('제한 없음')).toBeInTheDocument()
     expect(within(rows[1]!).getByText('꺼 둠')).toBeInTheDocument()
     expect(within(rows[2]!).getByText('노출 전')).toBeInTheDocument()
     expect(within(rows[3]!).getByText('노출 끝')).toBeInTheDocument()
@@ -196,12 +196,12 @@ describe('관리자 메인배너 (A18)', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
-  it('고치기는 지금 값을 채우고 순서는 그대로 PUT, 서버가 공지가 없다고 하면 알린다', async () => {
+  it('수정는 지금 값을 채우고 순서는 그대로 PUT, 서버가 공지가 없다고 하면 알린다', async () => {
     serve([banner(1, { sortOrder: 3, visible: false, noticeId: 99, noticeTitle: '지난 공지' })])
     put.mockRejectedValueOnce(errorWith('NOTICE_NOT_FOUND', 404))
     renderPage()
-    await userEvent.click(await screen.findByRole('button', { name: '배너 1 고치기' }))
-    const dialog = screen.getByRole('dialog', { name: '배너 고치기' })
+    await userEvent.click(await screen.findByRole('button', { name: '배너 1 수정' }))
+    const dialog = screen.getByRole('dialog', { name: '배너 수정' })
     expect(within(dialog).getByLabelText('제목')).toHaveValue('배너 1')
     expect(within(dialog).getByRole('checkbox', { name: '홈에 보이기' })).not.toBeChecked()
     // 최근 공지 목록 밖의 지금 연결 공지도 고를 수 있게 남긴다
@@ -216,13 +216,13 @@ describe('관리자 메인배너 (A18)', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('연결할 공지가 없어요')
   })
 
-  it('지우기는 한 번 더 묻고 DELETE 한다', async () => {
+  it('삭제는 한 번 더 묻고 DELETE 한다', async () => {
     serve([banner(1)])
     del.mockResolvedValue({ data: null })
     renderPage()
-    await userEvent.click(await screen.findByRole('button', { name: '배너 1 지우기' }))
+    await userEvent.click(await screen.findByRole('button', { name: '배너 1 삭제' }))
     expect(del).not.toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('button', { name: '정말 지우기' }))
+    await userEvent.click(screen.getByRole('button', { name: '정말 삭제' }))
     expect(del).toHaveBeenCalledWith('/admin/banners/1')
   })
 })

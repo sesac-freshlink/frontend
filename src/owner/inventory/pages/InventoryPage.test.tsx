@@ -167,12 +167,12 @@ function serveInventory(list: InventoryItem[], others: Record<string, unknown> =
   }
 }
 
-/** 표에 보이는 상품명(서버 순서) */
+/** 표에 보이는 상품명(서버 순서). 상품명은 3번째 칸의 버튼이다 */
 const shownNames = () =>
   screen
     .getAllByRole('row')
     .slice(1)
-    .map((r) => r.querySelector('p')?.textContent)
+    .map((r) => r.querySelector('td:nth-child(3) button')?.textContent)
 
 describe('점주 재고 목록 (S-10)', () => {
   beforeEach(() => {
@@ -203,55 +203,54 @@ describe('점주 재고 목록 (S-10)', () => {
     expect(await screen.findByText(/아직 입고된 상품이 없어요/)).toBeInTheDocument()
   })
 
-  it('상품 코드·이름·카테고리·가격·수량 3종·소비기한을 서버 순서대로 보여 준다', async () => {
+  it('카테고리·브랜드·상품명·수량·상태·소진 예상 칸을 서버 순서대로 보여 준다 (11/12 결정 칸)', async () => {
     get.mockImplementation(serveInventory(items))
     renderPage()
 
-    const row = (await screen.findByText('매운 컵라면 115g')).closest('tr')!
-    expect(within(row).getByText('P015')).toBeInTheDocument()
+    await screen.findByText('매운 컵라면 115g')
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual([
+      '카테고리',
+      '브랜드',
+      '상품명',
+      '총 수량',
+      '예약 수량',
+      '마감세일 수량',
+      '판매 가능',
+      '상태',
+      '소진 예상',
+      '메모',
+    ])
+    const row = screen.getByText('매운 컵라면 115g').closest('tr')!
     expect(within(row).getByText('라면')).toBeInTheDocument()
-    expect(within(row).getByText('1,700원')).toBeInTheDocument()
     expect(within(row).getByText('20')).toBeInTheDocument()
     expect(within(row).getByText('1')).toBeInTheDocument()
     expect(within(row).getByText('19')).toBeInTheDocument()
-    expect(within(row).getByText('10/24')).toBeInTheDocument()
-
-    const names = screen
-      .getAllByRole('row')
-      .slice(1)
-      .map((r) => r.querySelector('p')?.textContent)
-    expect(names).toEqual(['매운 컵라면 115g', '흰 우유 500ml', '샌드위치 햄치즈'])
+    expect(within(row).getByText('판매중')).toBeInTheDocument()
+    expect(shownNames()).toEqual(['매운 컵라면 115g', '흰 우유 500ml', '샌드위치 햄치즈'])
   })
 
-  it('이미지가 있는 상품은 썸네일을, 없는 상품은 자리표시를 보여 준다', async () => {
+  it('목록에는 사진·상품 코드를 넣지 않는다 (11/12 결정: 사진은 상세에서)', async () => {
     get.mockImplementation(serveInventory(items))
     renderPage()
     const noodle = (await screen.findByText('매운 컵라면 115g')).closest('tr')!
-    expect(within(noodle).getByRole('img', { name: '매운 컵라면 115g' })).toHaveAttribute(
-      'src',
-      'https://img.example/P015.jpg',
-    )
-    const milk = screen.getByText('흰 우유 500ml').closest('tr')!
-    expect(within(milk).getByRole('img', { name: '흰 우유 500ml 이미지 없음' })).toBeInTheDocument()
+    expect(within(noodle).queryByRole('img')).not.toBeInTheDocument()
+    expect(within(noodle).queryByText('P015')).not.toBeInTheDocument()
   })
 
-  it('nearestExpiry 가 null 이면 "-" 로 보여 준다', async () => {
+  it('값이 없는 칸(브랜드·마감세일 수량)은 "-" 로 보여 준다', async () => {
     get.mockImplementation(serveInventory(items))
     renderPage()
     const row = (await screen.findByText('샌드위치 햄치즈')).closest('tr')!
     expect(within(row).getAllByText('-').length).toBeGreaterThan(0)
   })
 
-  it('임박·경과 lot 이 있는 상품에만 개수 배지를 붙인다', async () => {
+  it('상태는 판매중·품절·부족만 보여 주고, 소비기한 임박·지남은 이 표에 넣지 않는다 (11/13)', async () => {
     get.mockImplementation(serveInventory(items))
     renderPage()
     const milk = (await screen.findByText('흰 우유 500ml')).closest('tr')!
-    expect(within(milk).getByText('임박 1')).toBeInTheDocument()
-    expect(within(milk).getByText('경과 1')).toBeInTheDocument()
-
-    const noodle = screen.getByText('매운 컵라면 115g').closest('tr')!
-    expect(within(noodle).queryByText(/임박/)).not.toBeInTheDocument()
-    expect(within(noodle).queryByText(/경과/)).not.toBeInTheDocument()
+    expect(within(milk).queryByText(/임박|소비기한 지남/)).not.toBeInTheDocument()
+    const sandwich = screen.getByText('샌드위치 햄치즈').closest('tr')!
+    expect(within(sandwich).getByText('품절')).toBeInTheDocument()
   })
 })
 
@@ -260,7 +259,7 @@ describe('안전재고 부족 표시 (S-40)', () => {
     get.mockReset()
   })
 
-  it('구매 가능 수량이 안전재고보다 적은 상품에 부족 배지를 붙이고 위에 건수를 보여 준다', async () => {
+  it('구매 가능 수량이 안전재고보다 적은 상품에 부족 배지를 붙인다', async () => {
     get.mockImplementation(serveInventory(items))
     renderPage()
 
@@ -268,7 +267,6 @@ describe('안전재고 부족 표시 (S-40)', () => {
     expect(within(milk).getByText('부족')).toHaveAttribute('title', '안전재고 12개보다 적어요')
     const noodle = screen.getByText('매운 컵라면 115g').closest('tr')!
     expect(within(noodle).queryByText('부족')).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('안전재고보다 적은 상품 2개')
   })
 
   it('부족한 상품이 없으면 건수를 보여 주지 않는다', async () => {
@@ -281,9 +279,15 @@ describe('안전재고 부족 표시 (S-40)', () => {
   it('부족 칩을 누르면 status=LOW_STOCK 으로 서버에 묻고 부족 상품만 남는다', async () => {
     get.mockImplementation(serveInventory(items))
     renderPage()
-    await userEvent.click(await screen.findByRole('button', { name: '부족' }))
+    await userEvent.click(
+      await within(await screen.findByRole('group', { name: '거르기' })).findByRole('button', {
+        name: '부족',
+      }),
+    )
 
-    expect(screen.getByRole('button', { name: '부족' })).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      within(screen.getByRole('group', { name: '거르기' })).getByRole('button', { name: '부족' }),
+    ).toHaveAttribute('aria-pressed', 'true')
     await waitFor(() => expect(shownNames()).toEqual(['흰 우유 500ml', '샌드위치 햄치즈']))
     expect(get).toHaveBeenCalledWith('/owner/inventory', {
       params: { status: 'LOW_STOCK', page: 0, size: 20 },
@@ -293,7 +297,11 @@ describe('안전재고 부족 표시 (S-40)', () => {
   it('부족 상품이 없는데 부족만 보기를 켜면 안내 문구를 보여 준다', async () => {
     get.mockImplementation(serveInventory(items.map((item) => ({ ...item, lowStock: false }))))
     renderPage()
-    await userEvent.click(await screen.findByRole('button', { name: '부족' }))
+    await userEvent.click(
+      await within(await screen.findByRole('group', { name: '거르기' })).findByRole('button', {
+        name: '부족',
+      }),
+    )
     expect(await screen.findByText('안전재고보다 적은 상품이 없어요.')).toBeInTheDocument()
   })
 
@@ -339,18 +347,18 @@ describe('lot 상세 패널 (S-11)', () => {
     })
   }
 
-  it('행을 누르면 그 상품의 lot 을 소비기한·수량·상태 배지와 함께 보여 준다', async () => {
+  it('행을 누르면 그 상품의 소비기한별 수량·상태 배지를 보여 준다', async () => {
     mockInventoryAndLots(() => Promise.resolve({ data: lots }))
     renderPage()
 
     await userEvent.click(await screen.findByText('흰 우유 500ml'))
 
-    const panel = await screen.findByRole('complementary', { name: 'lot 상세' })
+    const panel = await screen.findByRole('complementary', { name: '소비기한별 수량' })
     expect(within(panel).getByRole('heading', { name: '흰 우유 500ml' })).toBeInTheDocument()
     await waitFor(() => expect(get).toHaveBeenCalledWith('/owner/inventory/12/lots'))
 
     const expired = (await within(panel).findByText('10/09')).closest('tr')!
-    expect(within(expired).getByText('경과')).toBeInTheDocument()
+    expect(within(expired).getByText('소비기한 지남')).toBeInTheDocument()
     expect(within(expired).getByText('2')).toBeInTheDocument()
 
     const imminent = within(panel).getByText('10/22').closest('tr')!
@@ -375,10 +383,10 @@ describe('lot 상세 패널 (S-11)', () => {
     renderPage()
 
     await userEvent.click(await screen.findByText('흰 우유 500ml'))
-    expect(await screen.findByText('남은 lot이 없어요.')).toBeInTheDocument()
+    expect(await screen.findByText('남은 재고가 없어요.')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: '닫기' }))
-    expect(screen.queryByRole('complementary', { name: 'lot 상세' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: '소비기한별 수량' })).not.toBeInTheDocument()
   })
 
   it('lot 옆 조정 버튼을 누르면 그 lot 의 조정 모달이 열린다 (S-14)', async () => {
@@ -386,7 +394,7 @@ describe('lot 상세 패널 (S-11)', () => {
     renderPage()
 
     await userEvent.click(await screen.findByText('흰 우유 500ml'))
-    await userEvent.click(await screen.findByRole('button', { name: '10/30 lot 조정' }))
+    await userEvent.click(await screen.findByRole('button', { name: '10/30 묶음 조정' }))
 
     const dialog = screen.getByRole('dialog', { name: '재고 조정' })
     expect(within(dialog).getByText('흰 우유 500ml · 소비기한 10/30')).toBeInTheDocument()
@@ -414,8 +422,10 @@ describe('lot 상세 패널 (S-11)', () => {
 
     await userEvent.click(await screen.findByText('흰 우유 500ml'))
 
-    const panel = await screen.findByRole('complementary', { name: 'lot 상세' })
-    expect(await within(panel).findByText('lot 정보를 불러오지 못했어요.')).toBeInTheDocument()
+    const panel = await screen.findByRole('complementary', { name: '소비기한별 수량' })
+    expect(
+      await within(panel).findByText('소비기한별 수량을 불러오지 못했어요.'),
+    ).toBeInTheDocument()
     expect(within(panel).getByRole('heading', { name: '흰 우유 500ml' })).toBeInTheDocument()
   })
 })
@@ -457,7 +467,9 @@ describe('점주 상품 메모 (재고 화면)', () => {
   it('부족과 메모 있음을 같이 켜서 남는 상품이 없으면 안내 문구를 보여 준다', async () => {
     renderPage()
     await userEvent.click(await screen.findByRole('button', { name: '메모 있음' }))
-    await userEvent.click(screen.getByRole('button', { name: '부족' }))
+    await userEvent.click(
+      within(screen.getByRole('group', { name: '거르기' })).getByRole('button', { name: '부족' }),
+    )
     expect(await screen.findByText('조건에 맞는 상품이 없어요.')).toBeInTheDocument()
   })
 
@@ -490,7 +502,7 @@ describe('검색·필터·페이지 (서버가 거르고 자른다)', () => {
     renderPage()
     await screen.findByText('매운 컵라면 115g')
 
-    await userEvent.type(screen.getByRole('searchbox', { name: '상품명·코드 검색' }), '우유')
+    await userEvent.type(screen.getByRole('searchbox', { name: '상품명 검색' }), '우유')
 
     await waitFor(() => expect(shownNames()).toEqual(['흰 우유 500ml']))
     expect(get).toHaveBeenCalledWith('/owner/inventory', {
@@ -505,13 +517,14 @@ describe('검색·필터·페이지 (서버가 거르고 자른다)', () => {
   it('여러 상태 칩은 쉼표로 이어 보내고 모두 만족하는 상품만 남는다', async () => {
     get.mockImplementation(serveInventory(items))
     renderPage()
-    await userEvent.click(await screen.findByRole('button', { name: '임박' }))
-    await userEvent.click(screen.getByRole('button', { name: '부족' }))
+    const chips = within(await screen.findByRole('group', { name: '거르기' }))
+    await userEvent.click(chips.getByRole('button', { name: '품절' }))
+    await userEvent.click(chips.getByRole('button', { name: '부족' }))
 
-    await waitFor(() => expect(shownNames()).toEqual(['흰 우유 500ml']))
-    // 누른 순서와 상관없이 칩 순서(부족·임박·경과·품절)로 보낸다. 서버는 모두 만족하는 상품만 준다
+    await waitFor(() => expect(shownNames()).toEqual(['샌드위치 햄치즈']))
+    // 누른 순서와 상관없이 정해진 순서로 보낸다. 서버는 모두 만족하는 상품만 준다
     expect(get).toHaveBeenCalledWith('/owner/inventory', {
-      params: { status: 'LOW_STOCK,IMMINENT', page: 0, size: 20 },
+      params: { status: 'LOW_STOCK,SOLD_OUT', page: 0, size: 20 },
     })
   })
 
@@ -519,10 +532,11 @@ describe('검색·필터·페이지 (서버가 거르고 자른다)', () => {
     get.mockImplementation(serveInventory(items))
     renderPage('/owner/inventory?status=LOW_STOCK')
 
-    expect(await screen.findByRole('button', { name: '부족' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    expect(
+      await within(await screen.findByRole('group', { name: '거르기' })).findByRole('button', {
+        name: '부족',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true')
     expect(get).toHaveBeenCalledWith('/owner/inventory', {
       params: { status: 'LOW_STOCK', page: 0, size: 20 },
     })
@@ -531,13 +545,14 @@ describe('검색·필터·페이지 (서버가 거르고 자른다)', () => {
   it('칩을 누르면 주소의 status도 바뀌고, 다 끄면 주소에서 빠진다', async () => {
     get.mockImplementation(serveInventory(items))
     const router = renderPage()
+    const chips = within(await screen.findByRole('group', { name: '거르기' }))
 
-    await userEvent.click(await screen.findByRole('button', { name: '경과' }))
-    expect(router.state.location.search).toBe('?status=EXPIRED')
-    await userEvent.click(screen.getByRole('button', { name: '부족' }))
-    expect(router.state.location.search).toBe('?status=LOW_STOCK%2CEXPIRED')
-    await userEvent.click(screen.getByRole('button', { name: '부족' }))
-    await userEvent.click(screen.getByRole('button', { name: '경과' }))
+    await userEvent.click(chips.getByRole('button', { name: '품절' }))
+    expect(router.state.location.search).toBe('?status=SOLD_OUT')
+    await userEvent.click(chips.getByRole('button', { name: '부족' }))
+    expect(router.state.location.search).toBe('?status=LOW_STOCK%2CSOLD_OUT')
+    await userEvent.click(chips.getByRole('button', { name: '부족' }))
+    await userEvent.click(chips.getByRole('button', { name: '품절' }))
     expect(router.state.location.search).toBe('')
   })
 
@@ -563,23 +578,13 @@ describe('검색·필터·페이지 (서버가 거르고 자른다)', () => {
     expect(screen.getByRole('button', { name: '다음 페이지' })).toBeDisabled()
     expect(get).toHaveBeenCalledWith('/owner/inventory', { params: { page: 1, size: 20 } })
 
-    await userEvent.click(screen.getByRole('button', { name: '부족' }))
+    await userEvent.click(
+      within(screen.getByRole('group', { name: '거르기' })).getByRole('button', { name: '부족' }),
+    )
     await waitFor(() => expect(screen.getByText('1 / 1')).toBeInTheDocument())
     expect(get).toHaveBeenCalledWith('/owner/inventory', {
       params: { status: 'LOW_STOCK', page: 0, size: 20 },
     })
-  })
-
-  it('위쪽 부족 건수는 검색·필터와 상관없이 응답의 점포 전체 건수다', async () => {
-    get.mockImplementation(serveInventory(items))
-    renderPage()
-    await userEvent.type(
-      await screen.findByRole('searchbox', { name: '상품명·코드 검색' }),
-      '컵라면',
-    )
-
-    await waitFor(() => expect(shownNames()).toEqual(['매운 컵라면 115g']))
-    expect(screen.getByRole('status')).toHaveTextContent('안전재고보다 적은 상품 2개')
   })
 
   it('소진 예상 칸에 최근 7일 판매 속도로 며칠 버티는지 보여 주고, 2일 이하면 강조한다', async () => {
@@ -589,10 +594,10 @@ describe('검색·필터·페이지 (서버가 거르고 자른다)', () => {
     const noodle = (await screen.findByText('매운 컵라면 115g')).closest('tr')!
     const noodleCell = within(noodle).getByText('약 4일')
     expect(noodleCell).toHaveAttribute('title', '최근 7일 하루 평균 4.3개 판매')
-    expect(noodleCell).not.toHaveClass('text-orange-700')
+    expect(noodleCell).not.toHaveClass('text-rose-700')
 
     const milk = screen.getByText('흰 우유 500ml').closest('tr')!
-    expect(within(milk).getByText('약 2일')).toHaveClass('text-orange-700')
+    expect(within(milk).getByText('약 2일')).toHaveClass('text-rose-700')
 
     // 품절이면 남은 일수를 세지 않는다
     const sandwich = screen.getByText('샌드위치 햄치즈').closest('tr')!

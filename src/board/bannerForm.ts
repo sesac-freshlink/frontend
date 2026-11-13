@@ -63,7 +63,7 @@ export function bannerDefaults(b?: AdminBanner): BannerForm {
       }
 }
 
-/** 순서는 폼에서 고치지 않는다: 새 배너는 맨 뒤(sortOrder), 고칠 때는 지금 순서를 그대로 보낸다 */
+/** 순서는 폼에서 수정하지 않는다: 새 배너는 맨 뒤(sortOrder), 수정할 때는 지금 순서를 그대로 보낸다 */
 export function toBannerRequest(
   v: z.output<typeof bannerSchema>,
   sortOrder: number,

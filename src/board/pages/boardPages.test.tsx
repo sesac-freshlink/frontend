@@ -184,7 +184,7 @@ describe('게시판 화면 (A17)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('관리자 공지 고치기는 본문을 받아 와 채우고 PUT, 지우기는 한 번 더 묻는다', async () => {
+  it('관리자 공지 수정는 본문을 받아 와 채우고 PUT, 삭제는 한 번 더 묻는다', async () => {
     get.mockImplementation(async (url: string) => {
       if (url === '/admin/notices') return { data: pageOf([summary(pinned)]) }
       if (url === '/admin/notices/1') return { data: pinned }
@@ -194,7 +194,7 @@ describe('게시판 화면 (A17)', () => {
     del.mockResolvedValue({ data: undefined })
     renderAt('/admin/notices', [{ path: '/admin/notices', element: <AdminNoticesPage /> }])
 
-    await userEvent.click(await screen.findByRole('button', { name: '서비스를 시작했어요 고치기' }))
+    await userEvent.click(await screen.findByRole('button', { name: '서비스를 시작했어요 수정' }))
     const title = await screen.findByLabelText('제목')
     expect(title).toHaveValue('서비스를 시작했어요')
     expect(screen.getByLabelText('본문')).toHaveValue('첫 줄\n둘째 줄')
@@ -211,9 +211,9 @@ describe('게시판 화면 (A17)', () => {
     )
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 
-    await userEvent.click(screen.getByRole('button', { name: '서비스를 시작했어요 지우기' }))
+    await userEvent.click(screen.getByRole('button', { name: '서비스를 시작했어요 삭제' }))
     expect(del).not.toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('button', { name: '정말 지우기' }))
+    await userEvent.click(screen.getByRole('button', { name: '정말 삭제' }))
     await waitFor(() => expect(del).toHaveBeenCalledWith('/admin/notices/1'))
   })
 
@@ -222,7 +222,7 @@ describe('게시판 화면 (A17)', () => {
     put.mockResolvedValue({ data: faq })
     renderAt('/admin/faqs', [{ path: '/admin/faqs', element: <AdminFaqsPage /> }])
 
-    await userEvent.click(await screen.findByRole('button', { name: '언제 받아 가요? 고치기' }))
+    await userEvent.click(await screen.findByRole('button', { name: '언제 받아 가요? 수정' }))
     const order = screen.getByLabelText('순서')
     await userEvent.clear(order)
     await userEvent.type(order, 'abc')
@@ -270,8 +270,8 @@ describe('게시판 화면 (A17)', () => {
 
     await screen.findByText('다른 공지')
     await userEvent.click(screen.getByRole('button', { name: '다음' }))
-    await userEvent.click(await screen.findByRole('button', { name: '서비스를 시작했어요 지우기' }))
-    await userEvent.click(screen.getByRole('button', { name: '정말 지우기' }))
+    await userEvent.click(await screen.findByRole('button', { name: '서비스를 시작했어요 삭제' }))
+    await userEvent.click(screen.getByRole('button', { name: '정말 삭제' }))
 
     expect(await screen.findByText('1 / 2')).toBeInTheDocument()
   })

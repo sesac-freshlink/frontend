@@ -162,7 +162,9 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
   it('불러오지 못하면 오류 문구를 보여 준다', async () => {
     get.mockRejectedValue(axiosError(500, 'INTERNAL_ERROR'))
     renderPage()
-    expect(await screen.findByText('주문을 불러오지 못했어요.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('주문을 불러오지 못했어요. [새로 고침]을 눌러 다시 불러와 주세요.'),
+    ).toBeInTheDocument()
   })
 
   it('픽업 기한을 날짜만 보여 주고, 서버가 아직 안 주면 - 로 둔다 (A4)', async () => {

@@ -16,7 +16,11 @@ function renderAt(path: string) {
       {
         path: '/owner',
         element: <RequireRole role="OWNER" />,
-        children: [{ path: 'inventory', element: <p>점주 재고</p> }],
+        children: [
+          // 11/12 결정: 점주 첫 화면은 대시보드(/owner)
+          { index: true, element: <p>점주 홈</p> },
+          { path: 'inventory', element: <p>점주 재고</p> },
+        ],
       },
       {
         path: '/customer',
@@ -26,7 +30,10 @@ function renderAt(path: string) {
       {
         path: '/admin',
         element: <RequireRole role="ADMIN" />,
-        children: [{ path: 'stores', element: <p>관리자 점포</p> }],
+        children: [
+          { index: true, element: <p>관리자 홈</p> },
+          { path: 'stores', element: <p>관리자 점포</p> },
+        ],
       },
     ],
     { initialEntries: [path] },
@@ -78,10 +85,10 @@ describe('RequireRole', () => {
     expect(screen.getByText('고객 홈')).toBeInTheDocument()
   })
 
-  it('점주가 고객 화면에 오면 재고 화면으로 보낸다', () => {
+  it('점주가 고객 화면에 오면 점주 홈(대시보드)으로 보낸다', () => {
     useAuthStore.setState({ user: owner })
     renderAt('/customer')
-    expect(screen.getByText('점주 재고')).toBeInTheDocument()
+    expect(screen.getByText('점주 홈')).toBeInTheDocument()
   })
 
   it('관리자는 관리자 화면을 본다', () => {
@@ -90,10 +97,10 @@ describe('RequireRole', () => {
     expect(screen.getByText('관리자 점포')).toBeInTheDocument()
   })
 
-  it('점주가 관리자 화면에 오면 재고 화면으로 보낸다', () => {
+  it('점주가 관리자 화면에 오면 점주 홈(대시보드)으로 보낸다', () => {
     useAuthStore.setState({ user: owner })
     renderAt('/admin/stores')
-    expect(screen.getByText('점주 재고')).toBeInTheDocument()
+    expect(screen.getByText('점주 홈')).toBeInTheDocument()
   })
 
   it('고객이 관리자 화면에 오면 고객 홈으로 보낸다', () => {
@@ -102,10 +109,10 @@ describe('RequireRole', () => {
     expect(screen.getByText('고객 홈')).toBeInTheDocument()
   })
 
-  it('관리자가 점주 화면에 오면 점포 목록으로 보낸다', () => {
+  it('관리자가 점주 화면에 오면 관리자 홈으로 보낸다', () => {
     useAuthStore.setState({ user: admin })
     renderAt('/owner/inventory')
-    expect(screen.getByText('관리자 점포')).toBeInTheDocument()
+    expect(screen.getByText('관리자 홈')).toBeInTheDocument()
   })
 
   it('로그인하지 않고 관리자 화면에 오면 로그인 화면으로 보낸다', () => {
@@ -122,7 +129,11 @@ describe('RequireRole', () => {
         {
           path: '/owner',
           element: <RequireRole role="OWNER" />,
-          children: [{ path: 'inventory', element: <p>점주 재고</p> }],
+          children: [
+            // 11/12 결정: 점주 첫 화면은 대시보드(/owner)
+            { index: true, element: <p>점주 홈</p> },
+            { path: 'inventory', element: <p>점주 재고</p> },
+          ],
         },
       ],
       { initialEntries: ['/owner/inventory?tab=lots'] },

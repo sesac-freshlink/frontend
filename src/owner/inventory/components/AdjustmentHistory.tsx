@@ -10,7 +10,7 @@ export function AdjustmentHistory() {
 
   if (adjustments.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -25,7 +25,7 @@ export function AdjustmentHistory() {
   if (adjustments.data.length === 0) {
     return (
       <p className="py-16 text-center text-sm text-slate-500">
-        아직 조정한 적이 없어요. 재고 화면에서 상품을 고르고 lot 옆 연필 버튼으로 조정해요.
+        아직 조정한 적이 없어요. 재고 화면에서 상품을 고르고 소비기한 옆 연필 버튼으로 조정해요.
       </p>
     )
   }
@@ -51,7 +51,7 @@ export function AdjustmentHistory() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-400">최근 100건까지 보여요.</p>
+      <p className="text-xs text-slate-500">최근 100건까지 보여요.</p>
     </div>
   )
 }
@@ -64,10 +64,10 @@ function AdjustmentRow({ item }: { item: AdjustmentHistoryItem }) {
       </td>
       <td className="px-3 py-3 whitespace-nowrap">
         <p className="font-medium">{item.productName}</p>
-        <p className="text-xs text-slate-400">소비기한 {formatExpiry(item.expiryDate)}</p>
+        <p className="text-xs text-slate-500">소비기한 {formatExpiry(item.expiryDate)}</p>
       </td>
       <td className="px-3 py-3 whitespace-nowrap">
-        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
           {REASON_LABEL[item.reason]}
         </span>
       </td>

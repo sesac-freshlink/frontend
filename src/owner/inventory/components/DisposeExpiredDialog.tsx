@@ -35,8 +35,8 @@ export function DisposeExpiredDialog({ lots, onClose }: Props) {
   const submit = () => {
     disposeExpired.mutate(undefined, {
       onSuccess: (result) => {
-        if (result.lotCount === 0) toast.info('새로 폐기할 경과 lot이 없어요.')
-        else toast.success(`경과 lot ${result.lotCount}개, ${result.quantity}개 폐기 요청됨`)
+        if (result.lotCount === 0) toast.info('새로 폐기할 소비기한 지난 상품이 없어요.')
+        else toast.success(`소비기한 지난 ${result.lotCount}묶음, ${result.quantity}개 폐기 요청됨`)
         onClose()
       },
       onError: (e) => toast.error(apiErrorMessage(e, '폐기 요청에 실패했어요.')),
@@ -52,17 +52,17 @@ export function DisposeExpiredDialog({ lots, onClose }: Props) {
         className="w-full max-w-md space-y-4 rounded-lg bg-white p-6 shadow-lg"
       >
         <h2 id="dispose-expired-title" className="text-lg font-bold text-slate-900">
-          경과 lot 전부 폐기
+          소비기한 지난 상품 전부 폐기
         </h2>
         <p className="text-sm text-slate-500">
-          소비기한이 지난 lot마다 폐기 가능 수량 전부를 한 번에 요청해요.
+          소비기한이 지난 묶음마다 폐기 가능 수량 전부를 한 번에 요청해요.
         </p>
         <ul className="max-h-64 divide-y divide-slate-200 overflow-y-auto rounded-lg border border-slate-200 text-sm">
           {lots.map((lot) => (
             <li key={lot.lotId} className="flex items-center justify-between gap-3 px-3 py-2">
               <div>
                 <p className="font-medium text-slate-900">{lot.productName}</p>
-                <p className="text-xs text-slate-400">소비기한 {formatDateTime(lot.expiryDate)}</p>
+                <p className="text-xs text-slate-500">소비기한 {formatDateTime(lot.expiryDate)}</p>
               </div>
               <span className="font-semibold text-slate-900 tabular-nums">
                 {lot.disposableQuantity}개

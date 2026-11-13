@@ -70,54 +70,63 @@ export function OwnerSalesPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <SummaryCard
-          label="오늘 매출"
-          sub={`${formatShortDate(today)} 순매출`}
-          value={weekTotals && formatWon(weekTotals.today)}
-          failed={weekSales.isError}
-        />
-        <SummaryCard
-          label="이번 주 매출"
-          sub={`${formatShortDate(week.from)} ~ 오늘 순매출`}
-          value={weekTotals && formatWon(weekTotals.week)}
-          failed={weekSales.isError}
-        />
-        <SummaryCard
-          label="결제 건수"
-          sub="고른 기간"
-          value={totals && `${totals.paidCount.toLocaleString('ko-KR')}건`}
-          failed={!error && sales.isError}
-        />
-        <SummaryCard
-          label="환불 건수"
-          sub="고른 기간"
-          value={totals && `${totals.refundCount.toLocaleString('ko-KR')}건`}
-          failed={!error && sales.isError}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-3 rounded-lg border border-slate-200 bg-white p-4">
-        <ToggleGroup
-          label="기간"
-          options={QUICK_RANGES}
-          selected={preset}
-          onSelect={choosePreset}
-        />
-        <div className="flex items-end gap-2">
-          <DateInput label="시작일" value={range.from} onChange={(v) => changeDate('from', v)} />
-          <span className="pb-1.5 text-slate-400">~</span>
-          <DateInput label="종료일" value={range.to} onChange={(v) => changeDate('to', v)} />
+      {/* 요약 숫자·기간 고르기·그래프를 한 판에 둬서, 기간을 바꾸면 무엇이 바뀌는지 한눈에 보이게 한다 */}
+      <div className="rounded-lg border border-slate-200 bg-white">
+        <div className="grid grid-cols-4 divide-x divide-slate-200 border-b border-slate-200">
+          <SummaryCard
+            label="오늘 매출"
+            sub={`${formatShortDate(today)} 순매출`}
+            value={weekTotals && formatWon(weekTotals.today)}
+            failed={weekSales.isError}
+          />
+          <SummaryCard
+            label="이번 주 매출"
+            sub={`${formatShortDate(week.from)} ~ 오늘 순매출`}
+            value={weekTotals && formatWon(weekTotals.week)}
+            failed={weekSales.isError}
+          />
+          <SummaryCard
+            label="결제 건수"
+            sub="고른 기간"
+            value={totals && `${totals.paidCount.toLocaleString('ko-KR')}건`}
+            failed={!error && sales.isError}
+          />
+          <SummaryCard
+            label="환불 건수"
+            sub="고른 기간"
+            value={totals && `${totals.refundCount.toLocaleString('ko-KR')}건`}
+            failed={!error && sales.isError}
+          />
         </div>
-        <ToggleGroup label="단위" options={UNITS} selected={unit} onSelect={setUnit} />
+
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-b border-slate-200 p-4">
+          <ToggleGroup
+            label="기간"
+            options={QUICK_RANGES}
+            selected={preset}
+            onSelect={choosePreset}
+          />
+          <div className="flex items-end gap-2">
+            <DateInput label="시작일" value={range.from} onChange={(v) => changeDate('from', v)} />
+            <span className="pb-1.5 text-slate-500">~</span>
+            <DateInput label="종료일" value={range.to} onChange={(v) => changeDate('to', v)} />
+          </div>
+          <ToggleGroup label="단위" options={UNITS} selected={unit} onSelect={setUnit} />
+        </div>
+
+        {error ? (
+          <p role="alert" className="py-16 text-center text-sm text-red-600">
+            {error}
+          </p>
+        ) : (
+          <SalesChartArea sales={sales} />
+        )}
       </div>
 
-      {error ? (
-        <p role="alert" className="py-16 text-center text-sm text-red-600">
-          {error}
-        </p>
-      ) : (
-        <SalesBody sales={sales} />
+      {!error && sales.data && !isAllZero(sales.data.periods) && (
+        <div className={cn(sales.isPlaceholderData && 'opacity-60')}>
+          <SalesTable data={sales.data} />
+        </div>
       )}
     </section>
   )
@@ -136,14 +145,14 @@ function SummaryCard({
   failed: boolean
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="p-4">
       <p className="text-sm font-medium text-slate-500">{label}</p>
       {failed ? (
         <p className="mt-2 text-sm text-red-600">불러오지 못했어요</p>
       ) : (
         <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{value ?? '-'}</p>
       )}
-      <p className="mt-1 text-xs text-slate-400">{sub}</p>
+      <p className="mt-1 text-xs text-slate-500">{sub}</p>
     </div>
   )
 }
@@ -175,7 +184,7 @@ function ToggleGroup<T extends string>({
             onClick={() => onSelect(option.value)}
             className={cn(
               'rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap text-slate-600 hover:bg-slate-100',
-              option.value === selected && 'bg-emerald-600 text-white hover:bg-emerald-600',
+              option.value === selected && 'bg-emerald-700 text-white hover:bg-emerald-700',
             )}
           >
             {option.label}
@@ -202,16 +211,17 @@ function DateInput({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900 tabular-nums focus:border-emerald-500 focus:outline-none"
+        className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900 tabular-nums focus:border-emerald-600 focus-visible:outline-2 focus-visible:outline-emerald-700"
       />
     </label>
   )
 }
 
-function SalesBody({ sales }: { sales: ReturnType<typeof useSales> }) {
+/** 판 안의 그래프 칸. 불러오는 중·오류·매출 없음도 같은 자리에 보여 준다 */
+function SalesChartArea({ sales }: { sales: ReturnType<typeof useSales> }) {
   if (sales.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -223,27 +233,22 @@ function SalesBody({ sales }: { sales: ReturnType<typeof useSales> }) {
   const range = `${formatShortDate(data.from)} ~ ${formatShortDate(data.to)}`
   if (isAllZero(data.periods)) {
     return (
-      <p className="rounded-lg border border-slate-200 bg-white py-16 text-center text-sm text-slate-500">
-        {range} 동안 결제된 매출이 없어요.
-      </p>
+      <p className="py-16 text-center text-sm text-slate-500">{range} 동안 결제된 매출이 없어요.</p>
     )
   }
   // 기간·단위를 바꿔 새로 읽는 동안에는 앞 결과를 흐리게 보여 준다
   return (
-    <div className={cn('space-y-6', sales.isPlaceholderData && 'opacity-60')}>
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-900">{CHART_TITLE[data.unit]}</h2>
-          <p className="flex items-center gap-2 text-sm text-slate-500 tabular-nums">
-            {sales.isFetching && (
-              <LoaderCircle className="size-4 animate-spin" aria-label="새로 불러오는 중" />
-            )}
-            {range}
-          </p>
-        </div>
-        <SalesChart periods={data.periods} unit={data.unit} title={CHART_TITLE[data.unit]} />
+    <div className={cn('p-4', sales.isPlaceholderData && 'opacity-60')}>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-semibold text-slate-900">{CHART_TITLE[data.unit]}</h2>
+        <p className="flex items-center gap-2 text-sm text-slate-500 tabular-nums">
+          {sales.isFetching && (
+            <LoaderCircle className="size-4 animate-spin" aria-label="새로 불러오는 중" />
+          )}
+          {range}
+        </p>
       </div>
-      <SalesTable data={data} />
+      <SalesChart periods={data.periods} unit={data.unit} title={CHART_TITLE[data.unit]} />
     </div>
   )
 }

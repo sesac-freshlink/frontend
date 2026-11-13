@@ -74,7 +74,7 @@ export function thisWeekRange(now: Date = new Date()): SalesRange {
 /** 기간이 잘못됐으면 화면 문구, 맞으면 null. 서버 검사(필수, from ≤ to, 최대 366일)와 같다 */
 export function rangeError({ from, to }: SalesRange): string | null {
   if (!from || !to) return '시작일과 종료일을 모두 골라 주세요.'
-  if (from > to) return '시작일이 종료일보다 늦어요.'
+  if (from > to) return '시작일이 종료일보다 늦어요. 시작일을 종료일보다 앞 날짜로 골라 주세요.'
   if (day(to).diff(day(from), 'day') + 1 > MAX_DAYS) {
     return `기간은 최대 ${MAX_DAYS}일까지 볼 수 있어요.`
   }
