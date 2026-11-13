@@ -24,7 +24,6 @@ import { StoreDetailPage } from '@/customer/stores/pages/StoreDetailPage'
 import { StoreProductDetailPage } from '@/customer/stores/pages/StoreProductDetailPage'
 import { StoreProductsPage } from '@/customer/stores/pages/StoreProductsPage'
 import { StoreSearchPage } from '@/customer/stores/pages/StoreSearchPage'
-import { AssistantPage } from '@/owner/assistant/pages/AssistantPage'
 import { ExpiringPage } from '@/owner/inventory/pages/ExpiringPage'
 import { InventoryPage } from '@/owner/inventory/pages/InventoryPage'
 import { LedgerPage } from '@/owner/inventory/pages/LedgerPage'
@@ -58,7 +57,6 @@ export const routes: RouteObject[] = [
           { path: 'inventory/:productId', element: <LotDetailPage /> },
           { path: 'ledger', element: <LedgerPage /> },
           { path: 'expiring', element: <ExpiringPage /> },
-          { path: 'assistant', element: <AssistantPage /> },
           { path: 'orders', element: <OwnerOrdersPage /> },
           { path: 'sales', element: <OwnerSalesPage /> },
           { path: 'notices', element: <NoticeListPage basePath="/owner/notices" /> },
