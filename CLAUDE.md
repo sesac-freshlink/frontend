@@ -11,7 +11,7 @@
 | `README.md` | 화면 목록(3장, 기능 ID·담당), 폴더 구조(4장), 로컬 실행(5장), 브랜치(6장) |
 | `docs/tech-stack.md` | 라이브러리별 이유, 넣지 않은 것, 실시간 재고 폴링, BFF 로그인 흐름 |
 | `.github/CODEOWNERS` | 폴더별 담당자 |
-| `docs/ai-agents.md` | 메모리(기억시키는 법), 서브에이전트 사용법 (사람용) |
+| `docs/ai-agents.md` | 메모리(기억시키는 법), Claude 작업 방식 (사람용) |
 | `.github` 레포 `docs/기능이해/주문-결제-흐름과-재고-예약.md` | **고객 주문·결제 화면(U-21, U-22, U-31) 작업 전에 먼저 읽는다.** 주문 상태별 고객 화면 문구 |
 
 이 `CLAUDE.md`는 AI 작업 규칙만 담는다. 위 문서와 겹치는 사실은 위 문서가 진실.
@@ -19,11 +19,7 @@
 ## Communication Style (Caveman Mode)
 Respond like a caveman. No articles, no filler words, no pleasantries, no yapping. Short. Direct. Grunt-level brevity. Code speaks for itself. If asked for code, output ONLY code. Minimize token usage absolutely.
 
-서브에이전트(pm/architect/designer/coder/tester/reviewer/qa/docs)도 동일 적용 — `_workspace/*.md` 산출물, SendMessage 보고 전부 caveman 모드. 조사/필러/인사말/미사여구 금지. 표·불릿·코드블록 위주. 토큰 최소화.
-
 단, 레포에 커밋되는 산출물(코드 주석, JSDoc, README, docs/)은 caveman 금지 — 기존 문서처럼 평이한 한국어 문장(`~한다` 체)으로 쓴다. 팀원 셋이 같이 읽는다.
-
-서브에이전트는 작업 완료 시 리더에게 SendMessage로 보고하고 **그 즉시 응답을 멈춘다.** SendMessage 이후 "대기 중", "종료", "추가 지시 있으면 알려달라" 같은 후행 코멘트 절대 출력 금지 — SendMessage가 그 턴의 마지막 행동이다.
 
 ---
 
@@ -191,34 +187,11 @@ npm run build          # tsc -b && vite build
 
 ---
 
-## 작업 오케스트레이션 (메인 에이전트 역할)
+## 작업 방식
 
-메인 세션(사용자와 직접 대화하는 에이전트)이 그 자체로 오케스트레이터다. 별도의 "orchestrator" 서브에이전트를 거치지 않고, 직접 Agent 도구로 아래 파이프라인을 조율한다.
+Claude 하나(메인 세션)가 `.claude/skills/freshlink-pipeline/SKILL.md` 순서대로 직접 한다: 크기 정하기 → 이해 → 계획 → 구현 → 검증 → 자체 리뷰 → 커밋·PR. 프론트 검증 명령과 리뷰 점검표는 같은 폴더 `frontend.md`.
 
-### 파이프라인 순서
-
-```
-1. pm        → _workspace/01_pm_prd.md
-2. architect → _workspace/02_architect_design.md
-   [UI 비중 큰 신규 화면/컴포넌트일 때만]
-2b. designer → _workspace/02b_designer_spec.md
-   [사람 승인 게이트 — 설계 요약을 사용자에게 제시하고 승인받는다]
-3. coder     → src/* + _workspace/03_coder_summary.md
-4. tester    → _workspace/04_tester_report.md (TestsPassed 게이트)
-   [사람 진행 게이트 — tester 완료 후 자동 정지. 사용자가 다음 단계를 명시적으로 요청해야 진행]
-5. reviewer  → _workspace/05_reviewer_report.md (APPROVED 게이트)
-6. qa        → _workspace/06_qa_report.md (BLOCKER 없음 게이트)
-7. docs      → _workspace/07_docs_summary.md
-```
-
-### 원칙
-
-- 실질 작업(PRD 작성, 설계, 구현, 리뷰)은 직접 하지 않는다 — 항상 전문 서브에이전트(pm/architect/designer/coder/tester/reviewer/qa/docs)에게 위임한다. 예외: 사소한 질문 답변, 파일 존재 확인 등 파이프라인이 필요 없는 순수 조회, 한두 줄 수정.
-- 시작 시 `_workspace/00_input/request.md`에 사용자 요청 원문을 저장한다. 디렉토리가 없으면 생성한다. 파일이 이미 있으면 **아카이브하지 않고 항상 덮어쓴다.** (`_workspace/`는 gitignore 대상)
-- 각 단계 호출 전 필요한 입력 파일(이전 단계 산출물)이 실제로 존재하는지 확인한다.
-- **게이트 실패 처리**: tester 실패(TestsPassed 미발행) → coder로 반환, reviewer가 CHANGES_REQUESTED → coder로 반환, qa가 BLOCKER 보고 → 원인 주체(coder/architect)로 반환. 같은 게이트에서 3회 넘게 막히면 진행을 멈추고 사용자에게 보고한다.
-- 각 서브에이전트 호출 직전, 무엇을 누구에게 위임하는지 짧게 사용자에게 알린다.
-- 새 요청이면 `_workspace/`의 이전 산출물(01~07)은 각 단계가 **아카이브 없이 덮어쓴다.** 이전 기능의 산출물을 입력으로 읽지 않는다. 이전 기능 잔여물이 남은 단계 파일(예: 이번엔 designer를 건너뛰어 남은 `02b`)은 삭제해 다음 단계가 잘못 읽지 않게 한다.
-- 같은 요청을 이어서 하는 경우(사용자가 "이어서/계속" 지시)에만 마지막으로 완료된 단계 다음부터 재개한다. 이때 완료된 단계를 처음부터 다시 돌리지 않는다. 서브에이전트의 "재호출 지침"(이전 산출물 읽고 피드백만 반영)도 같은 요청 안에서만 적용된다.
-- **서브에이전트 종료는 리더 책임**: 서브에이전트가 SendMessage로 완료/차단 보고를 하면, 리더(main)는 그 즉시 `TaskStop`으로 해당 에이전트를 kill한다. 예외 없음 — 후속 작업이 있으면 새로 스폰한다. 에이전트의 자체 침묵("대기 중" 안 쓰기)에 기대지 않는다 — 프롬프트 문구만으로는 프로세스가 살아있는 채로 남을 수 있으므로, 실제 종료는 리더가 도구 호출로 강제한다.
+- 작은 일(문구, 스타일 한두 줄)은 계획·리뷰를 건너뛰고 바로 고친 뒤 `npx tsc -b`·`npm run lint`만 돌린다.
+- 화면 하나·기능 하나는 계획(5~10줄)을 보여 주고 ok를 받은 뒤 구현한다. 구현 순서는 위 "작업 순서"(Types → api.ts → MSW → Page → 라우트·README).
+- 서브에이전트에게 일을 넘기지 않는다(예외는 스킬에 적힌 경우만). `_workspace/` 파일을 만들지 않는다.
 - 커밋·push는 사용자가 요청할 때만 한다.
