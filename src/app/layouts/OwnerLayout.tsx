@@ -1,5 +1,4 @@
 import {
-  Bot,
   ChartColumn,
   CircleHelp,
   ClipboardList,
@@ -14,6 +13,7 @@ import {
 import { NavLink, Outlet } from 'react-router'
 import { useAuthStore } from '@/shared/auth'
 import { PickupScanListener } from '@/owner/orders/pickup/components/PickupScanListener'
+import { AssistantLauncher } from '@/owner/assistant/components/AssistantLauncher'
 import { NotificationBell } from '@/shared/notifications/NotificationBell'
 import { useOwnerStore } from '@/owner/store/api'
 import { cn } from '@/shared/ui/cn'
@@ -26,7 +26,6 @@ const MENU_GROUPS = [
       { to: '/owner/inventory', label: '매장 재고', icon: Package },
       { to: '/owner/ledger', label: '변동 이력', icon: History },
       { to: '/owner/expiring', label: '임박·폐기', icon: TriangleAlert },
-      { to: '/owner/assistant', label: 'AI 비서', icon: Bot },
     ],
   },
   {
@@ -125,6 +124,8 @@ export function OwnerLayout() {
       </aside>
       {/* 점주 핸드폰이 고객 픽업 QR을 찍으면 어느 화면에 있든 승인 창이 뜬다 (추가 명세 A16) */}
       <PickupScanListener />
+      {/* AI 점주 비서: 오른쪽 아래 버튼, 화면 이동 없이 대화창을 띄운다 */}
+      <AssistantLauncher />
       <main className="min-w-0 flex-1 p-6">
         <Outlet />
       </main>
