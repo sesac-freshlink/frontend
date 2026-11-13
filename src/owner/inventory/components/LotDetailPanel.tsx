@@ -8,7 +8,8 @@ import { AdjustLotDialog } from './AdjustLotDialog'
 const STATUS_LABEL: Record<InventoryLotStatus, string> = {
   NORMAL: '정상',
   IMMINENT: '임박',
-  EXPIRED: '경과',
+  // 11/13 경우님: "경과" 대신 대시보드와 같은 "소비기한 지남"
+  EXPIRED: '소비기한 지남',
 }
 
 const STATUS_CLASS: Record<InventoryLotStatus, string> = {
@@ -17,7 +18,7 @@ const STATUS_CLASS: Record<InventoryLotStatus, string> = {
   EXPIRED: 'bg-red-100 text-red-700',
 }
 
-/** lot 상태 배지. 임박은 경고색, 경과는 오류색 */
+/** lot 상태 배지. 임박은 경고색, 소비기한 지남은 오류색 */
 export function LotStatusBadge({ status }: { status: InventoryLotStatus }) {
   return (
     <span
@@ -51,13 +52,13 @@ export function LotDetailPanel({ productId, productName, onClose }: Props) {
 
   return (
     <aside
-      aria-label="lot 상세"
+      aria-label="소비기한별 수량"
       className="flex h-full flex-col rounded-lg border border-slate-200 bg-white"
     >
       <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div>
           <h2 className="font-bold text-slate-900">{title}</h2>
-          <p className="text-xs text-slate-500">소비기한별 lot · 빠른 순</p>
+          <p className="text-xs text-slate-500">소비기한 빠른 순</p>
         </div>
         {onClose && (
           <button
@@ -91,20 +92,20 @@ function LotTable({
 }) {
   if (lots.isPending) {
     return (
-      <div className="flex justify-center py-12 text-slate-400">
-        <LoaderCircle className="size-6 animate-spin" aria-label="lot 불러오는 중" />
+      <div className="flex justify-center py-12 text-slate-500">
+        <LoaderCircle className="size-6 animate-spin" aria-label="소비기한별 수량 불러오는 중" />
       </div>
     )
   }
   if (lots.isError) {
     return (
       <p className="px-4 py-12 text-center text-sm text-red-600">
-        {apiErrorMessage(lots.error, 'lot 정보를 불러오지 못했어요.')}
+        {apiErrorMessage(lots.error, '소비기한별 수량을 불러오지 못했어요.')}
       </p>
     )
   }
   if (lots.data.length === 0) {
-    return <p className="px-4 py-12 text-center text-sm text-slate-500">남은 lot이 없어요.</p>
+    return <p className="px-4 py-12 text-center text-sm text-slate-500">남은 재고가 없어요.</p>
   }
 
   return (
@@ -135,9 +136,9 @@ function LotTable({
               <button
                 type="button"
                 onClick={() => onAdjust(lot.lotId)}
-                aria-label={`${formatExpiry(lot.expiryDate)} lot 조정`}
+                aria-label={`${formatExpiry(lot.expiryDate)} 묶음 조정`}
                 title="재고 조정"
-                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
               >
                 <PencilLine className="size-4" aria-hidden />
               </button>

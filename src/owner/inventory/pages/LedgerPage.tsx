@@ -17,9 +17,9 @@ const TYPE_LABEL: Record<LedgerType, string> = {
 
 const TYPE_CLASS: Record<LedgerType, string> = {
   INBOUND: 'bg-emerald-100 text-emerald-800',
-  SALE: 'bg-sky-100 text-sky-800',
+  SALE: 'bg-slate-100 text-slate-600',
   DISPOSE: 'bg-red-100 text-red-700',
-  ADJUST: 'bg-violet-100 text-violet-800',
+  ADJUST: 'bg-slate-100 text-slate-600',
   RETURN: 'bg-amber-100 text-amber-800',
 }
 
@@ -35,7 +35,7 @@ const FILTERS: { label: string; type?: LedgerType }[] = [
 type Tab = 'history' | 'stats' | 'adjustments'
 
 const DESCRIPTION: Record<Tab, string> = {
-  history: '입고·판매·폐기·조정·환불 복원으로 바뀐 수량을 3초마다 새로 읽어요.',
+  history: '입고·판매·폐기·조정·환불 복원으로 바뀐 수량이에요. 최신순이에요.',
   stats: '고른 기간의 입고·판매·폐기 수량을 상품별로 더했어요.',
   adjustments: '점주가 직접 고친 수량이에요. 얼마에서 얼마로, 왜 바꿨는지 남아요.',
 }
@@ -97,7 +97,7 @@ function LedgerHistory() {
                 onClick={() => setType(filter.type)}
                 className={cn(
                   'rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100',
-                  selected && 'bg-emerald-600 text-white hover:bg-emerald-600',
+                  selected && 'bg-emerald-700 text-white hover:bg-emerald-700',
                 )}
               >
                 {filter.label}
@@ -107,7 +107,7 @@ function LedgerHistory() {
         </div>
       </div>
       <LedgerTable ledger={ledger} />
-      <p className="text-xs text-slate-400">최근 100건까지 보여요.</p>
+      <p className="text-xs text-slate-500">최근 100건까지 보여요.</p>
     </div>
   )
 }
@@ -115,7 +115,7 @@ function LedgerHistory() {
 function LedgerTable({ ledger }: { ledger: ReturnType<typeof useLedger> }) {
   if (ledger.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -140,7 +140,7 @@ function LedgerTable({ ledger }: { ledger: ReturnType<typeof useLedger> }) {
             <th className="px-3 py-3 font-medium">종류</th>
             <th className="px-3 py-3 font-medium">상품</th>
             <th className="px-3 py-3 text-right font-medium">수량</th>
-            <th className="px-4 py-3 font-medium">참조</th>
+            <th className="px-4 py-3 font-medium">관련 번호</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 text-slate-900">
@@ -166,7 +166,7 @@ function LedgerRow({ item }: { item: LedgerItem }) {
       </td>
       <td className="px-3 py-3 whitespace-nowrap">
         <p className="font-medium">{item.productName}</p>
-        <p className="text-xs text-slate-400">소비기한 {formatExpiry(item.expiryDate)}</p>
+        <p className="text-xs text-slate-500">소비기한 {formatExpiry(item.expiryDate)}</p>
       </td>
       <td
         className={cn(
@@ -176,7 +176,7 @@ function LedgerRow({ item }: { item: LedgerItem }) {
       >
         {formatSignedQuantity(item.quantity)}
       </td>
-      <td className="px-4 py-3 text-xs whitespace-nowrap text-slate-400">{item.refId ?? '-'}</td>
+      <td className="px-4 py-3 text-xs whitespace-nowrap text-slate-500">{item.refId ?? '-'}</td>
     </tr>
   )
 }

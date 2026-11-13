@@ -18,7 +18,8 @@ export function NoticeDetailPage({ basePath }: Props) {
   const notice = useNotice(id)
 
   return (
-    <article className="space-y-4">
+    // 점주 넓은 화면에서도 본문 한 줄이 너무 길지 않게 폭을 묶는다(고객 화면은 원래 더 좁아 그대로)
+    <article className="max-w-3xl space-y-4">
       <Link
         to={basePath}
         className="-ml-1 inline-flex min-h-11 items-center gap-1 pr-2 text-sm text-slate-500"

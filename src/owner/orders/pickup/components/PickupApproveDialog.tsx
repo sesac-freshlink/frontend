@@ -124,7 +124,7 @@ export function PickupApproveDialog({ pickupKey, onClose }: Props) {
               type="button"
               onClick={flow.askConfirm}
               disabled={flow.selected.length === 0}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               픽업 승인
             </button>
@@ -148,7 +148,7 @@ export function PickupApproveDialog({ pickupKey, onClose }: Props) {
                 type="button"
                 onClick={() => void flow.approve()}
                 disabled={flow.submitting}
-                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
                 {flow.submitting && <LoaderCircle className="size-4 animate-spin" />}
                 바꾸기
@@ -160,7 +160,7 @@ export function PickupApproveDialog({ pickupKey, onClose }: Props) {
           <button
             type="button"
             onClick={close}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white"
+            className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white"
           >
             확인
           </button>

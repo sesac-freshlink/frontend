@@ -10,9 +10,9 @@ export function isRole(v: unknown): v is Role {
 
 /** 역할별 로그인 후 첫 화면 */
 const HOME_PATH: Record<Role, string> = {
-  OWNER: '/owner/inventory',
+  OWNER: '/owner',
   CUSTOMER: '/customer',
-  ADMIN: '/admin/stores',
+  ADMIN: '/admin',
 }
 
 export function homePathFor(role: Role): string {

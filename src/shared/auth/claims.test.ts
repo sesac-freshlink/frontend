@@ -15,8 +15,8 @@ describe('isRole', () => {
 
 describe('homePathFor', () => {
   it('역할별 홈', () => {
-    expect(homePathFor('OWNER')).toBe('/owner/inventory')
+    expect(homePathFor('OWNER')).toBe('/owner')
     expect(homePathFor('CUSTOMER')).toBe('/customer')
-    expect(homePathFor('ADMIN')).toBe('/admin/stores')
+    expect(homePathFor('ADMIN')).toBe('/admin')
   })
 })

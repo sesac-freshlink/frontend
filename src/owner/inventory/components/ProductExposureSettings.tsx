@@ -27,7 +27,7 @@ export function ProductExposureSettings() {
 
   if (recommendations.isPending || firstCome.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -100,7 +100,7 @@ export function ProductExposureSettings() {
           type="button"
           onClick={() => applySelected(true)}
           disabled={selectedIds.length === 0 || setRecommendations.isPending}
-          className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-emerald-600"
+          className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-40 disabled:hover:bg-emerald-600"
         >
           선택 추천 켜기
         </button>
@@ -218,7 +218,6 @@ function ExposureRow({
       </td>
       <td className="px-3 py-3 whitespace-nowrap">
         <p className="font-medium">{item.name}</p>
-        <p className="text-xs text-slate-400">{item.productCode}</p>
       </td>
       <td className="px-3 py-3 whitespace-nowrap text-slate-600">{item.category}</td>
       <td className="px-3 py-3 text-center">
@@ -230,7 +229,7 @@ function ExposureRow({
           disabled={setRecommendation.isPending}
           className={cn(
             'rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500 disabled:opacity-40',
-            item.recommended && 'border-emerald-600 bg-emerald-600 text-white',
+            item.recommended && 'border-emerald-600 bg-emerald-700 text-white',
           )}
         >
           {item.recommended ? '추천 중' : '추천 안 함'}
@@ -267,7 +266,7 @@ function ExposureRow({
           <button
             type="submit"
             disabled={!changed || setFirstCome.isPending}
-            className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-emerald-600"
+            className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-40 disabled:hover:bg-emerald-600"
           >
             {enabled ? '한도 저장' : '선착순 켜기'}
           </button>

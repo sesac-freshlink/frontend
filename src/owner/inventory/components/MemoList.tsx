@@ -11,7 +11,7 @@ export function MemoList() {
 
   if (memos.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -37,12 +37,9 @@ export function MemoList() {
         {memos.data.map((memo) => (
           <li key={memo.productId} className="flex items-start justify-between gap-4 px-4 py-3">
             <div className="min-w-0 space-y-1">
-              <p className="text-sm font-medium text-slate-900">
-                {memo.name}
-                <span className="ml-2 text-xs font-normal text-slate-400">{memo.productCode}</span>
-              </p>
+              <p className="text-sm font-medium text-slate-900">{memo.name}</p>
               <p className="text-sm whitespace-pre-wrap text-slate-600">{memo.content}</p>
-              <p className="text-xs text-slate-400 tabular-nums">
+              <p className="text-xs text-slate-500 tabular-nums">
                 {formatDateTime(memo.updatedAt)} 저장
               </p>
             </div>

@@ -1,5 +1,6 @@
 import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
+import { formatShortDate } from '@/owner/sales/sales'
 import { cn } from '@/shared/ui/cn'
 import { apiErrorMessage, useInventoryStats, type InventoryStats, type ProductStats } from '../api'
 import { formatRate, formatSignedQuantity, statsPeriod } from '../format'
@@ -38,7 +39,7 @@ export function InventoryStatsPanel() {
               onClick={() => choose(value)}
               className={cn(
                 'rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100',
-                value === days && 'bg-emerald-600 text-white hover:bg-emerald-600',
+                value === days && 'bg-emerald-700 text-white hover:bg-emerald-700',
               )}
             >
               최근 {value}일
@@ -46,7 +47,7 @@ export function InventoryStatsPanel() {
           ))}
         </div>
         <p className="text-sm text-slate-500 tabular-nums">
-          {period.from} ~ {period.to}
+          {formatShortDate(period.from)} ~ {formatShortDate(period.to)}
         </p>
       </div>
       <StatsBody stats={stats} />
@@ -57,7 +58,7 @@ export function InventoryStatsPanel() {
 function StatsBody({ stats }: { stats: ReturnType<typeof useInventoryStats> }) {
   if (stats.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -92,9 +93,10 @@ function Totals({ stats }: { stats: InventoryStats }) {
     { label: '폐기율', value: formatRate(stats.disposalRate) },
   ]
   return (
-    <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+    // 매출 화면 위 숫자 칸과 같은 모양: 한 판 안에 세로줄로 나눈다
+    <dl className="grid grid-cols-5 divide-x divide-slate-200 rounded-lg border border-slate-200 bg-white">
       {tiles.map((tile) => (
-        <div key={tile.label} className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+        <div key={tile.label} className="px-4 py-3">
           <dt className="text-xs text-slate-500">{tile.label}</dt>
           <dd className="mt-1 text-lg font-bold text-slate-900 tabular-nums">{tile.value}</dd>
         </div>
@@ -123,7 +125,6 @@ function ProductTable({ products }: { products: ProductStats[] }) {
             <tr key={item.productId}>
               <td className="px-4 py-3 whitespace-nowrap">
                 <p className="font-medium">{item.name}</p>
-                <p className="text-xs text-slate-400">{item.productCode}</p>
               </td>
               <td className="px-3 py-3 whitespace-nowrap text-slate-600">{item.category}</td>
               <td className="px-3 py-3 text-right tabular-nums">{item.inboundQuantity}</td>

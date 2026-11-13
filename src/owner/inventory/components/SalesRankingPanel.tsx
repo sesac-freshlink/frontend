@@ -1,7 +1,7 @@
 import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
+import { formatShortDate } from '@/owner/sales/sales'
 import { cn } from '@/shared/ui/cn'
-import { ProductThumb } from '@/shared/ui/ProductThumb'
 import { apiErrorMessage, useSalesRanking, type SalesRankItem } from '../api'
 import { formatRate, statsPeriod } from '../format'
 
@@ -44,7 +44,7 @@ export function SalesRankingPanel() {
               onClick={() => choose(value)}
               className={cn(
                 'rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100',
-                value === days && 'bg-emerald-600 text-white hover:bg-emerald-600',
+                value === days && 'bg-emerald-700 text-white hover:bg-emerald-700',
               )}
             >
               {label}
@@ -52,7 +52,9 @@ export function SalesRankingPanel() {
           ))}
         </div>
         <p className="text-sm text-slate-500 tabular-nums">
-          {period.from === period.to ? period.to : `${period.from} ~ ${period.to}`}
+          {period.from === period.to
+            ? formatShortDate(period.to)
+            : `${formatShortDate(period.from)} ~ ${formatShortDate(period.to)}`}
         </p>
       </div>
       <RankingBody ranking={ranking} />
@@ -63,7 +65,7 @@ export function SalesRankingPanel() {
 function RankingBody({ ranking }: { ranking: ReturnType<typeof useSalesRanking> }) {
   if (ranking.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -123,13 +125,8 @@ function RankRow({ item }: { item: SalesRankItem }) {
         </span>
       </td>
       <td className="px-3 py-2 whitespace-nowrap">
-        <div className="flex items-center gap-3">
-          <ProductThumb src={item.imageUrl} name={item.name} />
-          <div>
-            <p className="font-medium">{item.name}</p>
-            <p className="text-xs text-slate-400">{item.productCode}</p>
-          </div>
-        </div>
+        {/* 11/12 결정: 목록에는 사진·상품 코드를 넣지 않는다(사진은 상세에서) */}
+        <p className="font-medium">{item.name}</p>
       </td>
       <td className="px-3 py-2 text-right font-semibold tabular-nums">{item.soldQuantity}개</td>
       <td className="px-4 py-2 text-right text-slate-500 tabular-nums">{formatRate(item.share)}</td>

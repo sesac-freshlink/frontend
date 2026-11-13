@@ -49,7 +49,7 @@ describe('배너 입력 규칙 (A18)', () => {
     expect(toOffset('')).toBeNull()
   })
 
-  it('고치기 기본값은 +09:00 시각을 입력 칸 값으로 바꾼다', () => {
+  it('수정 기본값은 +09:00 시각을 입력 칸 값으로 바꾼다', () => {
     expect(
       bannerDefaults(b(1, { startsAt: '2026-11-15T00:00:00+09:00', noticeId: 3 })),
     ).toMatchObject({
@@ -89,7 +89,7 @@ describe('배너 목록 안내', () => {
   })
 
   it('기간 한 줄과 순서 옮기기', () => {
-    expect(formatPeriod(null, null)).toBe('늘')
+    expect(formatPeriod(null, null)).toBe('제한 없음')
     expect(formatPeriod('2026-11-15T00:00:00+09:00', null)).toBe('11.15 00:00 ~ 계속')
     expect(formatPeriod(null, '2026-11-21T23:59:00+09:00')).toBe('바로 ~ 11.21 23:59')
     expect(moveBanner([1, 2, 3], 2, -1)).toEqual([1, 3, 2])

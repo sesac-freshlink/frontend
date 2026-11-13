@@ -106,7 +106,10 @@ describe('소비기한 관리 (S-30·S-32)', () => {
 
     // 역할(role) 찾기는 매번 접근성 트리를 계산해 느리다. 글자로 먼저 기다리고 역할은 한 번만 찾는다
     await screen.findByText('흰우유 200ml')
-    expect(screen.getByRole('tab', { name: '경과 2' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: '소비기한 지남 2' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
     expect(screen.getByRole('tab', { name: '임박 2' })).toHaveAttribute('aria-selected', 'false')
     expect(get).toHaveBeenCalledWith('/owner/inventory/expiring')
     expect(screen.getByText('흰우유 200ml')).toBeInTheDocument()
@@ -127,7 +130,7 @@ describe('소비기한 관리 (S-30·S-32)', () => {
       'aria-selected',
       'true',
     )
-    expect(screen.getByRole('tab', { name: '경과 0' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '소비기한 지남 0' })).toBeInTheDocument()
   })
 
   it('폐기 가능 수량이 0 인 lot 은 고를 수 없고 "예약 중" 으로 보인다', async () => {
@@ -222,7 +225,7 @@ describe('소비기한 관리 (S-30·S-32)', () => {
   it('빈 목록이면 안내 문구를 보여 준다', async () => {
     mockLots([])
     renderPage()
-    expect(await screen.findByText('임박하거나 지난 lot이 없어요.')).toBeInTheDocument()
+    expect(await screen.findByText('소비기한이 임박하거나 지난 상품이 없어요.')).toBeInTheDocument()
   })
 
   it('서버 오류 본문의 message 를 보여 준다', async () => {
@@ -270,14 +273,14 @@ describe('소비기한 관리 (S-30·S-32)', () => {
     })
     renderPage()
 
-    const all = await screen.findByRole('button', { name: '경과 전부 폐기 (2)' })
+    const all = await screen.findByRole('button', { name: '소비기한 지난 상품 전부 폐기 (2)' })
     await userEvent.click(all)
-    const dialog = screen.getByRole('dialog', { name: '경과 lot 전부 폐기' })
+    const dialog = screen.getByRole('dialog', { name: '소비기한 지난 상품 전부 폐기' })
     expect(within(dialog).getByText('12개')).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: '전부 폐기 요청' }))
 
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith('경과 lot 2개, 12개 폐기 요청됨'),
+      expect(toast.success).toHaveBeenCalledWith('소비기한 지난 2묶음, 12개 폐기 요청됨'),
     )
     expect(post).toHaveBeenCalledTimes(1)
     expect(post).toHaveBeenCalledWith('/owner/inventory/disposals/expired')
@@ -289,10 +292,14 @@ describe('소비기한 관리 (S-30·S-32)', () => {
     post.mockResolvedValue({ data: { lotCount: 0, quantity: 0, items: [] } })
     renderPage()
 
-    await userEvent.click(await screen.findByRole('button', { name: /경과 전부 폐기/ }))
+    await userEvent.click(
+      await screen.findByRole('button', { name: /소비기한 지난 상품 전부 폐기/ }),
+    )
     await userEvent.click(screen.getByRole('button', { name: '전부 폐기 요청' }))
 
-    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('새로 폐기할 경과 lot이 없어요.'))
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith('새로 폐기할 소비기한 지난 상품이 없어요.'),
+    )
     expect(toast.success).not.toHaveBeenCalled()
   })
 
@@ -300,8 +307,12 @@ describe('소비기한 관리 (S-30·S-32)', () => {
     mockLots(lots.map((lot) => (lot.expired ? { ...lot, disposableQuantity: 0 } : lot)))
     renderPage()
 
-    expect(await screen.findByRole('button', { name: '경과 전부 폐기 (0)' })).toBeDisabled()
+    expect(
+      await screen.findByRole('button', { name: '소비기한 지난 상품 전부 폐기 (0)' }),
+    ).toBeDisabled()
     await userEvent.click(screen.getByRole('tab', { name: /임박/ }))
-    expect(screen.queryByRole('button', { name: /경과 전부 폐기/ })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /소비기한 지난 상품 전부 폐기/ }),
+    ).not.toBeInTheDocument()
   })
 })

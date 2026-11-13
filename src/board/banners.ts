@@ -69,7 +69,7 @@ function useInvalidateBanners() {
   }
 }
 
-/** AD-14 등록(bannerId 없음) · AD-15 고치기 */
+/** AD-14 등록(bannerId 없음) · AD-15 수정 */
 export function useSaveBanner() {
   const invalidate = useInvalidateBanners()
   return useMutation({
@@ -132,9 +132,9 @@ export function bannerHomeStatus(banners: AdminBanner[], now: Date): Map<number,
   return result
 }
 
-/** 기간 한 줄: "11.15 00:00 ~ 11.21 23:59", 비면 "바로"·"계속" */
+/** 기간 한 줄: "11.15 00:00 ~ 11.21 23:59", 비면 "바로"·"계속". 둘 다 비면 11/11 결정 말 그대로 "제한 없음" */
 export function formatPeriod(startsAt: string | null, endsAt: string | null): string {
-  if (!startsAt && !endsAt) return '늘'
+  if (!startsAt && !endsAt) return '제한 없음'
   const f = (iso: string) => dayjs(iso).tz('Asia/Seoul').format('MM.DD HH:mm')
   return `${startsAt ? f(startsAt) : '바로'} ~ ${endsAt ? f(endsAt) : '계속'}`
 }

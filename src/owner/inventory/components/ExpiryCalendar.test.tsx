@@ -100,10 +100,10 @@ function renderCalendar() {
 
 /**
  * 날짜 칸 버튼. 역할(role) 찾기는 칸이 35개라 부하가 걸리면 느리다.
- * 달력 제목 다음에 그려지는 lot 배지 글자를 먼저 기다린 뒤 바로 찾는다
+ * 달력 제목 다음에 그려지는 수량 배지 글자를 먼저 기다린 뒤 바로 찾는다
  */
 async function dayCell(name: string) {
-  await screen.findAllByText(/ lot · /, undefined, { timeout: 3000 })
+  await screen.findAllByText(/^\d+개$/, undefined, { timeout: 3000 })
   return screen.getByRole('button', { name })
 }
 
@@ -119,7 +119,7 @@ describe('소비기한 달력', () => {
     vi.useRealTimers()
   })
 
-  it('이번 달을 부르고, lot 이 있는 날짜 칸에 lot 수·수량을 그날 가장 급한 상태 색으로 보여 준다', async () => {
+  it('이번 달을 부르고, 상품이 있는 날짜 칸에 수량을 그날 가장 급한 상태 색으로 보여 준다', async () => {
     get.mockResolvedValue({ data: october })
     renderCalendar()
 
@@ -127,15 +127,11 @@ describe('소비기한 달력', () => {
     expect(get).toHaveBeenCalledWith('/owner/inventory/expiry-calendar', {
       params: { month: '2026-10' },
     })
-    const expired = await dayCell('10월 20일, lot 1개 2개')
-    expect(within(expired).getByText('1 lot · 2개')).toHaveClass('bg-red-100')
-    expect(within(await dayCell('10월 25일, lot 2개 7개')).getByText('2 lot · 7개')).toHaveClass(
-      'bg-amber-100',
-    )
-    expect(within(await dayCell('10월 31일, lot 1개 5개')).getByText('1 lot · 5개')).toHaveClass(
-      'bg-emerald-50',
-    )
-    // lot 이 없는 날은 날짜만
+    const expired = await dayCell('10월 20일, 2개')
+    expect(within(expired).getByText('2개')).toHaveClass('bg-red-100')
+    expect(within(await dayCell('10월 25일, 7개')).getByText('7개')).toHaveClass('bg-amber-100')
+    expect(within(await dayCell('10월 31일, 5개')).getByText('5개')).toHaveClass('bg-emerald-50')
+    // 상품이 없는 날은 날짜만
     expect(screen.getByRole('button', { name: '10월 21일' })).toBeInTheDocument()
   })
 
@@ -143,8 +139,8 @@ describe('소비기한 달력', () => {
     get.mockResolvedValue({ data: october })
     renderCalendar()
 
-    expect(await dayCell('10월 25일, lot 2개 7개')).toHaveAttribute('aria-pressed', 'true')
-    const list = await screen.findByRole('region', { name: '10월 25일 lot' })
+    expect(await dayCell('10월 25일, 7개')).toHaveAttribute('aria-pressed', 'true')
+    const list = await screen.findByRole('region', { name: '10월 25일 상품' })
     const rows = within(list).getAllByRole('row').slice(1)
     expect(rows.map((row) => row.querySelector('p')?.textContent)).toEqual([
       '흰 우유 500ml',
@@ -158,13 +154,13 @@ describe('소비기한 달력', () => {
     get.mockResolvedValue({ data: october })
     renderCalendar()
 
-    await userEvent.click(await dayCell('10월 20일, lot 1개 2개'))
-    const list = screen.getByRole('region', { name: '10월 20일 lot' })
+    await userEvent.click(await dayCell('10월 20일, 2개'))
+    const list = screen.getByRole('region', { name: '10월 20일 상품' })
     expect(within(list).getByText('단팥빵')).toBeInTheDocument()
-    expect(within(list).getByText('경과')).toBeInTheDocument()
+    expect(within(list).getByText('소비기한 지남')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: '10월 21일' }))
-    expect(screen.getByText('이날 기한이 끝나는 lot이 없어요.')).toBeInTheDocument()
+    expect(screen.getByText('이날 소비기한이 끝나는 상품이 없어요.')).toBeInTheDocument()
   })
 
   it('다음 달·이전 달 버튼으로 그 달을 부르고, 고른 날짜는 지운다', async () => {
@@ -173,7 +169,7 @@ describe('소비기한 달력', () => {
       return Promise.resolve({ data: month === '2026-10' ? october : { month, days: [] } })
     })
     renderCalendar()
-    await dayCell('10월 25일, lot 2개 7개')
+    await dayCell('10월 25일, 7개')
 
     await userEvent.click(screen.getByRole('button', { name: '다음 달' }))
 
@@ -183,7 +179,7 @@ describe('소비기한 달력', () => {
         params: { month: '2026-11' },
       }),
     )
-    expect(await screen.findByText('이 달에 기한이 끝나는 lot이 없어요.')).toBeInTheDocument()
+    expect(await screen.findByText('이 달에 소비기한이 끝나는 상품이 없어요.')).toBeInTheDocument()
     expect(screen.queryByRole('region')).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: '이전 달' }))

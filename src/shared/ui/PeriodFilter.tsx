@@ -52,7 +52,7 @@ export function PeriodFilter({ period, onChange, hint }: PeriodFilterProps) {
         >
           <X className="size-4" aria-hidden="true" />
         </button>
-        {hint && <span className="hidden shrink-0 text-xs text-slate-400 lg:inline">{hint}</span>}
+        {hint && <span className="hidden shrink-0 text-xs text-slate-500 lg:inline">{hint}</span>}
       </div>
       {reversed && (
         <p role="alert" className="text-sm text-rose-700">

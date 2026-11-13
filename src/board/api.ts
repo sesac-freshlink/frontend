@@ -99,7 +99,7 @@ export function useAdminNotices(page: number) {
   })
 }
 
-/** 관리자 공지 하나 (고치기 화면에 본문까지 채운다) */
+/** 관리자 공지 하나 (수정 화면에 본문까지 채운다) */
 export function useAdminNotice(noticeId: number | null) {
   return useQuery({
     queryKey: [...adminNoticesKey, 'detail', noticeId],
@@ -108,7 +108,7 @@ export function useAdminNotice(noticeId: number | null) {
   })
 }
 
-/** 관리자 공지 쓰기(noticeId 없음) 또는 고치기 */
+/** 관리자 공지 쓰기(noticeId 없음) 또는 수정 */
 export function useSaveNotice() {
   const queryClient = useQueryClient()
   return useMutation({

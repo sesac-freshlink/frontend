@@ -9,6 +9,10 @@ export interface InventoryItem {
   productCode: string
   name: string
   category: string
+  /** 브랜드. 서버가 아직 안 주면 없음(화면은 "-") */
+  brand?: string | null
+  /** 마감세일로 파는 수량(판매 가능 안에 포함). 서버가 아직 안 주면 없음(화면은 "-") */
+  clearanceQuantity?: number | null
   price: number
   /** 상품 이미지 주소. 없으면 null (화면이 자리표시를 보여 준다) */
   imageUrl: string | null
