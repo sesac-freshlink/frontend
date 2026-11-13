@@ -1,4 +1,5 @@
 import {
+  Bot,
   ChartColumn,
   CircleHelp,
   ClipboardList,
@@ -25,6 +26,7 @@ const MENU_GROUPS = [
       { to: '/owner/inventory', label: '매장 재고', icon: Package },
       { to: '/owner/ledger', label: '변동 이력', icon: History },
       { to: '/owner/expiring', label: '임박·폐기', icon: TriangleAlert },
+      { to: '/owner/assistant', label: 'AI 비서', icon: Bot },
     ],
   },
   {
