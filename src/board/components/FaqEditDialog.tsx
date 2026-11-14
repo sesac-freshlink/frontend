@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import type { z } from 'zod'
 import { FormField } from '@/auth/components/FormField'
 import { describedBy, inputClass } from '@/auth/components/fieldStyles'
-import type { FaqItem } from '../api'
+import type { Audience, FaqItem } from '../api'
 import { useSaveFaq } from '../api'
 import { type FaqForm, faqDefaults, faqSchema, toFaqRequest } from '../boardForm'
 import { AudienceSelect } from './AudienceSelect'
@@ -17,6 +17,9 @@ interface Props {
   faq?: FaqItem
   onClose(): void
 }
+
+/** FAQ 볼 사람. 점주 화면에서 자주 묻는 질문을 뺐으므로(11/14 경우 결정) 점주는 고르지 않는다 */
+const FAQ_AUDIENCES: Audience[] = ['ALL', 'CUSTOMER']
 
 /** 관리자 FAQ 쓰기·수정 창 (추가 명세 A17) */
 export function FaqEditDialog({ faq, onClose }: Props) {
@@ -68,6 +71,7 @@ export function FaqEditDialog({ faq, onClose }: Props) {
           id="faq-audience"
           error={errors.audience?.message}
           field={register('audience')}
+          options={FAQ_AUDIENCES}
         />
         <FormField
           id="faq-sort"

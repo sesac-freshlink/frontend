@@ -8,8 +8,11 @@ vi.mock('@/owner/store/api', () => ({ useOwnerStore: () => ({ data: { name: '프
 vi.mock('@/owner/sales/useTodaySales', () => ({
   useTodaySales: () => ({ today: '2026-11-13', totals: undefined }),
 }))
+const useOwnerOrders = vi.fn((_query: { tab: string }) => ({
+  data: { content: [], totalElements: 0 },
+}))
 vi.mock('@/owner/orders/api', () => ({
-  useOwnerOrders: () => ({ data: { content: [], totalElements: 0 } }),
+  useOwnerOrders: (query: { tab: string }) => useOwnerOrders(query),
 }))
 vi.mock('@/owner/orders/pages/OwnerOrdersPage', () => ({ ReadyButton: () => null }))
 vi.mock('@/board/api', () => ({ useNotices: () => ({ data: { content: [] } }) }))
@@ -26,6 +29,17 @@ vi.mock('@/owner/inventory/api', () => ({
 }))
 
 describe('OwnerDashboardPage', () => {
+  it('픽업 대기는 결제·픽업 화면 픽업 대기 구분(픽업 신청)과 같은 주문을 센다 (11/15)', () => {
+    render(
+      <MemoryRouter>
+        <OwnerDashboardPage />
+      </MemoryRouter>,
+    )
+    expect(useOwnerOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ tab: 'PICKUP_REQUESTED' }),
+    )
+  })
+
   it('소비기한 지남은 수량에 천 단위 쉼표와 "개"를 붙이고, 아래에 "상품 N개"로 상품 수를 보여 준다 (11/13·11/14 경우 결정)', () => {
     render(
       <MemoryRouter>

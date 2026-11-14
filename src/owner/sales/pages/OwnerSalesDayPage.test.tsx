@@ -81,7 +81,14 @@ vi.mock('../api', () => ({
 }))
 vi.mock('@/owner/orders/api', () => ({
   useOwnerOrders: ({ tab }: { tab: string }) => ({
-    data: { totalElements: { PICKED_UP: 30, PICKUP_WAITING: 12, PICKUP_EXPIRED: 1 }[tab] },
+    data: {
+      totalElements: {
+        PICKED_UP: 30,
+        PICKUP_REQUESTED: 12,
+        READY_FOR_PICKUP: 4,
+        PICKUP_EXPIRED: 1,
+      }[tab],
+    },
   }),
 }))
 
@@ -96,7 +103,7 @@ function renderAt(path: string) {
   return router
 }
 
-describe('점주 하루 보기 (11/14 시안 A)', () => {
+describe('점주 매출 상세 (11/14 시안 A, 이름 바꿈)', () => {
   beforeEach(() => {
     calls.sales.length = 0
     calls.products.length = 0
@@ -104,6 +111,12 @@ describe('점주 하루 보기 (11/14 시안 A)', () => {
     vi.setSystemTime(new Date('2026-11-14T03:00:00Z')) // 오늘 = 11/14(토) KST
   })
   afterEach(() => vi.useRealTimers())
+
+  it('제목은 "매출 상세"이고, 위 "매출" 링크로 매출 화면에 돌아간다 (11/14)', () => {
+    renderAt('/owner/sales/day?date=2026-11-13')
+    expect(screen.getByRole('heading', { level: 1, name: '매출 상세' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '매출' })).toHaveAttribute('href', '/owner/sales')
+  })
 
   it('주소의 날짜로 숫자 4칸·팔린 상품·픽업·폐기 입고를 보여 준다', () => {
     renderAt('/owner/sales/day?date=2026-11-13')
@@ -130,6 +143,9 @@ describe('점주 하루 보기 (11/14 시안 A)', () => {
     expect(within(rows[1]).getByText('품절')).toBeInTheDocument()
 
     expect(screen.getByText('픽업 기한 지남').nextSibling).toHaveTextContent('1건')
+    // 픽업 대기(픽업 신청)·준비 완료는 결제·픽업 구분과 같은 이름 (11/15)
+    expect(screen.getByText('픽업 대기').nextSibling).toHaveTextContent('12건')
+    expect(screen.getByText('준비 완료').nextSibling).toHaveTextContent('4건')
     expect(screen.getByText('폐기 2개')).toBeInTheDocument()
     expect(screen.getByText('입고 20개')).toBeInTheDocument()
   })

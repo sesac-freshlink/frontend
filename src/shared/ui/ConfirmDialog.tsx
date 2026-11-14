@@ -6,21 +6,23 @@ interface ConfirmDialogProps {
   title: string
   /** 제목 아래 안내 한 줄 (픽업 신청) */
   description?: string
-  confirmLabel: string
+  /** 기본 '확인' */
+  confirmLabel?: string
   /** danger: 취소처럼 되돌릴 수 없는 일(빨강), primary: 신청(초록) */
   tone?: 'danger' | 'primary'
-  pending: boolean
-  onConfirm(): void
+  pending?: boolean
+  /** 없으면 안내 모달: [닫기] 없이 [확인] 하나가 닫는다 (점주 선착순 한도·추천 선택 안내) */
+  onConfirm?(): void
   onClose(): void
 }
 
-/** 한 번 더 묻는 작은 확인 모달 (A7 결제 전 취소, 픽업 신청). 처리 중에는 닫히지 않는다 */
+/** 한 번 더 묻는 작은 확인 모달 (A7 결제 전 취소, 픽업 신청)·안내 모달. 처리 중에는 닫히지 않는다 */
 export function ConfirmDialog({
   title,
   description,
-  confirmLabel,
+  confirmLabel = '확인',
   tone = 'danger',
-  pending,
+  pending = false,
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
@@ -53,7 +55,7 @@ export function ConfirmDialog({
       onCancel={onCancel}
       onClose={onDialogClose}
       className={cn(
-        'm-auto w-full max-w-sm space-y-4 rounded-lg bg-white p-6 shadow-lg',
+        'm-auto w-full max-w-sm space-y-4 rounded-lg bg-white p-6 text-left shadow-lg',
         'backdrop:bg-slate-900/40',
       )}
     >
@@ -62,17 +64,19 @@ export function ConfirmDialog({
       </h2>
       {description && <p className="text-sm text-slate-600">{description}</p>}
       <div className="flex justify-end gap-2">
+        {onConfirm && (
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={pending}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+          >
+            닫기
+          </button>
+        )}
         <button
           type="button"
-          onClick={onClose}
-          disabled={pending}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-        >
-          닫기
-        </button>
-        <button
-          type="button"
-          onClick={onConfirm}
+          onClick={onConfirm ?? onClose}
           disabled={pending}
           aria-busy={pending}
           className={cn(

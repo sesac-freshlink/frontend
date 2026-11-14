@@ -208,7 +208,7 @@ export function chartSummary(periods: SalesPeriod[], unit: SalesUnit, title: str
   return `${title} 그래프. ${range}, 합계 ${formatWon(total)}, 가장 높은 때 ${axisLabel(top.period, unit)} ${formatWon(top.netAmount)}`
 }
 
-/** "2026-11-13" → "11월 13일(금)" (하루 보기 제목·매출 날짜 창) */
+/** "2026-11-13" → "11월 13일(금)" (매출 상세·매출 날짜 창) */
 export function formatDayTitle(date: string): string {
   const d = day(date)
   return `${d.month() + 1}월 ${d.date()}일(${WEEKDAYS[d.day()]})`

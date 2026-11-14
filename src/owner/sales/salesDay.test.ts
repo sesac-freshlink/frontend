@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { disposalSummary, formatDayTitle, parseDayParam, shiftDay, sumSoldProducts } from './sales'
 
-describe('하루 보기 계산 (11/14)', () => {
+describe('매출 상세 계산 (11/14)', () => {
   it('날짜 제목은 "11월 13일(금)", 앞뒤 날짜는 달·해를 넘어간다', () => {
     expect(formatDayTitle('2026-11-13')).toBe('11월 13일(금)')
     expect(shiftDay('2026-11-01', -1)).toBe('2026-10-31')

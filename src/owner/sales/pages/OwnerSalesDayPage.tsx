@@ -16,7 +16,7 @@ import {
 } from '../sales'
 
 /**
- * 점주 하루 보기 (11/14 경우 결정, 시안 "점주 · 하루 보기 (예시 안 A)"): 날짜 하나 기준으로 그날 순매출·결제 건수·
+ * 점주 매출 상세 (11/14 경우 결정, 시안 "점주 · 하루 보기 (예시 안 A)", 11/14 이름을 "매출 상세"로 바꿈): 날짜 하나 기준으로 그날 순매출·결제 건수·
  * 팔린 수량·폐기, 팔린 상품 표, 픽업 건수, 폐기·입고를 한 화면에 둔다. 날짜는 주소 ?date= 로 정하고 없으면 오늘이다
  */
 export function OwnerSalesDayPage() {
@@ -39,7 +39,17 @@ export function OwnerSalesDayPage() {
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-bold text-slate-900">하루 보기</h1>
+        <div>
+          {/* 11/14 경우 결정: 매출 화면으로 돌아가는 링크(시안 "매출 상세 안1 페이지") */}
+          <Link
+            to="/owner/sales"
+            className="-ml-1 inline-flex min-h-11 items-center gap-1 px-1 text-sm font-medium text-slate-600 hover:text-slate-900"
+          >
+            <ChevronLeft className="size-4" aria-hidden />
+            매출
+          </Link>
+          <h1 className="text-xl font-bold text-slate-900">매출 상세</h1>
+        </div>
         <DayStepper date={date} today={today} onChange={go} />
       </div>
 
@@ -239,11 +249,12 @@ function DayStat({
   )
 }
 
-/** 픽업 건수: 그날 주문(주문일 기준)의 픽업 완료·픽업 대기·픽업 기한 지남 */
+/** 픽업 건수: 그날 주문(주문일 기준)의 픽업 완료·픽업 대기(픽업 신청)·준비 완료·픽업 기한 지남. 결제·픽업 구분과 같은 이름 (11/15 경우) */
 function PickupCard({ date }: { date: string }) {
   const rows: { tab: OwnerOrderTab; label: string }[] = [
     { tab: 'PICKED_UP', label: '픽업 완료' },
-    { tab: 'PICKUP_WAITING', label: '픽업 대기' },
+    { tab: 'PICKUP_REQUESTED', label: '픽업 대기' },
+    { tab: 'READY_FOR_PICKUP', label: '준비 완료' },
     { tab: 'PICKUP_EXPIRED', label: '픽업 기한 지남' },
   ]
   return (

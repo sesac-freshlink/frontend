@@ -39,8 +39,18 @@ export interface OwnerOrder {
   refund: RefundInfo | null
 }
 
-/** A6 점주 주문 목록 구분 */
-export type OwnerOrderTab = 'PICKUP_WAITING' | 'PICKED_UP' | 'CANCELED' | 'PICKUP_EXPIRED'
+/**
+ * A6 점주 주문 목록 구분. PICKUP_WAITING 은 결제 완료·픽업 신청·준비 완료를 한데 보는 예전 구분이다(서버에 남아 있고 화면은 11/15부터 쓰지 않는다).
+ * 결제·픽업 화면은 11/15부터 ALL·PICKUP_REQUESTED(픽업 대기)·READY_FOR_PICKUP(준비 완료)으로 나눠 본다
+ */
+export type OwnerOrderTab =
+  | 'ALL'
+  | 'PICKUP_WAITING'
+  | 'PICKUP_REQUESTED'
+  | 'READY_FOR_PICKUP'
+  | 'PICKED_UP'
+  | 'CANCELED'
+  | 'PICKUP_EXPIRED'
 
 /** OR-05 응답 */
 export interface PickupResponse {

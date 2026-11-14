@@ -16,8 +16,6 @@ import { type DatePeriod, EMPTY_PERIOD, isReversedPeriod } from '@/shared/api/pe
 import { cn } from '@/shared/ui/cn'
 import { PageNav } from '@/shared/ui/PageNav'
 import { PeriodFilter } from '@/shared/ui/PeriodFilter'
-import { SalesRankingPanel } from '@/owner/inventory/components/SalesRankingPanel'
-import { TabButton } from '@/owner/inventory/components/TabButton'
 import {
   type OwnerOrder,
   type OwnerOrderTab,
@@ -37,13 +35,31 @@ interface TabInfo {
   empty: string
 }
 
-/** A6 구분 (추가 명세 A6 표 순서) */
+/**
+ * A6 구분. 11/15 경우: 픽업 대기에 섞여 있던 고객 신청 전·픽업 신청·준비 완료를 나눠
+ * 전체 / 픽업 대기(픽업 신청) / 준비 완료 / 픽업 완료 / 취소·환불 / 기한 경과 순으로 둔다.
+ * 고객 신청 전(결제만 한 주문)은 점주가 할 일이 없어 전체에만 나온다
+ */
 const TABS: TabInfo[] = [
   {
-    tab: 'PICKUP_WAITING',
+    tab: 'ALL',
+    label: '전체',
+    description: '결제가 끝난 주문을 모두 보여 줘요. 결제 시각 최신순이에요.',
+    empty: '결제한 주문이 없어요.',
+  },
+  {
+    tab: 'PICKUP_REQUESTED',
     label: '픽업 대기',
-    description: '결제가 끝나 픽업을 기다리는 주문이에요. 결제 시각 최신순이에요.',
-    empty: '픽업을 기다리는 주문이 없어요.',
+    description:
+      '고객이 픽업을 신청한 주문이에요. 상품을 챙긴 뒤 [준비 완료]를 눌러 주세요. 결제 시각 최신순이에요.',
+    empty: '픽업을 신청한 주문이 없어요.',
+  },
+  {
+    tab: 'READY_FOR_PICKUP',
+    label: '준비 완료',
+    description:
+      '준비를 마치고 고객을 기다리는 주문이에요. 고객이 오면 [픽업 확인]을 눌러 주세요. 결제 시각 최신순이에요.',
+    empty: '준비 완료한 주문이 없어요.',
   },
   {
     tab: 'PICKED_UP',
@@ -67,61 +83,23 @@ const TABS: TabInfo[] = [
 ]
 
 /**
- * S-50·A6 /owner/orders 점주 주문 목록. 구분(픽업 대기·픽업 완료·취소·환불·기한 경과)과 기간(주문일 기준)으로 고른다.
- * 진입·구분·기간 변경·[새로 고침] 때만 조회한다 (폴링 없음).
- * 픽업 대기에서 결제 완료 주문은 N-02 [준비 완료](포장을 끝내면, 고객에게 알림),
- * 준비 완료 주문은 A5 [픽업 확인] → 확인 모달 → 픽업 완료하면 픽업 완료 구분으로 옮겨 간다
- */
-type View = 'orders' | 'ranking'
-
-/**
- * 점주 '주문' 메뉴. 주문 목록과 상품별 판매 순위(이태우, 10/30에 변동 이력에서 옮김)를 위 탭으로 나눈다.
- * 탭을 떠나면 그쪽 조회도 멈춘다
+ * S-50·A6 /owner/orders 점주 주문 목록. 구분(전체·픽업 대기·준비 완료·픽업 완료·취소·환불·기한 경과)과 기간(주문일 기준)으로 고른다.
+ * 픽업 대기(고객이 픽업 신청한 주문)는 N-02 [준비 완료](포장을 끝내면, 고객에게 알림)를 누르면 준비 완료로 옮겨 가고,
+ * 준비 완료 주문은 A5 [픽업 확인] → 확인 모달 → 픽업 완료 구분으로 옮겨 간다.
+ * 상품별 판매 순위 탭은 11/14 매출 메뉴로 옮겼다(경우 결정)
  */
 export function OwnerOrdersPage() {
-  const [view, setView] = useState<View>('orders')
-
   return (
     <section className="space-y-4">
       <h1 className="text-xl font-bold text-slate-900">결제·픽업</h1>
-      <div
-        role="tablist"
-        aria-label="주문·판매 순위"
-        className="flex gap-1 border-b border-slate-200"
-      >
-        <TabButton
-          label="주문 목록"
-          selected={view === 'orders'}
-          onSelect={() => setView('orders')}
-        />
-        <TabButton
-          label="상품별 판매 순위"
-          selected={view === 'ranking'}
-          onSelect={() => setView('ranking')}
-        />
-      </div>
-      {view === 'orders' ? <OwnerOrderList /> : <SalesRanking />}
+      <OwnerOrderList />
     </section>
   )
 }
 
-function SalesRanking() {
-  return (
-    <div className="space-y-4">
-      <div>
-        {/* 바로 위 탭 이름과 같아 화면에는 숨기고, 화면 읽기 프로그램의 구역 제목으로만 둔다 */}
-        <h2 className="sr-only">상품별 판매 순위</h2>
-        <p className="text-sm text-slate-500">
-          결제가 끝나 실제로 팔린 수량(환불로 되돌린 수량은 뺌)을 많이 판 순서로 보여 줘요.
-        </p>
-      </div>
-      <SalesRankingPanel />
-    </div>
-  )
-}
-
 function OwnerOrderList() {
-  const [tab, setTab] = useState<OwnerOrderTab>('PICKUP_WAITING')
+  // 처음에는 점주가 바로 할 일(픽업 신청 들어온 주문)을 연다
+  const [tab, setTab] = useState<OwnerOrderTab>('PICKUP_REQUESTED')
   const [page, setPage] = useState(0)
   const [size, setSize] = useState<OrderPageSize>(DEFAULT_ORDER_PAGE_SIZE)
   const [period, setPeriod] = useState<DatePeriod>(EMPTY_PERIOD)
@@ -268,9 +246,30 @@ const PICKUP_DEADLINE_COLUMN: Column = {
   cell: (o) => (o.pickupDeadline ? formatShortPickupDate(o.pickupDeadline) : '-'),
 }
 
-/** 구분마다 더 보여 주는 칸. 픽업 대기의 [준비 완료]·[픽업 확인] 칸은 OrderTable 이 붙인다 */
+/** 전체 구분에서 주문마다 지금 어디쯤인지. 구분 이름과 같은 말을 쓴다 */
+function ownerStatusText(o: OwnerOrder): string {
+  if (hasRefundStarted(o.refundStatus) || o.status === 'REFUNDED')
+    return refundStatusLabel(o.refundStatus)
+  switch (o.status) {
+    case 'PAID':
+      return '고객 신청 전'
+    case 'PICKUP_REQUESTED':
+      return '픽업 대기'
+    case 'READY_FOR_PICKUP':
+      return '준비 완료'
+    case 'PICKUP_EXPIRED':
+      return '기한 경과'
+    default:
+      return orderStatusLabel(o.status, null)
+  }
+}
+
+/** 구분마다 더 보여 주는 칸. [준비 완료]·[픽업 확인]·[취소] 칸은 OrderTable 이 붙인다 */
 const EXTRA_COLUMNS: Record<OwnerOrderTab, Column[]> = {
+  ALL: [{ label: '상태', cell: ownerStatusText }, PICKUP_DEADLINE_COLUMN],
   PICKUP_WAITING: [PICKUP_DEADLINE_COLUMN],
+  PICKUP_REQUESTED: [PICKUP_DEADLINE_COLUMN],
+  READY_FOR_PICKUP: [PICKUP_DEADLINE_COLUMN],
   PICKED_UP: [
     {
       label: '픽업 시각',
@@ -324,6 +323,19 @@ const EXTRA_COLUMNS: Record<OwnerOrderTab, Column[]> = {
   PICKUP_EXPIRED: [PICKUP_DEADLINE_COLUMN],
 }
 
+/** [준비 완료]·[픽업 확인]·[취소]를 두는 구분과 주문 상태 */
+const PICKUP_ACTION_TABS: OwnerOrderTab[] = [
+  'ALL',
+  'PICKUP_WAITING',
+  'PICKUP_REQUESTED',
+  'READY_FOR_PICKUP',
+]
+const PICKUP_ACTION_STATUSES: OwnerOrder['status'][] = [
+  'PAID',
+  'PICKUP_REQUESTED',
+  'READY_FOR_PICKUP',
+]
+
 function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] }) {
   // 확인 모달을 연 주문. 주문 내용은 목록(서버 상태)에서 찾는다
   const [pickupOrderId, setPickupOrderId] = useState<number | null>(null)
@@ -333,43 +345,48 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
   const cancelOrder = orders.find((o) => o.orderId === cancelOrderId)
 
   const columns = [...BASE_COLUMNS, ...EXTRA_COLUMNS[tab]]
-  if (tab === 'PICKUP_WAITING') {
+  if (PICKUP_ACTION_TABS.includes(tab)) {
     columns.push({
       label: '픽업',
       srOnly: true,
       right: true,
-      cell: (o) => (
-        <div className="flex justify-end gap-1">
-          {o.status === 'READY_FOR_PICKUP' ? (
-            <button
-              type="button"
-              onClick={() => setPickupOrderId(o.orderId)}
-              aria-label={`${o.orderNo} 픽업 확인`}
-              className="rounded-lg bg-emerald-700 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-emerald-800"
-            >
-              픽업 확인
-            </button>
-          ) : (
-            <>
-              {/* [준비 완료]는 고객이 픽업 신청한 주문만 (order-service Order.markReadyForPickup) */}
-              {o.status === 'PICKUP_REQUESTED' ? (
-                <ReadyButton order={o} />
-              ) : (
-                <span className="self-center px-1 text-xs text-slate-500">고객 신청 전</span>
-              )}
-              {/* 결제 완료·픽업 신청 주문만 취소할 수 있다. 준비 완료는 order-service가 취소를 받지 않는다(409) */}
+      // 전체 구분에는 픽업 완료·기한 경과·환불 중인 주문도 있어 그 줄은 비운다
+      cell: (o) =>
+        !PICKUP_ACTION_STATUSES.includes(o.status) || o.refundStatus !== 'NONE' ? null : (
+          <div className="flex justify-end gap-1">
+            {o.status === 'READY_FOR_PICKUP' ? (
               <button
                 type="button"
-                onClick={() => setCancelOrderId(o.orderId)}
-                aria-label={`${o.orderNo} 주문 취소`}
-                className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+                onClick={() => setPickupOrderId(o.orderId)}
+                aria-label={`${o.orderNo} 픽업 확인`}
+                className="rounded-lg bg-emerald-700 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-emerald-800"
               >
-                취소
+                픽업 확인
               </button>
-            </>
-          )}
-        </div>
-      ),
+            ) : (
+              <>
+                {/* [준비 완료]는 고객이 픽업 신청한 주문만 (order-service Order.markReadyForPickup) */}
+                {o.status === 'PICKUP_REQUESTED' ? (
+                  <ReadyButton order={o} />
+                ) : (
+                  // 전체 구분은 상태 칸에 이미 "고객 신청 전"이 있어 두 번 쓰지 않는다
+                  tab !== 'ALL' && (
+                    <span className="self-center px-1 text-xs text-slate-500">고객 신청 전</span>
+                  )
+                )}
+                {/* 결제 완료·픽업 신청 주문만 취소할 수 있다. 준비 완료는 order-service가 취소를 받지 않는다(409) */}
+                <button
+                  type="button"
+                  onClick={() => setCancelOrderId(o.orderId)}
+                  aria-label={`${o.orderNo} 주문 취소`}
+                  className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+                >
+                  취소
+                </button>
+              </>
+            )}
+          </div>
+        ),
     })
   }
   if (tab === 'CANCELED') {

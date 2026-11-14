@@ -225,3 +225,51 @@ describe('점주 매출 대시보드', () => {
     )
   })
 })
+
+describe('매출 탭 (11/14 상품별 판매 순위를 결제·픽업에서 옮김)', () => {
+  beforeEach(() => {
+    get.mockReset()
+    get.mockImplementation(async (url, config) =>
+      url === '/owner/inventory/sales-ranking'
+        ? {
+            data: {
+              from: '2026-10-23',
+              to: '2026-10-29',
+              totalSoldQuantity: 5,
+              items: [
+                {
+                  rank: 1,
+                  productId: 15,
+                  productCode: 'P015',
+                  name: '매운 컵라면 115g',
+                  category: '라면',
+                  imageUrl: null,
+                  soldQuantity: 5,
+                  share: 1,
+                },
+              ],
+            },
+          }
+        : sales(paramsOf(config)),
+    )
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-29T03:00:00Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('처음엔 기간 매출 탭이고, 상품별 판매 순위 탭으로 바꾸면 판매 순위를 부른다', async () => {
+    renderPage()
+    expect(await screen.findByRole('img', { name: /^일별 순매출 그래프/ })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '기간 매출' })).toHaveAttribute('aria-selected', 'true')
+
+    await userEvent.click(screen.getByRole('tab', { name: '상품별 판매 순위' }))
+
+    expect(await screen.findByText('매운 컵라면 115g')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '상품별 판매 순위' })).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /^일별 순매출 그래프/ })).not.toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/owner/inventory/sales-ranking', expect.anything())
+  })
+})

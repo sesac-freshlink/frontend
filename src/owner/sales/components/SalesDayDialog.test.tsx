@@ -53,7 +53,7 @@ const period = {
 }
 
 describe('매출 날짜 창 (11/14 시안 B)', () => {
-  it('제목·요약 한 줄·팔린 상품 표, 하루 보기로 가는 링크를 보여 주고 [닫기]로 닫는다', async () => {
+  it('제목·요약 한 줄·팔린 상품 표, 매출 상세로 가는 [상세 보기] 링크를 보여 주고 [닫기]로 닫는다', async () => {
     const onClose = vi.fn()
     render(
       <MemoryRouter>
@@ -65,8 +65,8 @@ describe('매출 날짜 창 (11/14 시안 B)', () => {
       within(dialog).getByText('순매출 122,600원, 결제 42건, 팔린 수량 9개'),
     ).toBeInTheDocument()
     const row = within(dialog).getAllByRole('row')[1]
-    expect(row).toHaveTextContent('샌드위치 햄치즈9개2개28,800원2개부족')
-    expect(within(dialog).getByRole('link', { name: '하루 보기에서 열기' })).toHaveAttribute(
+    expect(row).toHaveTextContent('샌드위치 햄치즈9개2개28,800원2부족')
+    expect(within(dialog).getByRole('link', { name: '상세 보기' })).toHaveAttribute(
       'href',
       '/owner/sales/day?date=2026-11-13',
     )

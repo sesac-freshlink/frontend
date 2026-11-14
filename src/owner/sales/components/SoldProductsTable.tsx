@@ -1,18 +1,18 @@
 import { formatWon } from '@/customer/order/format'
 import type { InventoryItem } from '@/owner/inventory/api'
-import { cn } from '@/shared/ui/cn'
+import { StockStatus } from '@/owner/inventory/components/tableParts'
 import type { SalesProductItem } from '../api'
 
 interface Props {
   items: SalesProductItem[]
   stock: Map<number, InventoryItem>
-  /** 하루 보기 표만 팔린 수량 옆에 작은 막대를 둔다(창에는 없음, 11/14 시안) */
+  /** 매출 상세 표만 팔린 수량 옆에 작은 막대를 둔다(창에는 없음, 11/14 시안) */
   withBar?: boolean
   caption: string
 }
 
 /**
- * 그날 팔린 상품 표 (11/14 하루 보기·매출 날짜 창 시안): 상품, 팔린 수량, 마감세일, 매출, 지금 재고, 품절·부족.
+ * 그날 팔린 상품 표 (11/14 매출 상세·매출 날짜 창 시안): 상품, 팔린 수량, 마감세일, 매출, 판매 가능, 재고 상태(품절·부족). 재고 화면과 같은 이름(11/15 경우)
  * 재고는 그날 끝이 아니라 지금 기준이다(재고 API 가 지금 값만 준다)
  */
 export function SoldProductsTable({ items, stock, withBar = false, caption }: Props) {
@@ -26,10 +26,8 @@ export function SoldProductsTable({ items, stock, withBar = false, caption }: Pr
           <th className="px-3 py-3 text-right font-medium">팔린 수량</th>
           <th className="px-3 py-3 text-right font-medium">마감세일</th>
           <th className="px-3 py-3 text-right font-medium">매출</th>
-          <th className="px-3 py-3 text-right font-medium">지금 재고</th>
-          <th className="px-3 py-3">
-            <span className="sr-only">재고 상태</span>
-          </th>
+          <th className="px-3 py-3 text-right font-medium">판매 가능</th>
+          <th className="px-3 py-3 font-medium">재고 상태</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-200 whitespace-nowrap text-slate-600 tabular-nums">
@@ -39,8 +37,8 @@ export function SoldProductsTable({ items, stock, withBar = false, caption }: Pr
             <tr key={item.productId}>
               <td className="px-3 py-2.5 font-medium text-slate-900">{item.productName ?? '-'}</td>
               <td className="px-3 py-2.5 text-right">
+                {/* 숫자를 칸 오른쪽 끝(제목 아래)에 두고 막대는 그 왼쪽에 */}
                 <span className="inline-flex items-center justify-end gap-2">
-                  {item.soldQuantity}개
                   {withBar && (
                     <span
                       aria-hidden
@@ -52,34 +50,19 @@ export function SoldProductsTable({ items, stock, withBar = false, caption }: Pr
                       />
                     </span>
                   )}
+                  {item.soldQuantity}개
                 </span>
               </td>
               <td className="px-3 py-2.5 text-right">
-                {item.clearanceQuantity > 0 ? `${item.clearanceQuantity}개` : ''}
+                {item.clearanceQuantity > 0 ? `${item.clearanceQuantity}개` : '-'}
               </td>
               <td className="px-3 py-2.5 text-right">{formatWon(item.netAmount)}</td>
-              <td className="px-3 py-2.5 text-right">{s ? `${s.availableQuantity}개` : '-'}</td>
-              <td className="px-3 py-2.5">
-                {s && <StockBadge soldOut={s.availableQuantity === 0} low={s.lowStock} />}
-              </td>
+              <td className="px-3 py-2.5 text-right">{s ? s.availableQuantity : '-'}</td>
+              <td className="px-3 py-2.5">{s && <StockStatus item={s} />}</td>
             </tr>
           )
         })}
       </tbody>
     </table>
-  )
-}
-
-function StockBadge({ soldOut, low }: { soldOut: boolean; low: boolean }) {
-  if (!soldOut && !low) return null
-  return (
-    <span
-      className={cn(
-        'rounded-md px-2 py-0.5 text-xs font-semibold',
-        soldOut ? 'bg-rose-700 text-white' : 'bg-slate-100 text-slate-600',
-      )}
-    >
-      {soldOut ? '품절' : '부족'}
-    </span>
   )
 }

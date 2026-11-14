@@ -14,7 +14,7 @@ interface Props {
 
 /**
  * 매출 표에서 날짜를 누르면 뜨는 창 (11/14 경우 결정, 시안 "점주 · 매출 날짜 누르면 창 (예시 안 B)"):
- * 그날 순매출·결제 건수·팔린 수량 한 줄과 팔린 상품 표, [닫기]·[하루 보기에서 열기].
+ * 그날 순매출·결제 건수·팔린 수량 한 줄과 팔린 상품 표, [닫기]·[상세 보기](매출 상세 화면).
  * 네이티브 모달이라 포커스 가두기·Escape 닫기는 브라우저가 맡는다(약관 창과 같은 방식)
  */
 export function SalesDayDialog({ period, onClose }: Props) {
@@ -88,7 +88,7 @@ export function SalesDayDialog({ period, onClose }: Props) {
           to={`/owner/sales/day?date=${date}`}
           className="inline-flex h-11 items-center rounded-lg border border-slate-300 px-4 text-sm font-medium text-emerald-700 hover:bg-slate-50"
         >
-          하루 보기에서 열기
+          상세 보기
         </Link>
       </div>
     </dialog>

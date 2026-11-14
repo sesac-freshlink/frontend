@@ -1,14 +1,5 @@
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  LoaderCircle,
-  Search,
-  StickyNote,
-} from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, LoaderCircle, StickyNote } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { cn } from '@/shared/ui/cn'
 import {
@@ -22,13 +13,18 @@ import { LotDetailPanel } from '../components/LotDetailPanel'
 import { MemoDialog } from '../components/MemoDialog'
 import { MemoList } from '../components/MemoList'
 import { formatStatuses, parseStatuses } from '../statusParam'
-import { ProductExposureSettings } from '../components/ProductExposureSettings'
+import { FirstComeSettings, RecommendSettings } from '../components/ProductExposureSettings'
 import { SafetyStockSettings } from '../components/SafetyStockSettings'
+import { FilterChip } from '../components/FilterChip'
 import { TabButton } from '../components/TabButton'
+import { SearchBox, SortHeader, StockStatus } from '../components/tableParts'
+import { COL_WIDTH } from '../colWidth'
+import { statusRank } from '../stockFilter'
+import { useSortedRows } from '../useSortedRows'
 import { formatDaysOfStock, SOON_OUT_DAYS } from '../format'
 import { useInventoryChanges } from '../useInventoryChanges'
 
-type Tab = 'stock' | 'safetyStock' | 'exposure' | 'memo'
+type Tab = 'stock' | 'safetyStock' | 'recommend' | 'firstCome' | 'memo'
 
 interface MemoTarget {
   productId: number
@@ -109,36 +105,32 @@ export function InventoryPage() {
           onSelect={() => openTab('safetyStock')}
         />
         <TabButton
-          label="추천·선착순"
-          selected={tab === 'exposure'}
-          onSelect={() => openTab('exposure')}
+          label="추천"
+          selected={tab === 'recommend'}
+          onSelect={() => openTab('recommend')}
+        />
+        <TabButton
+          label="선착순"
+          selected={tab === 'firstCome'}
+          onSelect={() => openTab('firstCome')}
         />
         <TabButton label="메모" selected={tab === 'memo'} onSelect={() => openTab('memo')} />
       </div>
 
       {tab === 'safetyStock' && <SafetyStockSettings />}
-      {tab === 'exposure' && <ProductExposureSettings />}
+      {tab === 'recommend' && <RecommendSettings />}
+      {tab === 'firstCome' && <FirstComeSettings />}
       {tab === 'memo' && <MemoList />}
       {tab === 'stock' && (
         <>
           <div className="flex flex-wrap items-center gap-3">
-            <label className="relative">
-              <Search
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500"
-                aria-hidden
-              />
-              <input
-                type="search"
-                value={searchText}
-                onChange={(e) => {
-                  setSearchText(e.target.value)
-                  setPage(0)
-                }}
-                placeholder="상품명 검색"
-                aria-label="상품명 검색"
-                className="w-60 rounded-lg border border-slate-200 bg-white py-2 pr-3 pl-9 text-sm focus:border-emerald-600 focus:outline-none"
-              />
-            </label>
+            <SearchBox
+              value={searchText}
+              onChange={(value) => {
+                setSearchText(value)
+                setPage(0)
+              }}
+            />
             <div role="group" aria-label="거르기" className="flex flex-wrap gap-1.5">
               <FilterChip
                 label="전체"
@@ -229,28 +221,6 @@ function useDebounced(value: string, delayMs: number): string {
     return () => clearTimeout(timer)
   }, [value, delayMs])
   return settled
-}
-
-interface FilterChipProps {
-  label: string
-  pressed: boolean
-  onToggle: () => void
-}
-
-function FilterChip({ label, pressed, onToggle }: FilterChipProps) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onToggle}
-      className={cn(
-        'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50',
-        pressed && 'border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-50',
-      )}
-    >
-      {label}
-    </button>
-  )
 }
 
 interface PaginationProps {
@@ -350,18 +320,6 @@ type SortKey =
   | 'status'
   | 'daysOfStock'
 
-interface Sort {
-  key: SortKey
-  dir: 'asc' | 'desc'
-}
-
-/** 상태 정렬 순서: 품절 → 부족 → 판매중 */
-function statusRank(item: InventoryItem): number {
-  if (item.availableQuantity === 0) return 0
-  if (item.lowStock) return 1
-  return 2
-}
-
 function sortValue(item: InventoryItem, key: SortKey): string | number {
   switch (key) {
     case 'status':
@@ -386,7 +344,7 @@ const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
   { key: 'reservedQuantity', label: '예약 수량', numeric: true },
   { key: 'clearanceQuantity', label: '마감세일 수량', numeric: true },
   { key: 'availableQuantity', label: '판매 가능', numeric: true },
-  { key: 'status', label: '상태' },
+  { key: 'status', label: '재고 상태' },
   { key: 'daysOfStock', label: '소진 예상', numeric: true },
 ]
 
@@ -403,57 +361,37 @@ interface SortableTableProps {
  * 지금은 이 페이지 안에서만 정렬한다. 전체 정렬은 서버 sort 가 생기면 옮긴다
  */
 function SortableTable({ rows, changedIds, selectedId, onSelect, onMemo }: SortableTableProps) {
-  const [sort, setSort] = useState<Sort | null>(null)
-  const sorted = useMemo(() => {
-    if (sort === null) return rows
-    const sign = sort.dir === 'asc' ? 1 : -1
-    return rows.toSorted((a, b) => {
-      const x = sortValue(a, sort.key)
-      const y = sortValue(b, sort.key)
-      if (typeof x === 'number' && typeof y === 'number') return (x - y) * sign
-      return String(x).localeCompare(String(y), 'ko') * sign
-    })
-  }, [rows, sort])
-
-  const toggle = (key: SortKey) =>
-    setSort((now) =>
-      now?.key === key ? { key, dir: now.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' },
-    )
+  const { sorted, sort, toggle } = useSortedRows(rows, sortValue)
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      <table className="w-full text-sm">
+      {/* 고정 칸 합이 960px(w-240)이라 최소 너비를 그만큼만 두면 상품명 칸이 0이 된다. 상품명 몫 160px를 더해 w-280. 패널이 열려 좁아지면 가로 스크롤 */}
+      <table className="w-full min-w-280 table-fixed text-sm">
+        {/* 카테고리·브랜드·판매 가능·상태는 추천·선착순 탭과 같은 너비(COL_WIDTH) */}
+        <colgroup>
+          <col className={COL_WIDTH.category} />
+          <col className={COL_WIDTH.brand} />
+          <col />
+          <col className="w-24" />
+          <col className="w-28" />
+          <col className="w-36" />
+          <col className={COL_WIDTH.availableQuantity} />
+          <col className={COL_WIDTH.status} />
+          <col className="w-28" />
+          <col className="w-18" />
+        </colgroup>
         <thead className="bg-slate-50 text-left whitespace-nowrap text-slate-500">
           <tr>
-            {COLUMNS.map(({ key, label, numeric }) => {
-              const active = sort?.key === key
-              const Arrow = sort?.dir === 'desc' ? ArrowDown : ArrowUp
-              return (
-                <th
-                  key={key}
-                  scope="col"
-                  aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                  className={cn('px-3 py-1 font-medium first:pl-4', numeric && 'text-right')}
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggle(key)}
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-md py-2 hover:text-slate-900',
-                      active && 'text-slate-900',
-                    )}
-                  >
-                    {label}
-                    {/* 정렬 전에도 누를 수 있는 칸임을 보이게 흐린 위아래 화살표를 둔다 */}
-                    {active ? (
-                      <Arrow className="size-3.5" aria-hidden />
-                    ) : (
-                      <ArrowUpDown className="size-3.5 text-slate-400" aria-hidden />
-                    )}
-                  </button>
-                </th>
-              )
-            })}
+            {COLUMNS.map(({ key, label, numeric }) => (
+              <SortHeader
+                key={key}
+                sortKey={key}
+                label={label}
+                numeric={numeric}
+                sort={sort}
+                onSort={toggle}
+              />
+            ))}
             <th scope="col" className="px-4 py-3 text-center font-medium">
               메모
             </th>
@@ -500,7 +438,7 @@ function InventoryRow({ item, changed, selected, onSelect, onMemo }: RowProps) {
     >
       <td className="py-3 pr-3 pl-4 whitespace-nowrap text-slate-600">{item.category}</td>
       <td className="px-3 py-3 whitespace-nowrap text-slate-600">{item.brand ?? '-'}</td>
-      <td className="px-3 py-3 font-medium whitespace-nowrap">
+      <td className="px-3 py-3 font-medium break-keep">
         {/* 행 클릭과 같은 일. 키보드로도 소비기한별 상세를 열 수 있게 상품명을 버튼으로 둔다 */}
         <button
           type="button"
@@ -567,26 +505,4 @@ function emptyMessage(query: InventoryQuery): string {
   if (!hasSearch && query.memoOnly && query.statuses.length === 0)
     return '메모가 있는 상품이 없어요.'
   return '조건에 맞는 상품이 없어요.'
-}
-
-/** 재고 상태는 판매중·품절·부족 셋만(11/13 경우님: "정상" → "판매중"). 소비기한 임박·지남은 임박·폐기 화면에서 본다 */
-function StockStatus({ item }: { item: InventoryItem }) {
-  if (item.availableQuantity === 0) {
-    return (
-      <span className="rounded-md bg-rose-700 px-2 py-0.5 text-xs font-semibold text-white">
-        품절
-      </span>
-    )
-  }
-  if (item.lowStock) {
-    return (
-      <span
-        title={`안전재고 ${item.safetyStock}개보다 적어요`}
-        className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600"
-      >
-        부족
-      </span>
-    )
-  }
-  return <span className="text-xs text-slate-500">판매중</span>
 }

@@ -1,16 +1,10 @@
-import { LoaderCircle, TriangleAlert } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
-import { toast } from 'sonner'
-import {
-  apiErrorCode,
-  apiErrorMessage,
-  useDeleteMemo,
-  useMemos,
-  useSaveMemo,
-  type ProductMemo,
-} from '../api'
+import { LoaderCircle } from 'lucide-react'
+import { useEffect, useId, useRef } from 'react'
+import { apiErrorMessage, useMemos, type ProductMemo } from '../api'
 import { formatDateTime } from '../format'
-import { MEMO_MAX_LENGTH, memoAction } from '../memo'
+import { MEMO_MAX_LENGTH } from '../memo'
+import { useMemoEditor } from '../useMemoEditor'
+import { MemoConflictNotice } from './MemoConflictNotice'
 
 interface Props {
   productId: number
@@ -71,59 +65,20 @@ interface FormProps extends Props {
 }
 
 function MemoForm({ productId, productName, latest, onClose }: FormProps) {
-  const save = useSaveMemo()
-  const remove = useDeleteMemo()
-  // 처음 연 순간의 메모. 이 version 으로 저장해야 그 사이 다른 화면이 바꾼 것을 서버가 알아챈다
-  const [opened] = useState(latest)
-  const [text, setText] = useState(latest?.content ?? '')
-  const [conflict, setConflict] = useState(false)
+  const editor = useMemoEditor({
+    productId,
+    productName,
+    latest,
+    onSaved: onClose,
+    onDeleted: onClose,
+  })
+  const { text, setText, conflict, opened, target, busy } = editor
   const textId = useId()
   const textRef = useRef<HTMLTextAreaElement>(null)
-  const busy = save.isPending || remove.isPending
-
-  // 충돌을 본 뒤에는 다른 화면이 저장한 최신 메모 위에 저장한다(덮어쓰기를 점주가 고른 것)
-  const target = conflict ? latest : opened
 
   useEffect(() => {
     textRef.current?.focus()
   }, [])
-
-  const onError = (error: unknown, fallback: string) => {
-    if (apiErrorCode(error) === 'MEMO_CHANGED') setConflict(true)
-    toast.error(apiErrorMessage(error, fallback))
-  }
-
-  const deleteMemo = (memo: ProductMemo) =>
-    remove.mutate(
-      { productId, version: memo.version },
-      {
-        onSuccess: () => {
-          toast.success(`${productName} 메모를 삭제했어요`)
-          onClose()
-        },
-        onError: (e) => onError(e, '메모를 삭제하지 못했어요.'),
-      },
-    )
-
-  const submit = () => {
-    const action = memoAction(text, target !== null)
-    if (action === 'none') {
-      onClose()
-    } else if (action === 'delete' && target) {
-      deleteMemo(target)
-    } else {
-      save.mutate(
-        { productId, content: text.trim(), version: target?.version ?? null },
-        {
-          onSuccess: () => {
-            toast.success(`${productName} 메모를 저장했어요`)
-            onClose()
-          },
-          onError: (e) => onError(e, '메모를 저장하지 못했어요.'),
-        },
-      )
-    }
-  }
 
   return (
     <form
@@ -132,7 +87,7 @@ function MemoForm({ productId, productName, latest, onClose }: FormProps) {
       aria-labelledby="memo-title"
       onSubmit={(e) => {
         e.preventDefault()
-        submit()
+        editor.submit()
       }}
       className="w-full max-w-md space-y-4 rounded-lg bg-white p-6 shadow-lg"
     >
@@ -165,31 +120,13 @@ function MemoForm({ productId, productName, latest, onClose }: FormProps) {
         </p>
       </div>
 
-      {conflict && (
-        <div
-          role="status"
-          className="space-y-1 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900"
-        >
-          <p className="flex items-center gap-1.5 font-medium">
-            <TriangleAlert className="size-4" aria-hidden />
-            {latest
-              ? `다른 화면에서 ${formatDateTime(latest.updatedAt)}에 저장한 내용`
-              : '다른 화면에서 메모를 삭제했어요'}
-          </p>
-          {latest && <p className="whitespace-pre-wrap text-amber-800">{latest.content}</p>}
-          <p className="text-xs text-amber-700">
-            {latest
-              ? '확인했으면 다시 저장하세요. 지금 쓴 내용으로 바뀌어요.'
-              : '다시 저장하면 지금 쓴 내용으로 새로 만들어요.'}
-          </p>
-        </div>
-      )}
+      {conflict && <MemoConflictNotice latest={latest} className="bg-amber-50" />}
 
       <div className="flex items-center justify-between gap-2">
         {target ? (
           <button
             type="button"
-            onClick={() => deleteMemo(target)}
+            onClick={() => editor.remove(target)}
             disabled={busy}
             className="rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
           >
@@ -213,7 +150,7 @@ function MemoForm({ productId, productName, latest, onClose }: FormProps) {
             aria-busy={busy}
             className="flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50 disabled:hover:bg-emerald-600"
           >
-            {save.isPending && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
+            {editor.saving && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
             저장
           </button>
         </div>

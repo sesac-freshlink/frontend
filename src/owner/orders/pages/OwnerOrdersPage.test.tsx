@@ -110,9 +110,9 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     expect(await screen.findByText('FL-20261020-000123')).toBeInTheDocument()
     expect(screen.getByText('3,400원')).toBeInTheDocument()
     expect(screen.getByText('10/20 15:35')).toBeInTheDocument()
-    // 처음에는 픽업 대기 구분, 0페이지, 20개씩, 기간 없음
+    // 처음에는 픽업 대기(픽업 신청) 구분, 0페이지, 20개씩, 기간 없음
     expect(get).toHaveBeenCalledWith('/owner/orders', {
-      params: { tab: 'PICKUP_WAITING', page: 0, size: 20 },
+      params: { tab: 'PICKUP_REQUESTED', page: 0, size: 20 },
     })
 
     await userEvent.click(screen.getByRole('button', { name: '새로 고침' }))
@@ -153,10 +153,49 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     expect(screen.queryByRole('link', { name: '영수증 보기' })).not.toBeInTheDocument()
   })
 
+  it('구분은 전체·픽업 대기·준비 완료·픽업 완료·취소·환불·기한 경과이고, 전체는 상태 칸으로 어디쯤인지 보여 준다 (11/15)', async () => {
+    get.mockResolvedValue(pageOf([paidOrder]))
+    renderPage()
+    await screen.findByText('FL-20261020-000123')
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
+      '전체',
+      '픽업 대기',
+      '준비 완료',
+      '픽업 완료',
+      '취소·환불',
+      '기한 경과',
+    ])
+
+    // 전체: 결제만 한 주문은 상태 "고객 신청 전"과 [취소]만, 픽업 완료한 주문은 버튼이 없다
+    get.mockResolvedValue(
+      pageOf([
+        paidOrder,
+        { ...paidOrder, orderId: 200, orderNo: 'FL-20261019-000200', status: 'PICKED_UP' },
+      ]),
+    )
+    await userEvent.click(screen.getByRole('tab', { name: '전체' }))
+    expect(await screen.findByText('FL-20261019-000200')).toBeInTheDocument()
+    expect(lastParams()).toEqual({ tab: 'ALL', page: 0, size: 20 })
+    const paidRow = screen.getByText('FL-20261020-000123').closest('tr')!
+    // 상태 칸에만 한 번 (버튼 칸에 다시 쓰지 않는다)
+    expect(within(paidRow).getAllByText('고객 신청 전')).toHaveLength(1)
+    expect(within(paidRow).getByRole('button', { name: /주문 취소/ })).toBeInTheDocument()
+    const pickedRow = screen.getByText('FL-20261019-000200').closest('tr')!
+    expect(within(pickedRow).getByText('픽업 완료')).toBeInTheDocument()
+    expect(within(pickedRow).queryByRole('button')).not.toBeInTheDocument()
+
+    get.mockResolvedValue(pageOf([readyOrder]))
+    await userEvent.click(screen.getByRole('tab', { name: '준비 완료' }))
+    expect(
+      await screen.findByRole('button', { name: 'FL-20261020-000123 픽업 확인' }),
+    ).toBeInTheDocument()
+    expect(lastParams()).toEqual({ tab: 'READY_FOR_PICKUP', page: 0, size: 20 })
+  })
+
   it('주문이 없으면 안내한다', async () => {
     get.mockResolvedValue(pageOf([]))
     renderPage()
-    expect(await screen.findByText('픽업을 기다리는 주문이 없어요.')).toBeInTheDocument()
+    expect(await screen.findByText('픽업을 신청한 주문이 없어요.')).toBeInTheDocument()
   })
 
   it('불러오지 못하면 오류 문구를 보여 준다', async () => {
@@ -211,7 +250,7 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     expect(post).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(success).toHaveBeenCalledWith('FL-20261020-000123 픽업 완료했어요'))
     // 픽업한 주문은 픽업 대기 목록에서 빠진다
-    expect(await screen.findByText('픽업을 기다리는 주문이 없어요.')).toBeInTheDocument()
+    expect(await screen.findByText('픽업을 신청한 주문이 없어요.')).toBeInTheDocument()
     expect(get).toHaveBeenCalledTimes(2)
   })
 
@@ -252,24 +291,14 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     await waitFor(() => expect(error).toHaveBeenCalledWith('픽업 기한이 지난 주문이에요'))
   })
 
-  it('상품별 판매 순위 탭으로 바꾸면 주문 대신 판매 순위를 부른다 (변동 이력에서 옮김)', async () => {
-    get.mockImplementation((url: string) =>
-      Promise.resolve(
-        url === '/owner/inventory/sales-ranking'
-          ? { data: { from: '2026-10-24', to: '2026-10-30', totalSoldQuantity: 0, items: [] } }
-          : pageOf([paidOrder]),
-      ),
-    )
+  it('상품별 판매 순위 탭은 매출 메뉴로 옮겨서 여기에는 없다 (11/14)', async () => {
+    get.mockResolvedValue(pageOf([paidOrder]))
     renderPage()
     expect(await screen.findByText('FL-20261020-000123')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: '주문 목록' })).toHaveAttribute('aria-selected', 'true')
 
-    await userEvent.click(screen.getByRole('tab', { name: '상품별 판매 순위' }))
-
-    expect(await screen.findByText('이 기간에 판매된 상품이 없어요.')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '상품별 판매 순위' })).toBeInTheDocument()
-    expect(screen.queryByText('FL-20261020-000123')).not.toBeInTheDocument()
-    expect(get).toHaveBeenCalledWith('/owner/inventory/sales-ranking', expect.anything())
+    expect(screen.queryByRole('tab', { name: '상품별 판매 순위' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: '주문 목록' })).not.toBeInTheDocument()
+    expect(get).not.toHaveBeenCalledWith('/owner/inventory/sales-ranking', expect.anything())
   })
 
   it('구분을 바꾸면 그 구분으로 다시 읽고, [픽업 확인]은 픽업 대기에서만 보인다 (A6)', async () => {
@@ -334,7 +363,7 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     fireEvent.change(screen.getByLabelText('시작 날짜'), { target: { value: '2026-10-01' } })
     await waitFor(() =>
       expect(lastParams()).toEqual({
-        tab: 'PICKUP_WAITING',
+        tab: 'PICKUP_REQUESTED',
         page: 0,
         size: 20,
         from: '2026-10-01',
@@ -343,7 +372,7 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     fireEvent.change(screen.getByLabelText('끝 날짜'), { target: { value: '2026-10-20' } })
     await waitFor(() =>
       expect(lastParams()).toEqual({
-        tab: 'PICKUP_WAITING',
+        tab: 'PICKUP_REQUESTED',
         page: 0,
         size: 20,
         from: '2026-10-01',
