@@ -63,6 +63,8 @@ const MAP_SEED: Record<
   number,
   Pick<AdminStore, 'latitude' | 'longitude' | 'description' | 'imageUrl'>
 > = {
+  // 해운대점: 더 가까운 점포 안내(11/14)를 가짜 API 로 볼 수 있게 좌표를 둔다
+  3: { latitude: 35.1631, longitude: 129.1636, description: null, imageUrl: null },
   4: { latitude: 37.504503, longitude: 127.049008, description: null, imageUrl: null },
   5: { latitude: 37.508844, longitude: 127.06316, description: null, imageUrl: null },
   6: { latitude: 37.511093, longitude: 127.021415, description: null, imageUrl: null },

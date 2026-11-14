@@ -10,13 +10,14 @@ import {
   Search,
 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Link, useLocation, useParams, useSearchParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
 import {
   PRODUCT_KEYWORD_MAX,
   useStoreCategories,
+  useStoreDetail,
   useStoreCategoryPhotos,
   useStoreProductPages,
   type StoreProduct,
@@ -35,6 +36,8 @@ import {
   savePickupStore,
   type PickupStore,
 } from '../pickupStore'
+import { FarPickDialog } from '../components/FarPickDialog'
+import { useFarPickGuard } from '../useFarPickGuard'
 import { useLoadMoreOnScroll } from '../useLoadMoreOnScroll'
 import { usePullToRefresh } from '../usePullToRefresh'
 import { useStoreName } from '../useStoreName'
@@ -246,6 +249,10 @@ function StoreHeader({
  */
 function PickupControl({ storeId, storeName }: { storeId: number; storeName: string }) {
   const [pickup, setPickup] = useState<PickupStore | null>(readPickupStore)
+  // 점포 정할 때 확인 창(11/14): 지금 위치에서 10km 넘게 멀고 더 가까운 점포가 있으면 정하기 전에 묻는다
+  const farPick = useFarPickGuard()
+  const detail = useStoreDetail(storeId)
+  const navigate = useNavigate()
   if (pickup?.storeId === storeId) {
     return (
       <span className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-emerald-700">
@@ -254,19 +261,33 @@ function PickupControl({ storeId, storeName }: { storeId: number; storeName: str
     )
   }
   return (
-    <button
-      type="button"
-      onClick={() => {
-        const store = { storeId, name: storeName }
-        savePickupStore(store)
-        setPickup(store)
-        toast.success('픽업 점포로 정했어요')
-      }}
-      className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-emerald-700 underline-offset-2 hover:underline"
-    >
-      <MapPinCheck className="size-4" aria-hidden />
-      픽업 점포로 정하기
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() =>
+          farPick.guard(detail.data, () => {
+            const store = { storeId, name: storeName }
+            savePickupStore(store)
+            setPickup(store)
+            toast.success('픽업 점포로 정했어요')
+          })
+        }
+        className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-emerald-700 underline-offset-2 hover:underline"
+      >
+        <MapPinCheck className="size-4" aria-hidden />
+        픽업 점포로 정하기
+      </button>
+      {farPick.pending && (
+        <FarPickDialog
+          pick={farPick.pending}
+          onClose={farPick.close}
+          onShowNearby={() =>
+            // 점포 고르기 화면을 지금 지역·가까운순으로 연다
+            void navigate(`/customer/stores?pick=1&region=${farPick.pending?.region ?? ''}`)
+          }
+        />
+      )}
+    </>
   )
 }
 

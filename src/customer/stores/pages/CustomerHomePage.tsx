@@ -6,16 +6,29 @@ import { useMyProfile } from '@/auth/api'
 import { DEFAULT_REGION, isRegionCode, type RegionCode } from '@/auth/regions'
 import { FullScreenSpinner } from '@/shared/ui/FullScreenSpinner'
 import { ErrorState } from '@/shared/ui/QueryState'
-import { PRODUCT_KEYWORD_MAX, useClearanceProducts, useStoreProducts, useStores } from '../api'
+import {
+  PRODUCT_KEYWORD_MAX,
+  useClearanceProducts,
+  useStoreDetail,
+  useStoreProducts,
+  useStores,
+} from '../api'
 import { CategoryGrid } from '../components/home/CategoryGrid'
 import { PullIndicator } from '../components/PullIndicator'
 import { HomeBanner } from '../components/home/HomeBanner'
 import { BestProducts } from '../components/home/BestProducts'
+import { NearbyNotice } from '../components/home/NearbyNotice'
 import { NearbyStores } from '../components/home/NearbyStores'
-import { PickupStoreButton } from '../components/home/PickupStoreButton'
+import { PICKUP_ROW_ID, PickupStoreButton } from '../components/home/PickupStoreButton'
 import { ProductRail } from '../components/home/ProductRail'
 import { defaultPickupStore, storeDistance, type DefaultStoreReason } from '../homeRows'
-import { readPickupStore, type PickupStore } from '../pickupStore'
+import {
+  closerStore,
+  dismissNearbyNotice,
+  isNearbyNoticeDismissed,
+  regionOf,
+} from '../nearbyNotice'
+import { readPickupStore, savePickupStore, type PickupStore } from '../pickupStore'
 import { useCurrentPosition, type PositionState } from '../useCurrentPosition'
 import { usePullToRefresh } from '../usePullToRefresh'
 
@@ -28,8 +41,8 @@ import { usePullToRefresh } from '../usePullToRefresh'
  */
 export function CustomerHomePage() {
   const profile = useMyProfile()
-  // 픽업 점포는 점포 둘러보기·점포 검색의 [픽업 점포로 정하기]로만 바뀐다. 홈은 들어올 때 한 번 읽는다
-  const [pickup] = useState<PickupStore | null>(readPickupStore)
+  // 픽업 점포는 점포 둘러보기·점포 검색의 [픽업 점포로 정하기]와 홈 "더 가까운 점포" 안내의 [바꾸기]로 바뀐다
+  const [pickup, setPickup] = useState<PickupStore | null>(readPickupStore)
 
   if (profile.isPending) return <FullScreenSpinner />
   // 로그인했는데 프로필이 없으면 프로필 등록 마무리 화면으로 (기능명세 M1)
@@ -37,17 +50,27 @@ export function CustomerHomePage() {
 
   const me = profile.data?.role === 'CUSTOMER' ? profile.data : undefined
   const region = me && isRegionCode(me.region) ? me.region : DEFAULT_REGION
-  return <HomeWithStore saved={pickup} region={region} />
+  return <HomeWithStore saved={pickup} region={region} onPickupChange={setPickup} />
 }
 
 /**
  * 홈에 쓸 점포를 정한다. 고른 점포(saved)가 있으면 그것, 없으면 임시 점포(defaultPickupStore).
  * 임시 점포는 위치 답(허용·거절·8초 시간 초과)과 내 지역 점포 목록을 기다린 뒤 정한다. 그동안은 자리표시를 보인다
  */
-function HomeWithStore({ saved, region }: { saved: PickupStore | null; region: RegionCode }) {
+function HomeWithStore({
+  saved,
+  region,
+  onPickupChange,
+}: {
+  saved: PickupStore | null
+  region: RegionCode
+  onPickupChange: (store: PickupStore) => void
+}) {
   const position = useCurrentPosition(true)
-  const stores = useStores({ region, keyword: '' })
-  const homeProps = { region, position, stores }
+  // 점포 목록은 지금 위치의 시·도(위치를 모르면 가입 지역). 임시 점포·내 주변 점포·더 가까운 점포 안내가 같이 쓴다(11/14)
+  const nowRegion = position.status === 'ok' ? regionOf(position.position) : region
+  const stores = useStores({ region: nowRegion, keyword: '' })
+  const homeProps = { region: nowRegion, position, stores, onPickupChange }
 
   if (saved) return <Home pickup={saved} temporary={null} {...homeProps} />
   if (stores.isError) {
@@ -117,6 +140,7 @@ function Home({
   temporary,
   position,
   stores,
+  onPickupChange,
 }: {
   pickup: PickupStore
   /** 임시 점포면 고른 까닭, 손님이 고른 점포면 null */
@@ -124,13 +148,17 @@ function Home({
   region: RegionCode
   position: PositionState
   stores: ReturnType<typeof useStores>
+  onPickupChange: (store: PickupStore) => void
 }) {
   const { storeId, name } = pickup
   const origin = position.status === 'ok' ? position.position : null
-  const distance = storeDistance(
-    stores.data?.find((s) => s.storeId === storeId),
-    origin,
-  )
+  // 픽업 점포가 지금 시·도 목록에 없을 수 있어(다른 지역에 있을 때) 좌표는 점포 상세로도 찾는다
+  const detail = useStoreDetail(storeId)
+  const pickupPlace = stores.data?.find((s) => s.storeId === storeId) ?? detail.data
+  const distance = storeDistance(pickupPlace, origin)
+  // 더 가까운 점포 안내: 고른 픽업 점포가 10km 넘게 멀고 더 가까운 곳이 있을 때, 이번 접속 동안 한 번(11/14 시안 가·버튼 안 1)
+  const [dismissed, setDismissed] = useState(isNearbyNoticeDismissed)
+  const closer = temporary || dismissed ? null : closerStore(origin, pickupPlace, stores.data)
   const clearance = useClearanceProducts(storeId)
   const newArrivals = useStoreProducts(storeId, { newOnly: true })
   // 화면 맨 위에서 당겼다 놓으면 상품 줄·카테고리 사진·점포 목록·배너를 다시 읽는다(태우님 usePullToRefresh 그대로 쓴다)
@@ -154,6 +182,23 @@ function Home({
       <PullIndicator pull={pull} ready={ready} />
       <h1 className="sr-only">freshLink 홈</h1>
       <PickupStoreButton store={pickup} distanceKm={distance} temporary={temporary} />
+      {closer && (
+        <NearbyNotice
+          nearestName={closer.nearest.name}
+          nearestKm={closer.nearestKm}
+          onSwitch={() => {
+            const next = { storeId: closer.nearest.storeId, name: closer.nearest.name }
+            savePickupStore(next)
+            onPickupChange(next)
+            focusPickupRow()
+          }}
+          onKeep={() => {
+            dismissNearbyNotice()
+            setDismissed(true)
+            focusPickupRow()
+          }}
+        />
+      )}
       <HomeBanner />
       <CategoryGrid storeId={storeId} storeName={name} />
       <ProductSearch storeId={storeId} storeName={name} />
@@ -168,6 +213,11 @@ function Home({
       />
     </div>
   )
+}
+
+/** 안내 띠가 사라지면 누른 버튼도 없어져 초점이 길을 잃으므로, 바뀐 픽업 점포 줄로 옮긴다(WCAG 2.4.3) */
+function focusPickupRow() {
+  requestAnimationFrame(() => document.getElementById(PICKUP_ROW_ID)?.focus())
 }
 
 /** 홈 ⑤ 픽업 점포 상품 검색. 검색하면 그 점포 상품 목록을 검색어(?q=)와 함께 연다 */
