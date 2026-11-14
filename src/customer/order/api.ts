@@ -9,7 +9,12 @@ import { api } from '@/shared/api/client'
 import { apiErrorCode } from '@/shared/api/errors'
 import { type DatePeriod, isReversedPeriod, periodParams } from '@/shared/api/period'
 import { POLL_MS } from '@/shared/api/queryClient'
-import { isPollingStatus, type FailureReason, type OrderStatus } from './orderStatus'
+import {
+  isAwaitingReadyStatus,
+  isPollingStatus,
+  type FailureReason,
+  type OrderStatus,
+} from './orderStatus'
 import { isRefundInProgress, type RefundInfo, type RefundStatus } from './refund'
 
 /** OR-01 요청 */
@@ -211,18 +216,27 @@ export function useCustomerOrderPages({
   })
 }
 
-/** U-22·U-31 주문 조회 (OR-02). 진행 중 상태와 환불 처리·확인 중에만 2초 폴링 */
+/**
+ * U-22·U-31 주문 조회 (OR-02). 진행 중 상태와 환불 처리·확인 중에는 2초,
+ * 결제 완료 뒤 준비 완료 전(결제 완료·픽업 신청)에는 5초 폴링 (11/14 경우 결정 R3)
+ */
 export function useOrder(orderId: number | undefined) {
   return useQuery({
     queryKey: orderKey(orderId ?? 0),
     queryFn: async () => (await api.get<Order>(`/orders/${orderId}`)).data,
     enabled: orderId !== undefined,
-    refetchInterval: (query) =>
-      isPollingStatus(query.state.data?.status) ||
-      isRefundInProgress(query.state.data?.refundStatus)
-        ? POLL_MS.orderDetail
-        : false,
+    refetchInterval: (query) => orderRefetchMs(query.state.data),
   })
+}
+
+/** 주문 상세 폴링 간격. 멈추면 false */
+export function orderRefetchMs(
+  order: Pick<Order, 'status' | 'refundStatus'> | undefined,
+): number | false {
+  if (isPollingStatus(order?.status) || isRefundInProgress(order?.refundStatus))
+    return POLL_MS.orderDetail
+  if (isAwaitingReadyStatus(order?.status)) return POLL_MS.orderProgress
+  return false
 }
 
 /** 결제 대기 주문을 찾을 때 볼 최신 주문 수. 결제 대기는 10분이면 만료돼 늘 최신 주문 안에 있다 */

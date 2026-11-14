@@ -2,6 +2,7 @@ import { Home, QrCode, ReceiptText, Store, UserRound, type LucideIcon } from 'lu
 import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { NotificationBell } from '@/shared/notifications/NotificationBell'
+import { useNotificationRefresh } from '@/shared/realtime/useNotificationRefresh'
 import { cn } from '@/shared/ui/cn'
 
 const PICKUP_QR_PATH = '/customer/orders/pickup-qr'
@@ -32,6 +33,8 @@ const RIGHT_TABS: Tab[] = [
 export function CustomerLayout() {
   const { pathname } = useLocation()
   const navigationType = useNavigationType()
+  // 점주 준비 완료 알림이 오면 주문 상세·내역·픽업 QR 목록을 바로 다시 읽는다 (11/14 경우 결정 R1·R6)
+  useNotificationRefresh()
   // 새 화면으로 이동하면 맨 위부터 보이게 한다(11/12: 홈 아래 '내 주변 점포'를 누르면 점포 화면이 중간부터 열리던 문제).
   // 뒤로·앞으로 가기(POP)는 브라우저가 이전 위치를 되살리게 그대로 둔다
   useEffect(() => {

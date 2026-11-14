@@ -5,6 +5,9 @@ import { CustomerLayout } from './CustomerLayout'
 
 // 알림 종은 서버를 부르므로 이 테스트에서는 빈 칸으로 바꾼다
 vi.mock('@/shared/notifications/NotificationBell', () => ({ NotificationBell: () => null }))
+vi.mock('@/shared/realtime/useNotificationRefresh', () => ({
+  useNotificationRefresh: () => undefined,
+}))
 
 function renderAt(path: string) {
   return renderRouter(path)

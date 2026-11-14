@@ -1,6 +1,7 @@
 import { keepPreviousData, skipToken, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { api } from '@/shared/api/client'
+import { useAuthStore } from '@/shared/auth'
 
 /** 묶음 단위. day = 하루, week = 월요일부터 일요일, month = 달 */
 export type SalesUnit = 'day' | 'week' | 'month'
@@ -63,17 +64,31 @@ export interface TodaySales {
 }
 
 /**
+ * 매출 통로가 서버 응답(401·5xx 등)으로 닫혔을 때 다시 열기 전에 기다리는 시간. 실패가 이어지면 늘려 간다
+ * (11/14 경우 결정 R4: 픽업 QR 통로 #103 과 같은 3초 → 10초 → 30초, 그 뒤 30초마다)
+ */
+export const SALES_STREAM_RECONNECT_MS = [3_000, 10_000, 30_000] as const
+
+/**
  * 점주 실시간 매출 SSE (order-service GET /owner/orders/sales/stream). 결제가 완료되면 서버가 오늘 합계를 sales 이벤트로 보낸다.
  * 받으면 매출 조회를 다시 읽어 오늘·이번 주 카드와 그래프·표를 맞춘다. 처음 연결했을 때 오는 첫 이벤트는
- * 화면이 막 읽은 값과 같아서 넘긴다. 끊기면 EventSource 가 다시 붙고, 그 뒤 첫 이벤트로 놓친 결제를 반영한다.
- * 점주가 아니면 서버가 403 을 주고 EventSource 는 다시 붙지 않는다. enabled 가 false 면 연결하지 않는다
+ * 화면이 막 읽은 값과 같아서 넘긴다. enabled 가 false 면 연결하지 않는다.
+ * - 네트워크로 잠깐 끊기면(CONNECTING) EventSource 가 스스로 다시 붙고, 그 뒤 첫 이벤트로 놓친 결제를 반영한다.
+ * - 서버 응답으로 닫히면(CLOSED, 로그인 만료 401 등) 기다렸다가 로그인을 갱신하고 새로 연다. 새로 연 뒤 첫 이벤트는
+ *   끊긴 동안 놓친 결제가 있을 수 있어 넘기지 않고 다시 읽는다. 갱신이 안 되면(로그인이 끝남) 다시 열지 않는다.
+ * - 화면이 다시 보이면 닫혀 있을 때만 기다리지 않고 바로 다시 연다. (11/14 경우 결정 R4, 픽업 QR 통로와 같은 방식)
  */
 export function useSalesStream(enabled = true) {
   const queryClient = useQueryClient()
   useEffect(() => {
     if (!enabled || typeof EventSource === 'undefined') return
-    const source = new EventSource(SALES_STREAM_PATH, { withCredentials: true })
+    let source: EventSource | null = null
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let failures = 0
+    let stopped = false
+    let reopening = false
     let first = true
+
     const onSales = () => {
       if (first) {
         first = false
@@ -81,10 +96,57 @@ export function useSalesStream(enabled = true) {
       }
       void queryClient.invalidateQueries({ queryKey: ['owner', 'sales'] })
     }
-    source.addEventListener('sales', onSales)
+
+    const open = () => {
+      const next = new EventSource(SALES_STREAM_PATH, { withCredentials: true })
+      source = next
+      next.addEventListener('sales', onSales)
+      next.onopen = () => {
+        failures = 0
+      }
+      next.onerror = () => {
+        // CONNECTING 이면 브라우저가 스스로 다시 붙는 중이다. CLOSED 는 서버가 오류 응답(401 등)으로 닫은 것
+        if (stopped || source !== next || next.readyState !== EventSource.CLOSED) return
+        next.close()
+        next.removeEventListener('sales', onSales)
+        const wait =
+          SALES_STREAM_RECONNECT_MS[Math.min(failures, SALES_STREAM_RECONNECT_MS.length - 1)]
+        failures += 1
+        timer = setTimeout(() => void reopen(), wait)
+      }
+    }
+
+    const reopen = async () => {
+      if (stopped || reopening) return
+      reopening = true
+      try {
+        // 401 이었으면 로그인 쿠키를 새로 받는다. 로그인이 끝났으면(false) 다시 열지 않는다
+        if (!(await useAuthStore.getState().refreshSession())) return
+      } catch {
+        // 갱신 서버 오류: 로그인은 살아 있을 수 있어 그대로 다시 열어 본다
+      } finally {
+        reopening = false
+      }
+      if (stopped) return
+      first = false
+      open()
+    }
+
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || source?.readyState !== EventSource.CLOSED)
+        return
+      clearTimeout(timer)
+      void reopen()
+    }
+
+    document.addEventListener('visibilitychange', onVisible)
+    open()
     return () => {
-      source.removeEventListener('sales', onSales)
-      source.close()
+      stopped = true
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      source?.removeEventListener('sales', onSales)
+      source?.close()
     }
   }, [queryClient, enabled])
 }
