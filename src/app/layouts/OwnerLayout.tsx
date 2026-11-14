@@ -17,6 +17,7 @@ import { PickupScanListener } from '@/owner/orders/pickup/components/PickupScanL
 import { PickupStreamDot } from '@/owner/orders/pickup/components/PickupStreamDot'
 import { AssistantLauncher } from '@/owner/assistant/components/AssistantLauncher'
 import { NotificationBell } from '@/shared/notifications/NotificationBell'
+import { useNotificationRefresh } from '@/shared/realtime/useNotificationRefresh'
 import { useOwnerStore } from '@/owner/store/api'
 import { cn } from '@/shared/ui/cn'
 
@@ -64,6 +65,8 @@ export function OwnerLayout() {
   const store = useOwnerStore()
   // QR 알림 통로가 붙어 있는지 (점포명 옆 불). 처음 열리기 전에는 끊김으로 본다
   const [qrConnected, setQrConnected] = useState(false)
+  // 픽업 신청·소비기한 알림이 오면 주문 목록·임박 데이터를 바로 다시 읽는다 (11/14 경우 결정 R1·R6)
+  useNotificationRefresh()
 
   return (
     <div className="flex min-h-dvh">

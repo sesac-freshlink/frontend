@@ -6,6 +6,9 @@ import { OwnerLayout } from './OwnerLayout'
 
 // 알림 종은 서버를 부르므로 이 테스트에서는 빈 칸으로 바꾼다
 vi.mock('@/shared/notifications/NotificationBell', () => ({ NotificationBell: () => null }))
+vi.mock('@/shared/realtime/useNotificationRefresh', () => ({
+  useNotificationRefresh: () => undefined,
+}))
 // AI 비서 버튼도 서버를 부르므로 빈 칸으로 바꾼다
 vi.mock('@/owner/assistant/components/AssistantLauncher', () => ({ AssistantLauncher: () => null }))
 // 로고 아래 점포명은 내 점포 응답에서 가져온다(11/12 결정). 서버 대신 고정 값
