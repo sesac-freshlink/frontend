@@ -30,6 +30,7 @@ import { LedgerPage } from '@/owner/inventory/pages/LedgerPage'
 import { LotDetailPage } from '@/owner/inventory/pages/LotDetailPage'
 import { OwnerOrdersPage } from '@/owner/orders/pages/OwnerOrdersPage'
 import { OwnerPickupScanPage } from '@/owner/orders/pages/OwnerPickupScanPage'
+import { OwnerSalesDayPage } from '@/owner/sales/pages/OwnerSalesDayPage'
 import { OwnerSalesPage } from '@/owner/sales/pages/OwnerSalesPage'
 import { OwnerStorePage } from '@/owner/store/pages/OwnerStorePage'
 import { AdminLayout } from './layouts/AdminLayout'
@@ -59,6 +60,7 @@ export const routes: RouteObject[] = [
           { path: 'expiring', element: <ExpiringPage /> },
           { path: 'orders', element: <OwnerOrdersPage /> },
           { path: 'sales', element: <OwnerSalesPage /> },
+          { path: 'sales/day', element: <OwnerSalesDayPage /> },
           { path: 'notices', element: <NoticeListPage basePath="/owner/notices" /> },
           { path: 'notices/:noticeId', element: <NoticeDetailPage basePath="/owner/notices" /> },
           { path: 'faq', element: <FaqPage /> },

@@ -2,7 +2,14 @@ import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
-import { useSales, useSalesStream, type SalesResponse, type SalesUnit } from '../api'
+import {
+  useSales,
+  useSalesStream,
+  type SalesPeriod,
+  type SalesResponse,
+  type SalesUnit,
+} from '../api'
+import { SalesDayDialog } from '../components/SalesDayDialog'
 import { SalesChart } from '../components/SalesChart'
 import {
   formatShortDate,
@@ -255,49 +262,73 @@ function SalesChartArea({ sales }: { sales: ReturnType<typeof useSales> }) {
 
 function SalesTable({ data }: { data: SalesResponse }) {
   const totals = sumPeriods(data.periods)
+  const [opened, setOpened] = useState<SalesPeriod | null>(null)
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left whitespace-nowrap text-slate-500">
-          <tr>
-            <th className="px-3 py-3 font-medium">기간</th>
-            <th className="px-3 py-3 text-right font-medium">결제 금액</th>
-            <th className="px-3 py-3 text-right font-medium">환불 금액</th>
-            <th className="px-3 py-3 text-right font-medium">순매출</th>
-            <th className="px-3 py-3 text-right font-medium">결제 건수</th>
-            <th className="px-3 py-3 text-right font-medium">환불 건수</th>
-            <th className="px-3 py-3 text-right font-medium">취소 건수</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200 whitespace-nowrap text-slate-900 tabular-nums">
-          {data.periods.map((p) => (
-            <tr key={p.period}>
-              <td className="px-3 py-2.5">{periodLabel(p.period, data.unit, data)}</td>
-              <td className="px-3 py-2.5 text-right">{formatWon(p.paidAmount)}</td>
-              <td className="px-3 py-2.5 text-right">{formatWon(p.refundAmount)}</td>
-              <td className="px-3 py-2.5 text-right font-medium">{formatWon(p.netAmount)}</td>
-              <td className="px-3 py-2.5 text-right">{p.paidCount}건</td>
-              <td className="px-3 py-2.5 text-right">{p.refundCount}건</td>
-              <td className="px-3 py-2.5 text-right">{p.canceledCount}건</td>
+    <div className="space-y-2">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left whitespace-nowrap text-slate-500">
+            <tr>
+              <th className="px-3 py-3 font-medium">기간</th>
+              <th className="px-3 py-3 text-right font-medium">결제 금액</th>
+              <th className="px-3 py-3 text-right font-medium">환불 금액</th>
+              <th className="px-3 py-3 text-right font-medium">순매출</th>
+              <th className="px-3 py-3 text-right font-medium">결제 건수</th>
+              <th className="px-3 py-3 text-right font-medium">환불 건수</th>
+              <th className="px-3 py-3 text-right font-medium">취소 건수</th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot className="border-t border-slate-300 bg-slate-50 font-semibold whitespace-nowrap text-slate-900 tabular-nums">
-          <tr>
-            <th scope="row" className="px-3 py-3 text-left">
-              합계
-            </th>
-            <td className="px-3 py-3 text-right">{formatWon(totals.paidAmount)}</td>
-            <td className="px-3 py-3 text-right">{formatWon(totals.refundAmount)}</td>
-            <td className="px-3 py-3 text-right">{formatWon(totals.netAmount)}</td>
-            <td className="px-3 py-3 text-right">{totals.paidCount.toLocaleString('ko-KR')}건</td>
-            <td className="px-3 py-3 text-right">{totals.refundCount.toLocaleString('ko-KR')}건</td>
-            <td className="px-3 py-3 text-right">
-              {totals.canceledCount.toLocaleString('ko-KR')}건
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-200 whitespace-nowrap text-slate-900 tabular-nums">
+            {data.periods.map((p) => (
+              <tr key={p.period}>
+                <td className="px-3 py-1">
+                  {/* 일 단위일 때만 날짜를 누르면 그날 팔린 상품 창이 뜬다 (11/14 시안 B) */}
+                  {data.unit === 'day' ? (
+                    <button
+                      type="button"
+                      onClick={() => setOpened(p)}
+                      className="min-h-11 text-emerald-700 underline hover:text-emerald-800"
+                    >
+                      {periodLabel(p.period, data.unit, data)}
+                    </button>
+                  ) : (
+                    <span className="inline-block py-1.5">
+                      {periodLabel(p.period, data.unit, data)}
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2.5 text-right">{formatWon(p.paidAmount)}</td>
+                <td className="px-3 py-2.5 text-right">{formatWon(p.refundAmount)}</td>
+                <td className="px-3 py-2.5 text-right font-medium">{formatWon(p.netAmount)}</td>
+                <td className="px-3 py-2.5 text-right">{p.paidCount}건</td>
+                <td className="px-3 py-2.5 text-right">{p.refundCount}건</td>
+                <td className="px-3 py-2.5 text-right">{p.canceledCount}건</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="border-t border-slate-300 bg-slate-50 font-semibold whitespace-nowrap text-slate-900 tabular-nums">
+            <tr>
+              <th scope="row" className="px-3 py-3 text-left">
+                합계
+              </th>
+              <td className="px-3 py-3 text-right">{formatWon(totals.paidAmount)}</td>
+              <td className="px-3 py-3 text-right">{formatWon(totals.refundAmount)}</td>
+              <td className="px-3 py-3 text-right">{formatWon(totals.netAmount)}</td>
+              <td className="px-3 py-3 text-right">{totals.paidCount.toLocaleString('ko-KR')}건</td>
+              <td className="px-3 py-3 text-right">
+                {totals.refundCount.toLocaleString('ko-KR')}건
+              </td>
+              <td className="px-3 py-3 text-right">
+                {totals.canceledCount.toLocaleString('ko-KR')}건
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {data.unit === 'day' && (
+        <p className="text-xs text-slate-500">날짜를 누르면 그날 팔린 상품을 볼 수 있어요.</p>
+      )}
+      {opened && <SalesDayDialog period={opened} onClose={() => setOpened(null)} />}
     </div>
   )
 }
