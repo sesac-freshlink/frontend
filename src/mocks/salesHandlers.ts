@@ -1,7 +1,13 @@
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import { http, HttpResponse, sse } from 'msw'
-import type { SalesPeriod, SalesResponse, SalesUnit, TodaySales } from '@/owner/sales/api'
+import type {
+  SalesPeriod,
+  SalesProducts,
+  SalesResponse,
+  SalesUnit,
+  TodaySales,
+} from '@/owner/sales/api'
 import { kstToday, MAX_DAYS, weekStart } from '@/owner/sales/sales'
 
 dayjs.extend(utc)
@@ -111,7 +117,44 @@ const salesStreamHandlers =
         }),
       ]
 
+/** 하루 상품별 매출 가짜 상품 (재고 가짜 API 의 상품 번호·이름과 같다) */
+const FAKE_PRODUCTS = [
+  { productId: 1, productName: '삼각김밥 참치마요', price: 1500 },
+  { productId: 2, productName: '바나나우유', price: 1700 },
+  { productId: 3, productName: '샌드위치 햄치즈', price: 3200 },
+  { productId: 4, productName: '아메리카노 캔 240ml', price: 1800 },
+  { productId: 5, productName: '초코빵', price: 2200 },
+]
+
+/** OR-14 가짜 응답. 날짜로 정해지는 수량이라 매번 같고, 가짜 매출이 없는 날(미래·아주 옛날)은 빈 목록 */
+export function buildSalesProducts(date: string, today = kstToday()): SalesProducts {
+  const daysAgo = dayjs.utc(today).diff(dayjs.utc(date), 'day')
+  if (daysAgo < 0 || daysAgo > FAKE_DAYS) return { date, items: [] }
+  const items = FAKE_PRODUCTS.map((p, i) => {
+    const h = hash(`${date}-${p.productId}`)
+    const sold = (h % 9) + (i === 0 ? 6 : 1)
+    const clearance = h % 3 === 0 ? Math.min(sold, 1 + (h % 4)) : 0
+    // 마감세일은 30% 할인한 값으로 더한다(서버는 실제 결제 금액을 쓴다)
+    const amount = (sold - clearance) * p.price + Math.round(clearance * p.price * 0.7)
+    return {
+      productId: p.productId,
+      productName: p.productName,
+      soldQuantity: sold,
+      clearanceQuantity: clearance,
+      netAmount: amount,
+    }
+  }).sort((a, b) => b.soldQuantity - a.soldQuantity || b.netAmount - a.netAmount)
+  return { date, items }
+}
+
 export const salesHandlers = [
+  http.get('/api/owner/orders/sales/products', ({ request }) => {
+    const raw = new URL(request.url).searchParams.get('date')
+    if (!raw?.trim()) return validation('date: 필수입니다')
+    const date = parseDate(raw)
+    if (!date) return validation('date: yyyy-MM-dd 형식이어야 합니다')
+    return HttpResponse.json(buildSalesProducts(date))
+  }),
   http.get('/api/owner/orders/sales', ({ request }) => {
     const params = new URL(request.url).searchParams
     const rawFrom = params.get('from')

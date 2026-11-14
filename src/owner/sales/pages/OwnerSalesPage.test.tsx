@@ -12,6 +12,10 @@ import { OwnerSalesPage } from './OwnerSalesPage'
 dayjs.extend(utc)
 
 vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn() } }))
+// 날짜 창은 따로 테스트한다. 여기서는 누른 날짜로 창을 여는지만 본다
+vi.mock('../components/SalesDayDialog', () => ({
+  SalesDayDialog: ({ period }: { period: { period: string } }) => <p>날짜 창 {period.period}</p>,
+}))
 const get = vi.mocked(api.get)
 
 /**
@@ -204,5 +208,20 @@ describe('점주 매출 대시보드', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(within(card('오늘 매출')).getByText('0원')).toBeInTheDocument()
     expect(within(card('결제 건수')).getByText('0건')).toBeInTheDocument()
+  })
+
+  it('일 단위 표의 날짜를 누르면 그날 팔린 상품 창을 열고, 주·월 단위에서는 날짜가 버튼이 아니다 (11/14 시안 B)', async () => {
+    renderPage()
+    const day = await screen.findByRole('button', { name: '10/28(수)' })
+    expect(screen.getByText('날짜를 누르면 그날 팔린 상품을 볼 수 있어요.')).toBeInTheDocument()
+    fireEvent.click(day)
+    expect(screen.getByText('날짜 창 2026-10-28')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '주' }))
+    await waitFor(() =>
+      expect(
+        screen.queryByText('날짜를 누르면 그날 팔린 상품을 볼 수 있어요.'),
+      ).not.toBeInTheDocument(),
+    )
   })
 })

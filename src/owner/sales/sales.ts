@@ -207,3 +207,46 @@ export function chartSummary(periods: SalesPeriod[], unit: SalesUnit, title: str
   if (top.netAmount <= 0) return `${title} 그래프. ${range}, 매출 없음`
   return `${title} 그래프. ${range}, 합계 ${formatWon(total)}, 가장 높은 때 ${axisLabel(top.period, unit)} ${formatWon(top.netAmount)}`
 }
+
+/** "2026-11-13" → "11월 13일(금)" (하루 보기 제목·매출 날짜 창) */
+export function formatDayTitle(date: string): string {
+  const d = day(date)
+  return `${d.month() + 1}월 ${d.date()}일(${WEEKDAYS[d.day()]})`
+}
+
+/** 날짜를 n일 옮긴다 ("yyyy-MM-dd") */
+export function shiftDay(date: string, n: number): string {
+  return day(date).add(n, 'day').format('YYYY-MM-DD')
+}
+
+/** 주소의 date 가 "yyyy-MM-dd" 실제 날짜면 그대로, 아니면 null */
+export function parseDayParam(value: string | null): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  return day(value).format('YYYY-MM-DD') === value ? value : null
+}
+
+/** 상품별 매출 합계: 팔린 수량과 그중 마감세일 수량 */
+export function sumSoldProducts(items: { soldQuantity: number; clearanceQuantity: number }[]): {
+  sold: number
+  clearance: number
+} {
+  return items.reduce(
+    (acc, i) => ({
+      sold: acc.sold + i.soldQuantity,
+      clearance: acc.clearance + i.clearanceQuantity,
+    }),
+    { sold: 0, clearance: 0 },
+  )
+}
+
+/** 그날 폐기 합계: 폐기 수량(양수)과 상품 수 */
+export function disposalSummary(rows: { type: string; productId: number; quantity: number }[]): {
+  quantity: number
+  products: number
+} {
+  const disposals = rows.filter((r) => r.type === 'DISPOSE')
+  return {
+    quantity: disposals.reduce((sum, r) => sum + Math.abs(r.quantity), 0),
+    products: new Set(disposals.map((r) => r.productId)).size,
+  }
+}

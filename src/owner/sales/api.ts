@@ -1,5 +1,6 @@
 import { keepPreviousData, skipToken, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
+import { useInventory, type InventoryItem, type LedgerItem } from '@/owner/inventory/api'
 import { api } from '@/shared/api/client'
 import { useAuthStore } from '@/shared/auth'
 
@@ -149,4 +150,63 @@ export function useSalesStream(enabled = true) {
       source?.close()
     }
   }, [queryClient, enabled])
+}
+
+/** OR-14 하루 상품별 매출 한 줄. order-service SalesProductsResponse.Item 과 같은 모양 */
+export interface SalesProductItem {
+  productId: number
+  productName: string | null
+  /** 그날 결제 승인 수량 − 그날 환불 수량 */
+  soldQuantity: number
+  /** 그중 마감세일 수량 */
+  clearanceQuantity: number
+  /** 실제 결제 금액(마감세일 할인 반영) − 환불 금액 */
+  netAmount: number
+}
+
+/** OR-14 응답. items 는 많이 팔린 순 */
+export interface SalesProducts {
+  date: string
+  items: SalesProductItem[]
+}
+
+/**
+ * OR-14 점주 하루 상품별 매출 (order-service GET /owner/orders/sales/products?date=, 11/14 하루 보기·매출 날짜 창).
+ * queryKey 가 ['owner','sales'] 아래라 결제 완료 매출 SSE 를 받으면 같이 다시 읽는다. date 가 null 이면 부르지 않는다
+ */
+export function useSalesProducts(date: string | null) {
+  return useQuery({
+    queryKey: ['owner', 'sales', 'products', date],
+    queryFn: date
+      ? async () =>
+          (await api.get<SalesProducts>('/owner/orders/sales/products', { params: { date } })).data
+      : skipToken,
+  })
+}
+
+/**
+ * 그날의 폐기·입고 (inventory-service S-13 GET /owner/inventory/ledger?from=&to=, 최근 100건).
+ * 화면에서도 그날(createdAt 한국 날짜) 것만 남긴다. 재고 화면의 useLedger 는 날짜 조건이 없어 따로 둔다
+ */
+export function useDayLedger(date: string) {
+  return useQuery({
+    queryKey: ['owner', 'sales', 'ledger', date],
+    queryFn: async () =>
+      (
+        await api.get<LedgerItem[]>('/owner/inventory/ledger', { params: { from: date, to: date } })
+      ).data.filter(
+        (l) => l.createdAt.slice(0, 10) === date && (l.type === 'DISPOSE' || l.type === 'INBOUND'),
+      ),
+  })
+}
+
+/** 재고 목록 한 쪽(최대 100개, 조건 없음). 렌더마다 새 객체를 만들지 않게 밖에 둔다 */
+const STOCK_QUERY = { q: '', statuses: [], memoOnly: false, page: 0, size: 100 }
+
+/** 지금 재고를 상품 번호로 찾는 표 (S-10 재고 목록 한 쪽, 최대 100개). 재고 화면처럼 3초마다 다시 읽는다 */
+export function useStockByProduct(): Map<number, InventoryItem> {
+  const inventory = useInventory(STOCK_QUERY)
+  // 재고는 3초마다 다시 읽으므로 응답이 바뀔 때만 표를 새로 만든다
+  const items = inventory.data?.items
+  return useMemo(() => new Map((items ?? []).map((item) => [item.productId, item])), [items])
 }

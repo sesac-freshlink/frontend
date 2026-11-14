@@ -1,6 +1,6 @@
 import { getResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import type { SalesResponse } from '@/owner/sales/api'
+import type { SalesProducts, SalesResponse } from '@/owner/sales/api'
 import { kstToday } from '@/owner/sales/sales'
 import { buildSales, salesHandlers } from './salesHandlers'
 
@@ -88,5 +88,27 @@ describe('점주 매출 가짜 API', () => {
     expect(body.periods).toHaveLength(1)
     expect(body.periods[0].period).toBe(today)
     expect(body.periods[0].paidAmount).toBeGreaterThan(0)
+  })
+})
+
+describe('점주 하루 상품별 매출 가짜 API (OR-14)', () => {
+  async function products(query: string) {
+    const res = await getResponse(
+      salesHandlers,
+      new Request(new URL(`/api/owner/orders/sales/products?${query}`, location.origin)),
+    )
+    if (!res) throw new Error(`핸들러 없음: ${query}`)
+    return res
+  }
+
+  it('date 가 없거나 틀리면 400, 있으면 많이 팔린 순 목록', async () => {
+    expect((await products('')).status).toBe(400)
+    expect((await products('date=2026/11/13')).status).toBe(400)
+    const today = kstToday()
+    const body = (await (await products(`date=${today}`)).json()) as SalesProducts
+    expect(body.date).toBe(today)
+    expect(body.items.length).toBeGreaterThan(0)
+    const sold = body.items.map((i) => i.soldQuantity)
+    expect(sold).toEqual([...sold].sort((a, b) => b - a))
   })
 })
