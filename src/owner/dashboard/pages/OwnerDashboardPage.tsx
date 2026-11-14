@@ -65,9 +65,9 @@ export function OwnerDashboardPage() {
             urgent={todayDue > 0}
           />
           <Stat
-            value={`${expiredQty}`}
+            value={`${expiredQty.toLocaleString('ko-KR')}개`}
             label="소비기한 지남"
-            sub={expiredProducts > 0 ? `${expiredProducts}상품 폐기 처리 필요` : undefined}
+            sub={expiredProducts > 0 ? `상품 ${expiredProducts}개 폐기 처리 필요` : undefined}
             urgent={expiredProducts > 0}
           />
           <Stat

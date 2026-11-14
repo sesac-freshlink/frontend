@@ -3,7 +3,6 @@ import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { DEFAULT_ORDER_PAGE_SIZE, ORDER_PAGE_SIZES, type OrderPageSize } from '@/customer/order/api'
 import { CancelReasonDialog } from '@/customer/order/components/CancelReasonDialog'
-import { ReceiptLink } from '@/customer/order/components/ReceiptLink'
 import { quantityText } from '@/customer/order/clearance'
 import { formatDateTime, formatShortPickupDate, formatWon } from '@/customer/order/format'
 import { orderStatusLabel } from '@/customer/order/orderStatus'
@@ -260,11 +259,8 @@ const BASE_COLUMNS: Column[] = [
       </div>
     ),
   },
-  {
-    // 링크(글자)라 왼쪽 맞춤. 오른쪽 맞춤은 숫자 칸(수량·금액)만 쓴다
-    label: '영수증',
-    cell: (o) => <ReceiptLink url={o.payment?.receiptUrl ?? null} />,
-  },
+  // 영수증 칸은 두지 않는다(11/14 경우 결정): 점주가 영수증을 보려면 점주마다 결제 API 키가 필요하다.
+  // 고객은 고객 주문 상세의 영수증으로 확인한다
 ]
 
 const PICKUP_DEADLINE_COLUMN: Column = {

@@ -119,7 +119,7 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2))
   })
 
-  it('주문마다 결제 수단·결제 시각·영수증 보기를 보여 주고, 영수증이 없으면 링크만 숨긴다', async () => {
+  it('주문마다 결제 수단·결제 시각을 보여 주고, 영수증 칸·링크는 두지 않는다 (11/14 경우 결정)', async () => {
     const payment = {
       method: '카드',
       approvedAt: '2026-10-20T15:35:10+09:00',
@@ -148,9 +148,9 @@ describe('점주 주문 목록 (S-50·A5·A6)', () => {
     expect(await screen.findByText('FL-20261020-000001')).toBeInTheDocument()
     expect(screen.getByText('카드')).toBeInTheDocument()
     expect(screen.getByText('간편결제')).toBeInTheDocument()
-    const links = screen.getAllByRole('link', { name: '영수증 보기' })
-    expect(links).toHaveLength(1)
-    expect(links[0]).toHaveAttribute('href', 'https://receipt.test/1')
+    // 서버 응답에 영수증 주소가 있어도 점주 화면에는 보이지 않는다
+    expect(screen.queryByRole('columnheader', { name: '영수증' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '영수증 보기' })).not.toBeInTheDocument()
   })
 
   it('주문이 없으면 안내한다', async () => {
