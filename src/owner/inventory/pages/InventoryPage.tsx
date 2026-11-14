@@ -8,6 +8,7 @@ import {
   type InventoryItem,
   type InventoryQuery,
   type InventoryStatusFilter,
+  useClearanceByProduct,
 } from '../api'
 import { LotDetailPanel } from '../components/LotDetailPanel'
 import { MemoDialog } from '../components/MemoDialog'
@@ -274,6 +275,7 @@ function InventoryTable({
   onSelect,
   onMemo,
 }: TableProps) {
+  const clearance = useClearanceByProduct()
   if (inventory.isPending) {
     return (
       <div className="flex justify-center py-16 text-slate-500">
@@ -288,7 +290,12 @@ function InventoryTable({
       </p>
     )
   }
-  const rows = inventory.data.items
+  // 서버가 마감세일 수량을 주면 그대로, 안 주면 고객 상품 목록에서 붙인다(못 읽었으면 "-")
+  const rows = inventory.data.items.map((item) =>
+    item.clearanceQuantity != null || !clearance
+      ? item
+      : { ...item, clearanceQuantity: clearance.get(item.productId) ?? 0 },
+  )
   if (rows.length === 0) {
     return <p className="py-16 text-center text-sm text-slate-500">{emptyMessage(query)}</p>
   }
