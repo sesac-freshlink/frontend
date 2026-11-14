@@ -46,6 +46,8 @@ import {
   type StoreSearchTab,
 } from '../storeSearchTabs'
 import { useCurrentPosition } from '../useCurrentPosition'
+import { useFarPickGuard } from '../useFarPickGuard'
+import { FarPickDialog } from '../components/FarPickDialog'
 
 /**
  * U-01 점포 검색 (/customer/stores, 하단 메뉴 [점포 검색]): 거주 지역의 점포를 지도와 목록으로 보여 주고 지역·검색어로 다시 찾는다.
@@ -53,6 +55,7 @@ import { useCurrentPosition } from '../useCurrentPosition'
  */
 export function StoreSearchPage() {
   const profile = useMyProfile()
+  const [params] = useSearchParams()
 
   if (profile.isPending) return <FullScreenSpinner />
   // 로그인했는데 프로필이 없으면 프로필 등록 마무리 화면으로 (기능명세 M1)
@@ -60,7 +63,9 @@ export function StoreSearchPage() {
 
   const me = profile.data?.role === 'CUSTOMER' ? profile.data : undefined
   const myRegion = me && isRegionCode(me.region) ? me.region : DEFAULT_REGION
-  return <StoreSearch initialRegion={myRegion} />
+  // 다른 화면이 지금 지역 가까운순으로 열 때(?region=, 점포 정할 때 확인 창 11/14) 그 지역부터
+  const asked = params.get('region')
+  return <StoreSearch initialRegion={isRegionCode(asked) ? asked : myRegion} />
 }
 
 /**
@@ -137,6 +142,8 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
     savePickupStore(store)
     setPickup(store)
   }
+  // 점포 정할 때 확인 창(11/14): 지금 위치에서 10km 넘게 멀고 더 가까운 점포가 있으면 정하기 전에 묻는다
+  const farPick = useFarPickGuard()
   const toggleFavorite = (row: StoreRow) => {
     const next = toggleFavoriteStore({ storeId: row.storeId, name: row.name, address: row.address })
     setFavorites(next)
@@ -344,14 +351,19 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
                                 setSelectedId(null)
                               }}
                               onToggleFavorite={() => toggleFavorite(selected)}
-                              onPick={() => {
-                                pick({ storeId: selected.storeId, name: selected.name })
-                                if (picking) {
-                                  void navigate('/customer')
-                                  return
-                                }
-                                toast.success('픽업 점포로 정했어요')
-                              }}
+                              onPick={() =>
+                                farPick.guard(
+                                  stores.data?.find((s) => s.storeId === selected.storeId),
+                                  () => {
+                                    pick({ storeId: selected.storeId, name: selected.name })
+                                    if (picking) {
+                                      void navigate('/customer')
+                                      return
+                                    }
+                                    toast.success('픽업 점포로 정했어요')
+                                  },
+                                )
+                              }
                             />
                           )
                         )
@@ -395,6 +407,19 @@ function StoreSearch({ initialRegion }: { initialRegion: RegionCode }) {
           </TabRows>
         </div>
       </section>
+      {farPick.pending && (
+        <FarPickDialog
+          pick={farPick.pending}
+          onClose={farPick.close}
+          onShowNearby={() => {
+            // 지금 지역 가까운순으로 바꿔 보여 준다(고른 점포는 정하지 않음)
+            const nowRegion = farPick.pending?.region
+            if (nowRegion) setRegion(nowRegion)
+            clearSelection()
+            selectTab('near')
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -4,6 +4,9 @@ import type { DefaultStoreReason } from '../../homeRows'
 import { formatDistance } from '../../nearby'
 import type { PickupStore } from '../../pickupStore'
 
+/** 더 가까운 점포 안내를 닫은 뒤 초점을 돌려줄 곳(11/14) */
+export const PICKUP_ROW_ID = 'pickup-store-row'
+
 /** 줄 앞 이름표. 손님이 고른 점포는 "픽업 점포", 임시 점포는 고른 까닭을 보인다 */
 const LABELS: Record<DefaultStoreReason | 'saved', string> = {
   saved: '픽업 점포',
@@ -30,6 +33,7 @@ export function PickupStoreButton({
   const distance = distanceKm === null ? '' : `, ${formatDistance(distanceKm)}`
   return (
     <Link
+      id={PICKUP_ROW_ID}
       to="/customer/stores?pick=1"
       aria-label={`${label} ${store.name}${distance}. 다른 점포로 바꾸기`}
       className="flex min-h-12 items-center gap-2 rounded-xl bg-white px-4 py-2 ring-1 ring-slate-200"
