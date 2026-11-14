@@ -3,10 +3,29 @@ import { AxiosError, AxiosHeaders, type AxiosRequestConfig } from 'axios'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
 import type { InventoryItem, InventoryListPage, InventoryLotItem } from '../api'
 import { InventoryPage } from './InventoryPage'
+
+// jsdom 에는 HTMLDialogElement 의 showModal/close 가 없다. 열고 닫기만 흉내 낸다 (선착순 탭 테스트와 같음)
+const proto = HTMLDialogElement.prototype as Partial<HTMLDialogElement>
+const showModal = proto.showModal
+const close = proto.close
+beforeAll(() => {
+  proto.showModal ??= function (this: HTMLDialogElement) {
+    this.setAttribute('open', '')
+  }
+  proto.close ??= function (this: HTMLDialogElement) {
+    if (!this.hasAttribute('open')) return
+    this.removeAttribute('open')
+    setTimeout(() => this.dispatchEvent(new Event('close')), 0)
+  }
+})
+afterAll(() => {
+  proto.showModal = showModal
+  proto.close = close
+})
 
 vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn(), put: vi.fn() } }))
 const get = vi.mocked(api.get)
@@ -401,7 +420,21 @@ describe('lot 상세 패널 (S-11)', () => {
     expect(within(dialog).getByLabelText('실제 수량')).toHaveValue(6)
 
     await userEvent.click(within(dialog).getByRole('button', { name: '취소' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // 조정 창만 닫히고 소비기한별 수량 모달은 남는다
+    expect(screen.queryByRole('dialog', { name: '재고 조정' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '소비기한별 수량' })).toBeInTheDocument()
+  })
+
+  it('소비기한별 수량은 표 옆이 아니라 모달로 열리고 Esc 로 닫힌다 (11/15)', async () => {
+    mockInventoryAndLots(() => Promise.resolve({ data: lots }))
+    renderPage()
+
+    await userEvent.click(await screen.findByText('흰 우유 500ml'))
+    expect(await screen.findByRole('dialog', { name: '소비기한별 수량' })).toHaveAttribute('open')
+    // 연필 칸 제목 "재고 조정"이 화면에 보인다 (11/15)
+    expect(screen.getByRole('columnheader', { name: '재고 조정' })).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: '소비기한별 수량' })).not.toBeInTheDocument()
   })
 
   it('lot 조회 오류는 서버 message 로 보여 준다', async () => {

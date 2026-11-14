@@ -210,24 +210,31 @@ interface Column {
   /** 화면에는 안 보이고 읽어 주기만 하는 머리글 */
   srOnly?: boolean
   right?: boolean
+  /**
+   * 칸 너비(table-fixed). 앞 다섯 칸(주문번호~결제)은 모든 구분에서 같은 너비라 구분을 바꿔도 자리가 같다.
+   * 비우면 남는 자리를 가진다(구분마다 뒤쪽 칸 하나: 픽업 기한·픽업 시각·취소 사유)
+   */
+  width?: string
   className?: string
   cell(o: OwnerOrder): ReactNode
 }
 
 /** 모든 구분이 같이 쓰는 칸 */
 const BASE_COLUMNS: Column[] = [
-  { label: '주문번호', className: 'font-medium', cell: (o) => o.orderNo },
+  { label: '주문번호', width: 'w-44', className: 'font-medium', cell: (o) => o.orderNo },
   {
     label: '상품',
-    // 상품명은 줄바꿈을 허용해 1024px 포스기에서도 표가 화면 안에 들어오게 한다
+    width: 'w-56',
+    // 상품명이 길면 줄을 바꾼다
     className: 'min-w-24 break-keep whitespace-normal',
     cell: (o) => o.productName,
   },
-  { label: '수량', right: true, cell: (o) => quantityText(o) },
-  { label: '금액', right: true, cell: (o) => formatWon(o.amount) },
+  { label: '수량', width: 'w-16', right: true, cell: (o) => quantityText(o) },
+  { label: '금액', width: 'w-24', right: true, cell: (o) => formatWon(o.amount) },
   {
     // 결제 수단과 결제 시각을 한 칸에 두 줄로 둔다. 픽업 대기 표(칸 9개)가 1024px 포스기 화면 안에 들어오게 하려는 것이다
     label: '결제',
+    width: 'w-32',
     cell: (o) => (
       <div className="leading-tight">
         <p>{o.payment?.method ?? '-'}</p>
@@ -266,7 +273,7 @@ function ownerStatusText(o: OwnerOrder): string {
 
 /** 구분마다 더 보여 주는 칸. [준비 완료]·[픽업 확인]·[취소] 칸은 OrderTable 이 붙인다 */
 const EXTRA_COLUMNS: Record<OwnerOrderTab, Column[]> = {
-  ALL: [{ label: '상태', cell: ownerStatusText }, PICKUP_DEADLINE_COLUMN],
+  ALL: [{ label: '상태', width: 'w-36', cell: ownerStatusText }, PICKUP_DEADLINE_COLUMN],
   PICKUP_WAITING: [PICKUP_DEADLINE_COLUMN],
   PICKUP_REQUESTED: [PICKUP_DEADLINE_COLUMN],
   READY_FOR_PICKUP: [PICKUP_DEADLINE_COLUMN],
@@ -280,6 +287,7 @@ const EXTRA_COLUMNS: Record<OwnerOrderTab, Column[]> = {
   CANCELED: [
     {
       label: '처리 상태',
+      width: 'w-28',
       cell: (o) => (
         <span className={cn(o.refundStatus === 'FAILED' && 'font-medium text-red-600')}>
           {hasRefundStarted(o.refundStatus) || o.status === 'REFUNDED'
@@ -310,6 +318,7 @@ const EXTRA_COLUMNS: Record<OwnerOrderTab, Column[]> = {
     },
     {
       label: '요청·완료 시각',
+      width: 'w-32',
       cell: (o) => (
         <div className="leading-tight">
           <p>{o.refund ? formatDateTime(o.refund.requestedAt) : '-'}</p>
@@ -349,6 +358,7 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
     columns.push({
       label: '픽업',
       srOnly: true,
+      width: 'w-40',
       right: true,
       // 전체 구분에는 픽업 완료·기한 경과·환불 중인 주문도 있어 그 줄은 비운다
       cell: (o) =>
@@ -394,6 +404,7 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
     columns.push({
       label: '환불 재시도',
       srOnly: true,
+      width: 'w-28',
       right: true,
       cell: (o) =>
         o.refundStatus === 'FAILED' ? (
@@ -418,11 +429,15 @@ function OrderTable({ tab, orders }: { tab: OwnerOrderTab; orders: OwnerOrder[] 
       {cancelOrder && (
         <OwnerCancelDialog order={cancelOrder} onClose={() => setCancelOrderId(null)} />
       )}
-      <table className="w-full text-sm">
+      {/* 칸 너비를 고정해 구분(탭)을 바꿔도 같은 칸이 같은 자리에 있게 한다. 좁은 화면에선 가로 스크롤 */}
+      <table className="w-full min-w-280 table-fixed text-sm">
         <thead className="bg-slate-50 text-left whitespace-nowrap text-slate-500">
           <tr>
             {columns.map((c) => (
-              <th key={c.label} className={cn('px-2 py-3 font-medium', c.right && 'text-right')}>
+              <th
+                key={c.label}
+                className={cn('px-2 py-3 font-medium', c.right && 'text-right', c.width)}
+              >
                 {c.srOnly ? <span className="sr-only">{c.label}</span> : c.label}
               </th>
             ))}

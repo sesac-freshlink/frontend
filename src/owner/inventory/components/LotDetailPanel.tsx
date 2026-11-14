@@ -1,5 +1,5 @@
 import { LoaderCircle, PencilLine } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/shared/ui/cn'
 import { apiErrorMessage, useInventoryLots, type InventoryLotStatus } from '../api'
 import { formatExpiry } from '../format'
@@ -49,6 +49,16 @@ export function LotDetailPanel({ productId, productName, onClose }: Props) {
   const title = productName ?? `상품 ${productId}`
   // 폴링으로 새로 읽은 lot 을 모달에 넘겨 "지금 실물"이 최신이게 한다. 수량 0 이 되어 목록에서 빠지면 모달도 닫힌다
   const adjustingLot = lots.data?.find((lot) => lot.lotId === adjustingLotId)
+
+  // 모달로 열렸으면(onClose 있음) Esc 로 닫는다. 조정 모달이 떠 있으면 Esc 는 그 모달만 닫는다
+  useEffect(() => {
+    if (!onClose || adjustingLotId !== null) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose, adjustingLotId])
 
   return (
     <aside
@@ -117,9 +127,8 @@ function LotTable({
           <th className="px-1.5 py-2 text-right font-medium">예약</th>
           <th className="px-1.5 py-2 text-right font-medium">구매 가능</th>
           <th className="px-1.5 py-2 text-right font-medium">상태</th>
-          <th className="py-2 pr-2 pl-0.5">
-            <span className="sr-only">조정</span>
-          </th>
+          {/* 연필이 무엇인지 보이게 제목을 화면에 둔다(11/15 경우) */}
+          <th className="px-1.5 py-2 text-center font-medium">재고 조정</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-200 text-slate-900">
@@ -132,7 +141,7 @@ function LotTable({
             <td className="px-1.5 py-2 text-right">
               <LotStatusBadge status={lot.status} />
             </td>
-            <td className="py-2 pr-2 pl-0.5 text-right">
+            <td className="px-1.5 py-2 text-center">
               <button
                 type="button"
                 onClick={() => onAdjust(lot.lotId)}

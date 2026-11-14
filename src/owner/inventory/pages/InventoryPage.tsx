@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, LoaderCircle, StickyNote } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { cn } from '@/shared/ui/cn'
 import {
@@ -166,13 +166,7 @@ export function InventoryPage() {
               />
             </div>
           </div>
-          {/* 패널이 열리면 목록 칸을 minmax(0,1fr) 로 둬서 표가 넓어도 레이아웃이 화면 밖으로 밀리지 않게 한다 */}
-          <div
-            className={cn(
-              'grid items-start gap-4',
-              selectedId !== null ? 'grid-cols-[minmax(0,1fr)_20rem]' : 'grid-cols-1',
-            )}
-          >
+          <div>
             <div className="min-w-0 space-y-3">
               <InventoryTable
                 inventory={inventory}
@@ -191,15 +185,16 @@ export function InventoryPage() {
                 />
               )}
             </div>
-            {selectedId !== null && (
-              <LotDetailPanel
-                key={selectedId}
-                productId={selectedId}
-                productName={selected?.name}
-                onClose={() => setSelectedId(null)}
-              />
-            )}
           </div>
+          {/* 소비기한별 수량은 표 옆 칸이 아니라 모달로 연다(11/15 경우). 표 너비가 그대로라 칸이 밀리지 않는다 */}
+          {selectedId !== null && (
+            <LotDetailModal
+              key={selectedId}
+              productId={selectedId}
+              productName={selected?.name}
+              onClose={() => setSelectedId(null)}
+            />
+          )}
         </>
       )}
       {memoTarget && (
@@ -365,8 +360,7 @@ function SortableTable({ rows, changedIds, selectedId, onSelect, onMemo }: Sorta
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      {/* 고정 칸 합이 960px(w-240)이라 최소 너비를 그만큼만 두면 상품명 칸이 0이 된다. 상품명 몫 160px를 더해 w-280. 패널이 열려 좁아지면 가로 스크롤 */}
-      <table className="w-full min-w-280 table-fixed text-sm">
+      <table className="w-full min-w-240 table-fixed text-sm">
         {/* 카테고리·브랜드·판매 가능·상태는 추천·선착순 탭과 같은 너비(COL_WIDTH) */}
         <colgroup>
           <col className={COL_WIDTH.category} />
@@ -505,4 +499,32 @@ function emptyMessage(query: InventoryQuery): string {
   if (!hasSearch && query.memoOnly && query.statuses.length === 0)
     return '메모가 있는 상품이 없어요.'
   return '조건에 맞는 상품이 없어요.'
+}
+
+/**
+ * 소비기한별 수량 패널을 화면 위에 띄운다(공용 ConfirmDialog 와 같은 <dialog> showModal 방식).
+ * 모달 밖으로 초점이 나가지 않고, 닫히면 연 줄(상품 버튼)로 초점을 돌려준다.
+ * Esc 는 브라우저 기본 닫기를 막고 패널이 처리한다(조정 창이 떠 있으면 조정 창만 닫힘)
+ */
+function LotDetailModal(props: { productId: number; productName?: string; onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  useLayoutEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const el = dialog.current
+    el?.showModal()
+    return () => {
+      if (el?.open) el.close()
+      opener?.focus()
+    }
+  }, [])
+  return (
+    <dialog
+      ref={dialog}
+      aria-label="소비기한별 수량"
+      onCancel={(e) => e.preventDefault()}
+      className="m-auto w-full max-w-md bg-transparent p-0 backdrop:bg-slate-900/40"
+    >
+      <LotDetailPanel {...props} />
+    </dialog>
+  )
 }
