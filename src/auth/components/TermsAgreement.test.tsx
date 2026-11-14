@@ -72,6 +72,6 @@ describe('TermsDialog', () => {
     const dialog = screen.getByRole('dialog', { name: 'FreshLink 이용약관' })
     expect(dialog).toHaveTextContent('FreshLink 개인정보 처리방침')
     expect(dialog).toHaveTextContent('privacy@freshlink.test (시연용 가상 주소)')
-    expect(dialog).toHaveTextContent('30일 동안 보관합니다')
+    expect(dialog).toHaveTextContent('5년 동안 보관합니다')
   })
 })

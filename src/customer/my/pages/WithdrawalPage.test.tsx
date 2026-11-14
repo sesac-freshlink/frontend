@@ -50,7 +50,7 @@ describe('WithdrawalPage (/customer/my/withdraw, A6)', () => {
     del.mockResolvedValue({ data: undefined })
     const router = renderPage()
     const user = userEvent.setup()
-    expect(screen.getByText(/30일 동안 보관/)).toBeInTheDocument()
+    expect(screen.getByText(/5년 동안 보관한 뒤 지워요/)).toBeInTheDocument()
     const button = screen.getByRole('button', { name: '탈퇴하기' })
     expect(button).toBeDisabled()
     await user.click(screen.getByLabelText('안내를 모두 확인했어요'))
