@@ -7,6 +7,8 @@ describe('마감세일 문구', () => {
     expect(lineText({ clearance: false, quantity: 2, unitPrice: 4990 })).toBe('기본 2개 4,990원')
     expect(quantityText({ quantity: 2, clearanceQuantity: 1 })).toBe('2개 (마감세일 1 + 기본 1)')
     expect(quantityText({ quantity: 2 })).toBe('2개')
+    expect(quantityText({ quantity: 1, clearanceQuantity: 1 })).toBe('1개 (마감세일 1)')
+    expect(quantityText({ quantity: 3, clearanceQuantity: 3 })).toBe('3개 (마감세일 3)')
   })
 
   it('어느 쪽 재고가 모자란지 남은 수로 알려 준다', () => {

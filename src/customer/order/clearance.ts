@@ -29,11 +29,13 @@ export function lineText(line: Pick<OrderLine, 'clearance' | 'quantity' | 'unitP
   return `${line.clearance ? '마감세일' : '기본'} ${line.quantity}개 ${formatWon(line.unitPrice)}`
 }
 
-/** 목록 한 줄의 수량: 마감세일이 섞이면 "2개 (마감세일 1 + 기본 1)" */
+/** 목록 한 줄의 수량: 마감세일이 섞이면 "2개 (마감세일 1 + 기본 1)", 마감세일만 샀으면 "1개 (마감세일 1)" */
 export function quantityText(order: { quantity: number; clearanceQuantity?: number }): string {
   const clearance = order.clearanceQuantity ?? 0
   if (clearance <= 0) return `${order.quantity}개`
-  return `${order.quantity}개 (마감세일 ${clearance} + 기본 ${order.quantity - clearance})`
+  const regular = order.quantity - clearance
+  if (regular <= 0) return `${order.quantity}개 (마감세일 ${clearance})`
+  return `${order.quantity}개 (마감세일 ${clearance} + 기본 ${regular})`
 }
 
 /** 마감세일이 섞인 주문은 당일 픽업이다 */

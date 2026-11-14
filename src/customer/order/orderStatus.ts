@@ -142,6 +142,14 @@ export function isPollingStatus(status: OrderStatus | undefined): boolean {
   )
 }
 
+/**
+ * 결제 완료 뒤 점주 준비 완료가 될 때까지(PAID·PICKUP_REQUESTED) 고객 주문 상세를 5초마다 다시 읽는다.
+ * 준비 완료가 되면 멈춘다 (11/14 경우 결정 R3)
+ */
+export function isAwaitingReadyStatus(status: OrderStatus | undefined): boolean {
+  return status === 'PAID' || status === 'PICKUP_REQUESTED'
+}
+
 /** OR-03 결제 승인 요청이 오류로 끝났을 때 고객 문구 (order-service API 명세 8장 code 기준) */
 export function confirmErrorMessage(code: string | undefined): string {
   switch (code) {
