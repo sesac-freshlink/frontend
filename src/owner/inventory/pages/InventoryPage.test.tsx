@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
+import { useAuthStore } from '@/shared/auth'
 import type { InventoryItem, InventoryListPage, InventoryLotItem } from '../api'
 import { InventoryPage } from './InventoryPage'
 
@@ -220,6 +221,29 @@ describe('점주 재고 목록 (S-10)', () => {
     get.mockImplementation(serveInventory([]))
     renderPage()
     expect(await screen.findByText(/아직 입고된 상품이 없어요/)).toBeInTheDocument()
+  })
+
+  it('마감세일 수량을 서버가 안 주면 같은 점포 고객 상품 목록에서 붙이고, 목록에 없는 상품은 0 (11/15)', async () => {
+    useAuthStore.setState({ user: { userId: 'o1', role: 'OWNER', storeId: '1' } })
+    const noClearance = items.map((item) => ({ ...item, clearanceQuantity: undefined }))
+    get.mockImplementation(
+      serveInventory(noClearance, {
+        '/stores/1/products': [{ productId: 12, clearanceQuantity: 3 }],
+      }),
+    )
+    renderPage()
+
+    const milk = (await screen.findByText('흰 우유 500ml')).closest('tr')!
+    const clearanceCol = screen
+      .getAllByRole('columnheader')
+      .findIndex((th) => th.textContent === '마감세일 수량')
+    await waitFor(() =>
+      expect(within(milk).getAllByRole('cell')[clearanceCol]).toHaveTextContent('3'),
+    )
+    const noodle = screen.getByText('매운 컵라면 115g').closest('tr')!
+    expect(within(noodle).getAllByRole('cell')[clearanceCol]).toHaveTextContent('0')
+    expect(get).toHaveBeenCalledWith('/stores/1/products', { params: { clearance: true } })
+    useAuthStore.setState({ user: null })
   })
 
   it('카테고리·브랜드·상품명·수량·상태·소진 예상 칸을 서버 순서대로 보여 준다 (11/12 결정 칸)', async () => {
