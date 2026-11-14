@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { createMemoryRouter, RouterProvider } from 'react-router'
@@ -140,7 +140,7 @@ describe('게시판 화면 (A17)', () => {
 
   it('back 이 없으면 뒤로 링크를 그리지 않는다', async () => {
     get.mockResolvedValue({ data: [faq] })
-    renderAt('/owner/faq', [{ path: '/owner/faq', element: <FaqPage /> }])
+    renderAt('/faq', [{ path: '/faq', element: <FaqPage /> }])
     await screen.findByText('Q. 언제 받아 가요?')
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
@@ -215,6 +215,14 @@ describe('게시판 화면 (A17)', () => {
     expect(del).not.toHaveBeenCalled()
     await userEvent.click(screen.getByRole('button', { name: '정말 삭제' }))
     await waitFor(() => expect(del).toHaveBeenCalledWith('/admin/notices/1'))
+  })
+
+  it('관리자 FAQ 볼 사람은 모두·고객만 고르고, 공지는 점주도 고른다 (11/14 점주 화면 FAQ 뺌)', async () => {
+    get.mockResolvedValue({ data: [faq] })
+    renderAt('/admin/faqs', [{ path: '/admin/faqs', element: <AdminFaqsPage /> }])
+    await userEvent.click(await screen.findByRole('button', { name: '언제 받아 가요? 수정' }))
+    const options = within(screen.getByLabelText('볼 사람')).getAllByRole('option')
+    expect(options.map((o) => o.textContent)).toEqual(['모두', '고객'])
   })
 
   it('관리자 FAQ 순서는 숫자로 보낸다', async () => {

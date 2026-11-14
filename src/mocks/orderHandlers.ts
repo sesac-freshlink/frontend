@@ -381,7 +381,20 @@ const OWNER_TABS: Record<
   OwnerOrderTab,
   { statuses: readonly OrderStatus[]; sortBy: (o: MockOrder) => string }
 > = {
+  ALL: {
+    statuses: [
+      'PAID',
+      'PICKUP_REQUESTED',
+      'READY_FOR_PICKUP',
+      'PICKED_UP',
+      'PICKUP_EXPIRED',
+      'REFUNDED',
+    ],
+    sortBy: (o) => o.paidAt ?? '',
+  },
   PICKUP_WAITING: { statuses: AWAITING_PICKUP, sortBy: (o) => o.paidAt ?? '' },
+  PICKUP_REQUESTED: { statuses: ['PICKUP_REQUESTED'], sortBy: (o) => o.paidAt ?? '' },
+  READY_FOR_PICKUP: { statuses: ['READY_FOR_PICKUP'], sortBy: (o) => o.paidAt ?? '' },
   PICKED_UP: { statuses: ['PICKED_UP'], sortBy: (o) => o.pickedUpAt ?? '' },
   CANCELED: {
     statuses: ['PAID', 'PICKUP_REQUESTED', 'REFUNDED'],
@@ -848,7 +861,13 @@ export const orderHandlers = [
     if (q instanceof Response) return q
     const { statuses, sortBy } = OWNER_TABS[q.tab]
     const rows = [...orders.values()]
-      .filter((o) => inTab(o, statuses, q.tab === 'CANCELED') && q.inPeriod(o))
+      // 전체는 서버처럼 환불 상태와 상관없이 넣는다
+      .filter(
+        (o) =>
+          (q.tab === 'ALL'
+            ? statuses.includes(o.status)
+            : inTab(o, statuses, q.tab === 'CANCELED')) && q.inPeriod(o),
+      )
       .sort(newestFirst(sortBy))
       .map(ownerOrder)
     return HttpResponse.json(toPage(rows, q.page, q.size))

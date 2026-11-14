@@ -14,7 +14,7 @@ type Days = (typeof PERIODS)[number]['days']
 
 /**
  * 상품별 판매 순위. 결제가 확정되어 실물이 줄어든 수량(원장 SALE)에서 환불 복원(RETURN)을 뺀 순판매를 많이 판 순으로 상위 10개 보여 준다.
- * 점주 '주문' 메뉴(OwnerOrdersPage)에 있다.
+ * 점주 '매출' 메뉴의 [상품별 판매 순위] 탭(OwnerSalesPage)에 있다(11/14 결제·픽업에서 옮김).
  * 예약만 된(결제 대기) 수량은 세지 않는다. 같은 수량이면 같은 순위다(1, 2, 2, 4)
  */
 export function SalesRankingPanel() {

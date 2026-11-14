@@ -1,6 +1,5 @@
 import {
   ChartColumn,
-  CircleHelp,
   ClipboardList,
   History,
   House,
@@ -44,10 +43,7 @@ const MENU_GROUPS = [
   },
   {
     label: '소식',
-    items: [
-      { to: '/owner/notices', label: '공지사항', icon: Megaphone },
-      { to: '/owner/faq', label: '자주 묻는 질문', icon: CircleHelp },
-    ],
+    items: [{ to: '/owner/notices', label: '공지사항', icon: Megaphone }],
   },
 ]
 

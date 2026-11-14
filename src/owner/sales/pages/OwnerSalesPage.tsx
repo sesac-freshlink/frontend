@@ -9,6 +9,8 @@ import {
   type SalesResponse,
   type SalesUnit,
 } from '../api'
+import { SalesRankingPanel } from '@/owner/inventory/components/SalesRankingPanel'
+import { TabButton } from '@/owner/inventory/components/TabButton'
 import { SalesDayDialog } from '../components/SalesDayDialog'
 import { SalesChart } from '../components/SalesChart'
 import {
@@ -33,12 +35,60 @@ const CHART_TITLE: Record<SalesUnit, string> = {
   month: '월별 순매출',
 }
 
+type View = 'period' | 'ranking'
+
 /**
- * 점주 매출 대시보드 (기능 ID 미정, order-service GET /owner/orders/sales).
+ * 점주 매출 메뉴. 기간 매출과 상품별 판매 순위(11/14 경우 결정: 결제·픽업에서 옮김)를 위 탭으로 나눈다.
+ * 탭을 떠나면 그쪽 조회·매출 SSE 도 멈춘다
+ */
+export function OwnerSalesPage() {
+  const [view, setView] = useState<View>('period')
+
+  return (
+    <section className="space-y-4">
+      <h1 className="text-xl font-bold text-slate-900">매출</h1>
+      <div
+        role="tablist"
+        aria-label="기간 매출·판매 순위"
+        className="flex gap-1 border-b border-slate-200"
+      >
+        <TabButton
+          label="기간 매출"
+          selected={view === 'period'}
+          onSelect={() => setView('period')}
+        />
+        <TabButton
+          label="상품별 판매 순위"
+          selected={view === 'ranking'}
+          onSelect={() => setView('ranking')}
+        />
+      </div>
+      {view === 'period' ? <PeriodSales /> : <SalesRanking />}
+    </section>
+  )
+}
+
+function SalesRanking() {
+  return (
+    <div className="space-y-4">
+      <div>
+        {/* 바로 위 탭 이름과 같아 화면에는 숨기고, 화면 읽기 프로그램의 구역 제목으로만 둔다 */}
+        <h2 className="sr-only">상품별 판매 순위</h2>
+        <p className="text-sm text-slate-500">
+          결제가 끝나 실제로 팔린 수량(환불로 되돌린 수량은 뺌)을 많이 판 순서로 보여 줘요.
+        </p>
+      </div>
+      <SalesRankingPanel />
+    </div>
+  )
+}
+
+/**
+ * 기간 매출 탭 (기능 ID 미정, order-service GET /owner/orders/sales).
  * 위에 오늘·이번 주 순매출과 고른 기간의 결제·환불 건수 카드, 아래에 기간·단위 선택과 순매출 그래프·표를 둔다.
  * 화면에 들어올 때와 기간·단위를 바꿀 때 읽고, 결제가 완료되면 매출 SSE(useSalesStream)를 받아 다시 읽는다
  */
-export function OwnerSalesPage() {
+function PeriodSales() {
   // 오늘·이번 주는 화면에 들어올 때 정한다. 자정을 넘기면 빠른 기간 버튼을 다시 누르면 된다
   const [now] = useState(() => new Date())
   const today = kstToday(now)
@@ -69,13 +119,10 @@ export function OwnerSalesPage() {
     !error && sales.data && !sales.isPlaceholderData ? sumPeriods(sales.data.periods) : null
 
   return (
-    <section className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">매출</h1>
-        <p className="text-sm text-slate-500">
-          결제 승인 시각(한국 시간) 기준이에요. 순매출은 결제 금액에서 환불 금액을 뺀 값이에요.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <p className="text-sm text-slate-500">
+        결제 승인 시각(한국 시간) 기준이에요. 순매출은 결제 금액에서 환불 금액을 뺀 값이에요.
+      </p>
 
       {/* 요약 숫자·기간 고르기·그래프를 한 판에 둬서, 기간을 바꾸면 무엇이 바뀌는지 한눈에 보이게 한다 */}
       <div className="rounded-lg border border-slate-200 bg-white">
@@ -135,7 +182,7 @@ export function OwnerSalesPage() {
           <SalesTable data={sales.data} />
         </div>
       )}
-    </section>
+    </div>
   )
 }
 

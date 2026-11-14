@@ -23,7 +23,13 @@ const ROWS = 5
 export function OwnerDashboardPage() {
   const store = useOwnerStore()
   const { today, totals } = useTodaySales()
-  const waiting = useOwnerOrders({ tab: 'PICKUP_WAITING', page: 0, size: 20, period: EMPTY_PERIOD })
+  // 픽업 대기 = 고객이 픽업 신청해 점주가 챙겨야 하는 주문 (결제·픽업 화면 픽업 대기 구분과 같다, 11/15 경우)
+  const waiting = useOwnerOrders({
+    tab: 'PICKUP_REQUESTED',
+    page: 0,
+    size: 20,
+    period: EMPTY_PERIOD,
+  })
   const expiring = useExpiring()
   const soldOut = useInventory({
     q: '',

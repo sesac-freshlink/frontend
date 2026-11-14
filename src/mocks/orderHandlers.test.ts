@@ -86,7 +86,7 @@ describe('주문 목록 가짜 API (OR-06·OR-04 tab)', () => {
       expect(res.status).toBe(400)
       expect(await res.json()).toMatchObject({ code: 'VALIDATION_ERROR' })
     }
-    const res = await call('/api/owner/orders?tab=ALL')
+    const res = await call('/api/owner/orders?tab=NOPE')
     expect(res.status).toBe(400)
   })
 
@@ -104,6 +104,13 @@ describe('주문 목록 가짜 API (OR-06·OR-04 tab)', () => {
     expect(picked.content.every((o) => o.status === 'PICKED_UP' && o.pickedUpAt)).toBe(true)
     const pickedAt = picked.content.map((o) => o.pickedUpAt ?? '')
     expect(pickedAt).toEqual([...pickedAt].sort().reverse())
+    // 11/15: 픽업 신청·준비 완료를 따로 보고, 전체는 결제 뒤 주문을 모두 본다
+    const requestedOnly = await owner('tab=PICKUP_REQUESTED&size=50')
+    expect(requestedOnly.content.every((o) => o.status === 'PICKUP_REQUESTED')).toBe(true)
+    const readyOnly = await owner('tab=READY_FOR_PICKUP&size=50')
+    expect(readyOnly.content.every((o) => o.status === 'READY_FOR_PICKUP')).toBe(true)
+    const all = await owner('tab=ALL&size=50')
+    expect(all.totalElements).toBeGreaterThanOrEqual(waiting.totalElements + picked.totalElements)
     const expired = await owner('tab=PICKUP_EXPIRED')
     expect(expired.content.every((o) => o.status === 'PICKUP_EXPIRED')).toBe(true)
     const canceled = await owner('tab=CANCELED&size=50')

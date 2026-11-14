@@ -6,7 +6,7 @@ import {
   pickupRequestErrorMessage,
   usePickupRequest,
 } from '../pickupRequest'
-import { ConfirmDialog } from './ConfirmDialog'
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 
 /**
  * [픽업 신청]: 한 번 더 묻고 신청한다. 신청하면 점주에게 새 픽업 주문 알림이 가고, 점주가 준비 완료를 누를 수 있다.

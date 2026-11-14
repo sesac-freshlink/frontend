@@ -63,7 +63,6 @@ export const routes: RouteObject[] = [
           { path: 'sales/day', element: <OwnerSalesDayPage /> },
           { path: 'notices', element: <NoticeListPage basePath="/owner/notices" /> },
           { path: 'notices/:noticeId', element: <NoticeDetailPage basePath="/owner/notices" /> },
-          { path: 'faq', element: <FaqPage /> },
           { path: 'store', element: <OwnerStorePage /> },
           { path: 'store/password', element: <PasswordChangePage backTo="/owner/store" /> },
         ],

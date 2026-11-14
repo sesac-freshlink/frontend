@@ -171,7 +171,7 @@ export interface SalesProducts {
 }
 
 /**
- * OR-14 점주 하루 상품별 매출 (order-service GET /owner/orders/sales/products?date=, 11/14 하루 보기·매출 날짜 창).
+ * OR-14 점주 하루 상품별 매출 (order-service GET /owner/orders/sales/products?date=, 11/14 매출 상세·매출 날짜 창).
  * queryKey 가 ['owner','sales'] 아래라 결제 완료 매출 SSE 를 받으면 같이 다시 읽는다. date 가 null 이면 부르지 않는다
  */
 export function useSalesProducts(date: string | null) {
