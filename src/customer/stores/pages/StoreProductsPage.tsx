@@ -445,7 +445,8 @@ function ProductList({
             key={p.productId}
             product={p}
             storeName={storeName}
-            to={p.soldOut ? undefined : `/customer/stores/${storeId}/products/${p.productId}`}
+            // 품절도 상세로 간다: 상세에서 주변 점포 재고를 보여 준다(#70)
+            to={`/customer/stores/${storeId}/products/${p.productId}`}
           />
         ))}
       </ul>
