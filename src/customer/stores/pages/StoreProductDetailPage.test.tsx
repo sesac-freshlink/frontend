@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAuthStore } from '@/shared/auth'
 import { api } from '@/shared/api/client'
 import type { StoreProductDetail } from '../api'
 import { StoreProductDetailPage } from './StoreProductDetailPage'
@@ -27,9 +28,12 @@ const milk: StoreProductDetail = {
 }
 
 function renderAt(path: string, state?: { storeName: string }) {
+  // 구매는 로그인한 고객만 한다(로그인 전이면 로그인 화면으로 간다)
+  useAuthStore.setState({ user: { userId: 'c', role: 'CUSTOMER' }, restoring: false })
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createMemoryRouter(
     [
+      { path: '/login', element: <p>로그인 화면</p> },
       { path: '/customer/stores', element: <p>점포 찾기 화면</p> },
       { path: '/customer/stores/:storeId', element: <p>상품 목록 화면</p> },
       {
@@ -109,6 +113,18 @@ describe('고객 상품 상세 (U-10)', () => {
     await waitFor(() =>
       expect(router.state.location.pathname).toBe('/customer/stores/1/products/12'),
     )
+  })
+
+  it('로그인하지 않고 [구매하기]를 누르면 주문하지 않고 로그인으로 가며, 돌아올 주소를 넘긴다 (11/15 H4)', async () => {
+    get.mockResolvedValue({ data: milk })
+    const router = renderAt('/customer/stores/1/products/12', { storeName: '프레시 강남점' })
+    useAuthStore.setState({ user: null })
+
+    await userEvent.click(await screen.findByRole('button', { name: '1,900원 구매하기' }))
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    expect(router.state.location.state).toEqual({ from: '/customer/stores/1/products/12' })
+    expect(post).not.toHaveBeenCalled()
   })
 
   it('수량은 1개부터 5개까지, 남은 수량이 더 적으면 그만큼만 고른다', async () => {

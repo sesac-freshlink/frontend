@@ -5,6 +5,7 @@ import { AxiosError, AxiosHeaders } from 'axios'
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router'
 import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAuthStore } from '@/shared/auth'
 import { api } from '@/shared/api/client'
 import type { CustomerOrderSummary, Order } from './api'
 import { PendingOrderDialog } from './components/PendingOrderDialog'
@@ -92,6 +93,8 @@ function Where() {
 }
 
 function renderBuy(request: BuyNowRequest = ramen) {
+  // 구매는 로그인한 고객만 한다(로그인 전이면 로그인 화면으로 간다)
+  useAuthStore.setState({ user: { userId: 'c', role: 'CUSTOMER' }, restoring: false })
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createMemoryRouter(
     [

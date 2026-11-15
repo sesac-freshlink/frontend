@@ -1,6 +1,7 @@
 import { Home, QrCode, ReceiptText, Store, UserRound, type LucideIcon } from 'lucide-react'
 import { useEffect } from 'react'
-import { NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
+import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
+import { useAuthStore } from '@/shared/auth'
 import { NotificationBell } from '@/shared/notifications/NotificationBell'
 import { useNotificationRefresh } from '@/shared/realtime/useNotificationRefresh'
 import { cn } from '@/shared/ui/cn'
@@ -31,7 +32,8 @@ const RIGHT_TABS: Tab[] = [
  * 로그아웃은 마이페이지에만 둔다(상단에서 잘못 눌러 로그아웃되지 않게)
  */
 export function CustomerLayout() {
-  const { pathname } = useLocation()
+  const { pathname, search, hash } = useLocation()
+  const loggedIn = useAuthStore((s) => s.user !== null)
   const navigationType = useNavigationType()
   // 점주 준비 완료 알림이 오면 주문 상세·내역·픽업 QR 목록을 바로 다시 읽는다 (11/14 경우 결정 R1·R6)
   useNotificationRefresh()
@@ -52,7 +54,18 @@ export function CustomerLayout() {
           <img src="/logo.png" alt="freshLink 홈" className="h-7 w-auto" />
         </NavLink>
         <div className="-mr-2 flex items-center">
-          <NotificationBell align="end" />
+          {/* 로그인하지 않았으면 알림 종 대신 [로그인]. 로그인하면 보던 화면으로 돌아온다(11/15 경우 결정 H5) */}
+          {loggedIn ? (
+            <NotificationBell align="end" />
+          ) : (
+            <Link
+              to="/login"
+              state={{ from: pathname + search + hash }}
+              className="flex min-h-11 items-center px-2 text-sm text-emerald-700 underline hover:text-emerald-800"
+            >
+              로그인
+            </Link>
+          )}
         </div>
       </header>
       <main className="flex flex-1 flex-col p-4 pb-8">

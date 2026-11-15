@@ -1,8 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { apiErrorCode } from '@/shared/api/errors'
+import { useAuthStore } from '@/shared/auth'
 import { fetchPendingOrder, type Order, useCreateOrder } from './api'
 import type { PendingOrderDialogProps } from './components/PendingOrderDialog'
 import { firstComeErrorMessage } from './firstCome'
@@ -54,6 +55,7 @@ interface Guard {
  */
 export function useBuyNow(): UseBuyNowReturn {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const createOrder = useCreateOrder()
   const attempt = useRef<{ key: string; body: string } | null>(null)
@@ -106,6 +108,13 @@ export function useBuyNow(): UseBuyNowReturn {
 
   const buy = useCallback<UseBuyNowReturn['buy']>(
     async (request, options) => {
+      // 로그인하지 않았으면 고객 로그인으로 보내고, 로그인하면 이 화면으로 돌아온다(11/15 경우 결정 H4)
+      if (!useAuthStore.getState().user) {
+        navigate('/login', {
+          state: { from: location.pathname + location.search + location.hash },
+        })
+        return false
+      }
       // 주문을 만드는 동안·안내 창이 떠 있는 동안 다시 눌러도 한 번만 처리한다
       if (inFlight.current) return false
       inFlight.current = true
@@ -144,7 +153,7 @@ export function useBuyNow(): UseBuyNowReturn {
         })
       })
     },
-    [create],
+    [create, navigate, location],
   )
 
   const onContinue = () => {

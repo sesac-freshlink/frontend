@@ -181,6 +181,15 @@ describe('고객 홈 (U-01)', () => {
     expect(within(nearby).queryByText('픽업 점포')).not.toBeInTheDocument()
   })
 
+  it('로그인하지 않아도 홈을 채우고, 내 정보·배너는 부르지 않는다 (11/15 H1·H2)', async () => {
+    useAuthStore.setState({ user: null })
+    mockApi()
+    renderHome()
+    expect(await screen.findByRole('region', { name: '마감세일' })).toBeInTheDocument()
+    expect(get).not.toHaveBeenCalledWith('/members/me')
+    expect(get).not.toHaveBeenCalledWith('/members/banners')
+  })
+
   it('점포를 안 골랐고 위치를 거절하면 내 지역 첫 점포로 홈을 채운다', async () => {
     mockPosition(false)
     mockApi({ stores: [noCoords, gangnam, yeoksam] })

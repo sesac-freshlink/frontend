@@ -2,7 +2,7 @@ import axios from 'axios'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { apiErrorCode } from '@/shared/api/errors'
-import { useAuthStore } from '@/shared/auth'
+import { loginPathFor, useAuthStore } from '@/shared/auth'
 import type { PasswordChangeForm } from './signupSchema'
 
 export const WRONG_CURRENT_PASSWORD_MESSAGE = '지금 비밀번호가 맞지 않아요'
@@ -75,10 +75,12 @@ export function usePasswordChange(): UsePasswordChangeReturn {
       }
       // gateway 가 이미 쿠키를 지웠다. 화면 로그인 정보를 비우고 로그인 화면에서 안내한다
       // 다른 기기 로그아웃이 끝내 실패했으면 그 사실을 알린다 (비밀번호는 바뀜)
+      // 점주는 점주 로그인 화면으로 돌아간다(11/15 로그인 화면 나눔)
+      const role = useAuthStore.getState().user?.role ?? 'CUSTOMER'
       await signOut(
         result.otherDevicesSignedOut ? 'PASSWORD_CHANGED' : 'PASSWORD_CHANGED_OTHERS_ACTIVE',
       )
-      navigate('/login', { replace: true })
+      navigate(loginPathFor(role), { replace: true })
     },
   }
 }
