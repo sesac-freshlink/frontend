@@ -132,14 +132,16 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     expect(names).toEqual(['매운 컵라면 115g', '샌드위치 햄치즈'])
   })
 
-  it('품절 상품은 흐리게 보여 주고 누를 수 없다', async () => {
+  it('품절 상품은 흐리게 보여 주고, 눌러서 상세(주변 점포 재고)로 갈 수 있다', async () => {
     serve(() => Promise.resolve({ data: products }))
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
 
     const sandwich = (await screen.findByText('샌드위치 햄치즈')).closest('li')!
     expect(within(sandwich).getByText('품절')).toBeInTheDocument()
-    expect(within(sandwich).queryByRole('link')).not.toBeInTheDocument()
-    expect(sandwich).toHaveAttribute('aria-disabled', 'true')
+    expect(within(sandwich).getByRole('link')).toHaveAttribute(
+      'href',
+      '/customer/stores/1/products/3',
+    )
     // 사진만 흐리게 한다
     expect(sandwich.querySelector('.opacity-40')).not.toBeNull()
   })
