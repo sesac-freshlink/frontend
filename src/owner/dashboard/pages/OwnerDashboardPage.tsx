@@ -38,7 +38,14 @@ export function OwnerDashboardPage() {
     page: 0,
     size: ROWS,
   })
-  const low = useInventory({ q: '', statuses: ['LOW_STOCK'], memoOnly: false, page: 0, size: ROWS })
+  // 재입고 필요 = 품절 또는 부족(서버 RESTOCK). 품절은 부족에도 들어가서 두 건수를 더하면 두 번 셌다(11/15)
+  const needRestock = useInventory({
+    q: '',
+    statuses: ['RESTOCK'],
+    memoOnly: false,
+    page: 0,
+    size: ROWS,
+  })
   const ranking = useSalesRanking({ from: today, to: today })
   const notices = useNotices(0)
 
@@ -50,7 +57,11 @@ export function OwnerDashboardPage() {
   const expiredProducts = new Set(expiredLots.map((l) => l.productId)).size
   const imminent = lots.filter((l) => !l.expired)
   const soldOutCount = soldOut.data?.totalElements ?? 0
-  const restock = [...(soldOut.data?.items ?? []), ...(low.data?.items ?? [])].slice(0, ROWS)
+  // 품절 먼저, 그다음 품절이 아닌 부족 상품. 같은 상품이 두 번 나오지 않는다
+  const restock = [
+    ...(soldOut.data?.items ?? []),
+    ...(needRestock.data?.items ?? []).filter((item) => item.availableQuantity > 0),
+  ].slice(0, ROWS)
 
   return (
     <section className="space-y-4">
@@ -77,7 +88,7 @@ export function OwnerDashboardPage() {
             urgent={expiredProducts > 0}
           />
           <Stat
-            value={`${soldOutCount + (low.data?.lowStockCount ?? 0)}`}
+            value={`${needRestock.data?.totalElements ?? 0}`}
             label="재입고 필요"
             sub={soldOutCount > 0 ? `품절 ${soldOutCount}` : undefined}
             urgent={soldOutCount > 0}

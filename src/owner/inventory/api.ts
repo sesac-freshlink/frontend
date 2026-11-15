@@ -36,7 +36,8 @@ export interface InventoryItem {
 }
 
 /** S-10 상태 필터. 여러 개면 모두 만족하는 상품만 */
-export type InventoryStatusFilter = 'IMMINENT' | 'EXPIRED' | 'SOLD_OUT' | 'LOW_STOCK'
+/** RESTOCK = 품절 또는 부족(점주 홈 재입고 필요). 재고 화면 칩에는 없다 */
+export type InventoryStatusFilter = 'IMMINENT' | 'EXPIRED' | 'SOLD_OUT' | 'LOW_STOCK' | 'RESTOCK'
 
 /** S-10 재고 목록 검색 조건. 서버가 거르고 페이지로 자른다 */
 export interface InventoryQuery {
