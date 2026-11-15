@@ -10,7 +10,7 @@ import {
   PRODUCT_KEYWORD_MAX,
   useClearanceProducts,
   useStoreDetail,
-  useStoreProducts,
+  useNewArrivals,
   useStores,
 } from '../api'
 import { CategoryGrid } from '../components/home/CategoryGrid'
@@ -160,7 +160,7 @@ function Home({
   const [dismissed, setDismissed] = useState(isNearbyNoticeDismissed)
   const closer = temporary || dismissed ? null : closerStore(origin, pickupPlace, stores.data)
   const clearance = useClearanceProducts(storeId)
-  const newArrivals = useStoreProducts(storeId, { newOnly: true })
+  const newArrivals = useNewArrivals(storeId)
   // 화면 맨 위에서 당겼다 놓으면 상품 줄·카테고리 사진·점포 목록·배너를 다시 읽는다(태우님 usePullToRefresh 그대로 쓴다)
   const queryClient = useQueryClient()
   const {
@@ -168,11 +168,8 @@ function Home({
     pull,
     ready,
   } = usePullToRefresh<HTMLDivElement>(() => {
+    // 상품 줄·베스트·카테고리 사진은 모두 같은 상품 전부 목록이라 한 번만 다시 읽는다
     void clearance.refetch()
-    void newArrivals.refetch()
-    void queryClient.invalidateQueries({
-      queryKey: ['customer', 'stores', storeId, 'products', 'best'],
-    })
     void stores.refetch()
     void queryClient.invalidateQueries({ queryKey: ['customer', 'banners'] })
   })

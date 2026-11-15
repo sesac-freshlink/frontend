@@ -82,8 +82,8 @@ const recommendedProducts = [
 interface Setup {
   banners?: unknown
   productsError?: boolean
-  /** 베스트 상품(추천순) 요청을 실패시킨다 */
-  bestError?: boolean
+  /** 상품 전부 목록 (기본 allProducts) */
+  products?: StoreProduct[]
   /** 내 지역 점포 목록(점포명순으로 온다고 본다) */
   stores?: unknown[]
 }
@@ -91,7 +91,7 @@ interface Setup {
 function mockApi({
   banners = notFound,
   productsError = false,
-  bestError = false,
+  products = allProducts,
   stores = [gangnam, yeoksam, noCoords],
 }: Setup = {}) {
   get.mockImplementation(async (url, config) => {
@@ -102,29 +102,10 @@ function mockApi({
       return { data: banners }
     }
     if (url === '/stores') return { data: stores }
-    if (String(url).endsWith('/products/categories')) return { data: ['김밥', '도시락'] }
     if (/^\/stores\/\d+\/products$/.test(String(url))) {
       if (params.recommended) return { data: recommendedProducts }
-      if (params.newOnly) return { data: [] }
-      if (params.sort === 'POPULAR' && params.category === '김밥') {
-        // 분류별 베스트: 판매 0개(soldRecently 0)도 추천순 그대로 보여 준다(11/12)
-        return {
-          data: [
-            { ...allProducts[0], soldRecently: 3 },
-            { ...allProducts[1], soldRecently: 0 },
-          ],
-        }
-      }
-      if (params.sort === 'POPULAR' && params.category === '도시락') {
-        // 이 분류에는 상품이 없다
-        return { data: [] }
-      }
-      if (params.sort === 'POPULAR') {
-        if (bestError) throw new Error('404')
-        return { data: [...allProducts, ...recommendedProducts].slice(0, 5) }
-      }
       if (productsError) throw new Error('500')
-      return { data: allProducts }
+      return { data: products }
     }
     throw new Error(`unexpected ${String(url)}`)
   })
@@ -280,13 +261,19 @@ describe('고객 홈 (U-01)', () => {
 
   it('상품 줄 순서는 신상품 → 오늘 마감세일 → 베스트 상품이고, 점주 추천 줄은 없다(11/11)', async () => {
     pickGangnam()
-    mockApi()
+    // 베스트는 최근 7일 판매(soldRecently) 많은 순, 같으면 상품명순(받은 순서) 그대로
+    mockApi({
+      products: [
+        ...allProducts,
+        product({ productId: 4, name: '소보로빵', category: '빵', soldRecently: 9 }),
+        product({ productId: 5, name: '우유 푸딩', category: '디저트' }),
+      ],
+    })
     renderHome()
     const fresh = await screen.findByRole('region', { name: '신상품' })
     expect(
       await within(fresh).findByText('이번 주에 새로 들어온 상품이 없어요.'),
     ).toBeInTheDocument()
-    expect(get).toHaveBeenCalledWith('/stores/1/products', { params: { newOnly: true } })
     const best = await screen.findByRole('region', { name: /베스트 상품/ })
     const order = [...document.querySelectorAll('section[aria-labelledby]')].map((el) =>
       el.getAttribute('aria-labelledby'),
@@ -299,14 +286,16 @@ describe('고객 홈 (U-01)', () => {
     expect(screen.queryByRole('region', { name: '점주 추천' })).not.toBeInTheDocument()
     expect(get).not.toHaveBeenCalledWith('/stores/1/products', { params: { recommended: true } })
 
-    // 베스트: 최근 7일 많이 팔린 순(추천순) 앞 5개를 묻고, 1~3위 초록·4~5위 회색 순위
-    expect(get).toHaveBeenCalledWith('/stores/1/products', {
-      params: { sort: 'POPULAR', page: 0, size: 5 },
-    })
-    // 가짜 데이터는 상품이 4개라 4위까지(서버는 5개까지 준다)
+    // 신상품·마감세일·베스트·분류는 상품 전부 목록 한 번에서 고른다(11/15 호출 줄이기)
+    const productCalls = get.mock.calls.filter(([url]) => url === '/stores/1/products')
+    expect(productCalls).toEqual([['/stores/1/products']])
+    expect(get).not.toHaveBeenCalledWith('/stores/1/products/categories')
+
+    // 베스트: 최근 7일 많이 팔린 순 앞 5개, 1~3위 초록·4~5위 회색 순위
     const items = within(best).getAllByRole('listitem')
-    expect(items).toHaveLength(4)
-    expect(within(items[0]).getByRole('link')).toHaveAccessibleName(/^1위, 참치김밥, /)
+    expect(items).toHaveLength(5)
+    expect(within(items[0]).getByRole('link')).toHaveAccessibleName(/^1위, 소보로빵, /)
+    expect(within(items[1]).getByRole('link')).toHaveAccessibleName(/^2위, 참치김밥, /)
     expect(within(items[0]).getByText('1')).toHaveClass('bg-emerald-700')
     expect(within(items[3]).getByText('4')).toHaveClass('bg-slate-500')
     expect(within(best).getByRole('link', { name: '베스트 상품 전체 보기' })).toHaveAttribute(
@@ -315,7 +304,7 @@ describe('고객 홈 (U-01)', () => {
     )
   })
 
-  it('베스트는 분류 버튼으로 그 분류 추천순 앞 5개를 판매 0개도 그대로 보고, 상품이 없으면 안내한다(11/12)', async () => {
+  it('베스트는 분류 버튼으로 그 분류 추천순 앞 5개를 판매 0개도 그대로 보고, 다시 부르지 않는다(11/12, 11/15)', async () => {
     pickGangnam()
     mockApi()
     renderHome()
@@ -326,27 +315,26 @@ describe('고객 홈 (U-01)', () => {
       'aria-pressed',
       'true',
     )
+    const before = get.mock.calls.length
     await userEvent.click(await within(chips).findByRole('button', { name: '김밥' }))
-    await waitFor(() =>
-      expect(get).toHaveBeenCalledWith('/stores/1/products', {
-        params: { sort: 'POPULAR', page: 0, size: 5, category: '김밥' },
-      }),
+    // 김밥 분류는 참치김밥 하나(판매 0개여도 보인다)
+    await waitFor(() => expect(within(best).getAllByRole('listitem')).toHaveLength(1))
+    expect(within(within(best).getAllByRole('listitem')[0]).getByRole('link')).toHaveAccessibleName(
+      /^1위, 참치김밥, /,
     )
-    await waitFor(() => expect(within(best).getAllByRole('listitem')).toHaveLength(2))
     await userEvent.click(within(chips).getByRole('button', { name: '도시락' }))
-    expect(await within(best).findByText('이 분류에는 아직 상품이 없어요.')).toBeInTheDocument()
+    expect(within(within(best).getAllByRole('listitem')[0]).getByRole('link')).toHaveAccessibleName(
+      /^1위, 제육 도시락, /,
+    )
+    expect(get.mock.calls.length).toBe(before)
   })
 
-  it('베스트 상품을 못 불러오면 칸을 숨긴다', async () => {
+  it('상품 목록을 못 불러오면 베스트 칸은 숨긴다', async () => {
     pickGangnam()
-    mockApi({ bestError: true })
+    mockApi({ productsError: true })
     renderHome()
-    await screen.findByRole('region', { name: '신상품' })
-    await waitFor(() =>
-      expect(get).toHaveBeenCalledWith('/stores/1/products', {
-        params: { sort: 'POPULAR', page: 0, size: 5 },
-      }),
-    )
+    const rail = await screen.findByRole('region', { name: '마감세일' })
+    await within(rail).findByRole('button', { name: '다시 시도' })
     expect(screen.queryByRole('region', { name: /베스트 상품/ })).not.toBeInTheDocument()
   })
 

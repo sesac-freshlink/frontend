@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { StoreProduct, StoreSummary } from './api'
 import {
+  bestRow,
+  categoriesOf,
   categoryPhotos,
   clearanceRow,
   defaultPickupStore,
@@ -78,6 +80,31 @@ describe('homeRow', () => {
     expect(rows).toHaveLength(HOME_ROW_LIMIT)
     expect(rows[0].productId).toBe(2)
     expect(rows.some((p) => p.productId === 1)).toBe(false)
+  })
+})
+
+describe('bestRow', () => {
+  it('최근 7일 판매 많은 순, 같으면 받은 순서(상품명순), 분류를 고르면 그 분류만 앞 count 개', () => {
+    const products = [
+      product({ productId: 1, category: '김밥', soldRecently: 0 }),
+      product({ productId: 2, category: '빵', soldRecently: 4 }),
+      product({ productId: 3, category: '김밥', soldRecently: 4 }),
+      product({ productId: 4, category: '김밥' }),
+    ]
+    expect(bestRow(products, '', 3).map((p) => p.productId)).toEqual([2, 3, 1])
+    expect(bestRow(products, '김밥', 5).map((p) => p.productId)).toEqual([3, 1, 4])
+    expect(bestRow(products, '없는 분류', 5)).toEqual([])
+  })
+})
+
+describe('categoriesOf', () => {
+  it('겹치지 않게 가나다순', () => {
+    const products = [
+      product({ productId: 1, category: '빵' }),
+      product({ productId: 2, category: '김밥' }),
+      product({ productId: 3, category: '빵' }),
+    ]
+    expect(categoriesOf(products)).toEqual(['김밥', '빵'])
   })
 })
 
