@@ -12,8 +12,7 @@ import {
   type FirstComeSetting,
   type RecommendationItem,
 } from '../api'
-import { useStockByProduct } from '@/owner/sales/api'
-import type { InventoryItem, InventoryStatusFilter } from '../api'
+import type { InventoryStatusFilter, ProductStock } from '../api'
 import { FilterChip } from './FilterChip'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { CommonCols, SearchBox, SortHeader, StockStatus } from './tableParts'
@@ -25,8 +24,8 @@ import { MAX_FIRST_COME_LIMIT, MIN_FIRST_COME_LIMIT, parseFirstComeLimit } from 
  * 매장 재고 "추천"·"선착순" 탭(11/14 경우 결정: 한 표에 섞여 있던 두 설정을 탭으로 나눈다).
  * 둘 다 그 점포 재고 목록에 있는(입고된 적 있는) 상품만 보여 주고 행마다 따로 저장한다.
  * 11/15 재고 목록 탭과 같은 틀: 상품명 검색, 거르기 칩(설정 켜짐·꺼짐 + 품절·부족), 칸 제목 정렬,
- * 칸 카테고리·브랜드·상품명·판매 가능·상태. 재고(브랜드·판매 가능·상태)는 재고 목록 한 쪽(최대 100개)을
- * 상품 번호로 짝짓는다(useStockByProduct, 매출 상세와 같은 부품). 서버가 목록을 전부 주므로 화면에서 거르고 정렬한다
+ * 칸 카테고리·브랜드·상품명·판매 가능·상태. 재고(판매 가능·상태)는 서버가 줄마다 붙여 준다(stock, 11/15:
+ * 재고 목록을 한 번 더 부르지 않는다). 서버가 목록을 전부 주므로 화면에서 거르고 정렬한다
  */
 
 function Loading() {
@@ -71,7 +70,7 @@ const STOCK_FILTERS: { value: InventoryStatusFilter; label: string }[] = [
 /** 상품 설정 한 줄과 그 상품의 지금 재고(재고 목록에 없으면 없음) */
 interface Joined<T> {
   setting: T
-  stock: InventoryItem | undefined
+  stock: ProductStock | undefined
 }
 
 type CommonKey = 'category' | 'brand' | 'name' | 'availableQuantity' | 'status'
@@ -104,15 +103,14 @@ function commonValue(
   }
 }
 
-/** 검색·칩에 맞는 줄만 남기고 재고를 붙인다 */
-function joinAndFilter<T extends { productId: number; name: string }>(
+/** 검색·칩에 맞는 줄만 남긴다. 재고는 서버가 줄마다 붙여 준다(stock) */
+function joinAndFilter<T extends { name: string; stock: ProductStock | null }>(
   settings: T[],
-  stockById: Map<number, InventoryItem>,
   filters: Filters,
   isOn: (setting: T) => boolean,
 ): Joined<T>[] {
   return settings
-    .map((setting) => ({ setting, stock: stockById.get(setting.productId) }))
+    .map((setting) => ({ setting, stock: setting.stock ?? undefined }))
     .filter(
       ({ setting, stock }) =>
         matchesText(setting.name, filters.q) &&
@@ -209,10 +207,9 @@ export function RecommendSettings() {
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
   // 0개 고른 채 선택 버튼을 누르면 흐리게 막지 않고 모달로 알린다(11/15 경우)
   const [notice, setNotice] = useState(false)
-  const stockById = useStockByProduct()
   const rows = useMemo(
-    () => joinAndFilter(recommendations.data ?? [], stockById, filters, (item) => item.recommended),
-    [recommendations.data, stockById, filters],
+    () => joinAndFilter(recommendations.data ?? [], filters, (item) => item.recommended),
+    [recommendations.data, filters],
   )
   const { sorted, sort, toggle: sortBy } = useSortedRows(rows, commonValue)
 
@@ -406,15 +403,14 @@ function firstComeValue(row: Joined<FirstComeSetting>, key: FirstComeKey): strin
 
 /**
  * 선착순 판매 한도. 선착순 상품은 고객이 대기열을 거쳐 사고(경우님 대기열), 한도를 넘는 주문은 재고가 있어도 거절된다.
- * 선착순 설정 목록이 그 점포 상품 전체(이름·카테고리 포함)를 준다. 재고 칸은 재고 목록에서 짝짓는다
+ * 선착순 설정 목록이 그 점포 상품 전체(이름·카테고리 포함)를 준다. 재고 칸은 같은 응답의 stock 이다
  */
 export function FirstComeSettings() {
   const firstCome = useFirstComeSettings()
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
-  const stockById = useStockByProduct()
   const rows = useMemo(
-    () => joinAndFilter(firstCome.data ?? [], stockById, filters, (s) => s.firstCome),
-    [firstCome.data, stockById, filters],
+    () => joinAndFilter(firstCome.data ?? [], filters, (s) => s.firstCome),
+    [firstCome.data, filters],
   )
   const { sorted, sort, toggle: sortBy } = useSortedRows(rows, firstComeValue)
 
