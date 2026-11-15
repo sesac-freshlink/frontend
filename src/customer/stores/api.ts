@@ -3,7 +3,13 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { useQueries } from '@tanstack/react-query'
 import type { RegionCode } from '@/auth/regions'
 import { api } from '@/shared/api/client'
-import { categoryPhotos, clearanceRow, firstPhotoByCategory } from './homeRows'
+import {
+  bestRow,
+  categoriesOf,
+  categoryPhotos,
+  clearanceRow,
+  firstPhotoByCategory,
+} from './homeRows'
 
 /** ST-01 응답 한 줄 */
 export interface StoreSummary {
@@ -199,20 +205,20 @@ function allProductsQuery(storeId: number) {
 }
 
 /**
- * 홈 '마감세일' 줄. inventory 서버 조건(clearance=true, #71)으로 지금 마감세일로 살 수 있는 상품만 받고,
- * homeRows.clearanceRow 로 마감 빠른 순으로 줄 세운다(서버가 조건을 모르는 옛 배포에서도 걸러지게 거르기는 남긴다)
+ * 홈 '마감세일' 줄. 홈의 다른 줄과 같은 상품 전부 목록(한 번 읽기)에서 homeRows.clearanceRow 로
+ * 지금 마감세일로 살 수 있는 상품만 마감 빠른 순으로 고른다(서버 clearance=true 와 같은 clearanceQuantity, 11/15 호출 줄이기)
  */
 export function useClearanceProducts(storeId: number) {
-  return useQuery({
-    queryKey: ['customer', 'stores', storeId, 'products', { clearance: true }],
-    queryFn: async () =>
-      (
-        await api.get<StoreProduct[]>(`/stores/${storeId}/products`, {
-          params: { clearance: true },
-        })
-      ).data,
-    select: clearanceRow,
-  })
+  return useQuery({ ...allProductsQuery(storeId), select: clearanceRow })
+}
+
+/** 홈 '신상품' 줄. 상품 전부 목록에서 newArrival 만(서버 newOnly=true 와 같은 값, 상품명순) */
+export function useNewArrivals(storeId: number) {
+  return useQuery({ ...allProductsQuery(storeId), select: newArrivalsOf })
+}
+
+function newArrivalsOf(products: StoreProduct[]): StoreProduct[] {
+  return products.filter((p) => p.newArrival)
 }
 
 /** 홈 카테고리 칸 사진(분류별 첫 상품 사진). 마감세일 줄과 같은 상품 전부 목록을 쓴다 */
@@ -229,37 +235,19 @@ export function useStoreCategoryPhotos(storeId: number) {
 export const BEST_PRODUCT_COUNT = 5
 
 /**
- * 홈 베스트 상품 읽기(11/11). 고객용 판매 순위 API 가 따로 없어, U-10 목록의 추천순(sort=POPULAR = 최근 7일 순판매 많은 순,
- * inventory StoreProductBadges POPULAR_WINDOW) 앞 5개를 쓴다. 판매 순위 API 가 새로 생기면 이 함수 하나만 바꾼다
+ * 홈 베스트 상품(분류별, 11/12). 고객용 판매 순위 API 가 따로 없어 상품 전부 목록의 soldRecently(최근 7일 순판매)로
+ * homeRows.bestRow 가 서버 sort=POPULAR 와 같은 순서로 앞 5개를 고른다. 분류를 바꿔도 다시 부르지 않는다(11/15)
  */
-export async function fetchBestProducts(storeId: number, category = ''): Promise<StoreProduct[]> {
-  const params: Record<string, string | number> = {
-    sort: 'POPULAR',
-    page: 0,
-    size: BEST_PRODUCT_COUNT,
-  }
-  if (category) params.category = category
-  return (await api.get<StoreProduct[]>(`/stores/${storeId}/products`, { params })).data
-}
-
-/**
- * 홈 베스트 상품(분류별, 11/12). 판매 기록이 없어도 추천순 앞 5개를 그대로 보여 준다(11/12 경우 결정, #94 방식).
- * 실패하면 다시 묻지 않고(화면은 칸을 숨긴다) 들어올 때·당겨서 새로고침 때·분류를 바꿀 때만 읽는다 */
 export function useBestProducts(storeId: number, category = '') {
   return useQuery({
-    queryKey: ['customer', 'stores', storeId, 'products', 'best', category],
-    queryFn: () => fetchBestProducts(storeId, category),
-    retry: false,
-    placeholderData: keepPreviousData,
+    ...allProductsQuery(storeId),
+    select: (products: StoreProduct[]) => bestRow(products, category, BEST_PRODUCT_COUNT),
   })
 }
 
-/** U-10 카테고리 칩. 상품 전체의 카테고리(가나다순). 들어올 때 한 번 읽는다 */
+/** U-10 카테고리 칩. 상품 전부 목록의 분류(가나다순, 서버 /products/categories 와 같다). 홈·목록과 같은 한 번 읽기를 쓴다 */
 export function useStoreCategories(storeId: number) {
-  return useQuery({
-    queryKey: ['customer', 'stores', storeId, 'categories'],
-    queryFn: async () => (await api.get<string[]>(`/stores/${storeId}/products/categories`)).data,
-  })
+  return useQuery({ ...allProductsQuery(storeId), select: categoriesOf })
 }
 
 /** 주변 점포 재고 한 줄. inventory-service StoreStockResponse 와 같은 모양 */

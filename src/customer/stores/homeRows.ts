@@ -59,6 +59,22 @@ export function homeRow(products: StoreProduct[]): StoreProduct[] {
     .slice(0, HOME_ROW_LIMIT)
 }
 
+/**
+ * 홈 베스트 상품: 최근 7일 많이 팔린 순(soldRecently), 같으면 받은 순서(상품명순) 그대로 = 서버 sort=POPULAR 와 같다.
+ * 분류를 고르면 그 분류만, 앞 count 개. 판매 기록이 없어도 상품명순으로 채운다(11/12)
+ */
+export function bestRow(products: StoreProduct[], category: string, count: number): StoreProduct[] {
+  return products
+    .filter((p) => category === '' || p.category === category)
+    .sort((a, b) => (b.soldRecently ?? 0) - (a.soldRecently ?? 0))
+    .slice(0, count)
+}
+
+/** 상품 전부의 분류, 가나다순(서버 GET /stores/{id}/products/categories 와 같다) */
+export function categoriesOf(products: StoreProduct[]): string[] {
+  return [...new Set(products.map((p) => p.category))].sort((a, b) => a.localeCompare(b, 'ko'))
+}
+
 /** 카테고리 칸 사진: 그 분류에서 사진이 있는 첫 상품의 imageUrl. 없으면 null(화면이 선 아이콘을 그린다) */
 export function categoryPhotos(products: StoreProduct[]): Record<HomeCategory, string | null> {
   const photos = Object.fromEntries(HOME_CATEGORIES.map((c) => [c, null])) as Record<
