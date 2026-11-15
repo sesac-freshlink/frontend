@@ -59,9 +59,10 @@ export function InventoryPage() {
   const [page, setPage] = useState(0)
   const query: InventoryQuery = { q, statuses, memoOnly, page, size: PAGE_SIZE }
 
-  const inventory = useInventory(query)
-  const { changedIds } = useInventoryChanges(inventory.data?.items)
   const [tab, setTab] = useState<Tab>('stock')
+  // 재고 목록 탭을 볼 때만 3초마다 다시 읽는다(다른 탭은 각자 자기 목록을 부른다, 11/15 호출 줄이기)
+  const inventory = useInventory(query, { poll: tab === 'stock' })
+  const { changedIds } = useInventoryChanges(inventory.data?.items)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [memoTarget, setMemoTarget] = useState<MemoTarget | null>(null)
 
