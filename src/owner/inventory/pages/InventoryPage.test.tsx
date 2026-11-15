@@ -223,14 +223,13 @@ describe('점주 재고 목록 (S-10)', () => {
     expect(await screen.findByText(/아직 입고된 상품이 없어요/)).toBeInTheDocument()
   })
 
-  it('마감세일 수량을 서버가 안 주면 같은 점포 고객 상품 목록에서 붙이고, 목록에 없는 상품은 0 (11/15)', async () => {
+  it('마감세일 수량은 재고 목록 응답 값을 그대로 쓰고 고객 상품 목록을 따로 부르지 않는다 (11/15)', async () => {
     useAuthStore.setState({ user: { userId: 'o1', role: 'OWNER', storeId: '1' } })
-    const noClearance = items.map((item) => ({ ...item, clearanceQuantity: undefined }))
-    get.mockImplementation(
-      serveInventory(noClearance, {
-        '/stores/1/products': [{ productId: 12, clearanceQuantity: 3 }],
-      }),
-    )
+    const withClearance = items.map((item) => ({
+      ...item,
+      clearanceQuantity: item.productId === 12 ? 3 : 0,
+    }))
+    get.mockImplementation(serveInventory(withClearance))
     renderPage()
 
     const milk = (await screen.findByText('흰 우유 500ml')).closest('tr')!
@@ -242,7 +241,7 @@ describe('점주 재고 목록 (S-10)', () => {
     )
     const noodle = screen.getByText('매운 컵라면 115g').closest('tr')!
     expect(within(noodle).getAllByRole('cell')[clearanceCol]).toHaveTextContent('0')
-    expect(get).toHaveBeenCalledWith('/stores/1/products', { params: { clearance: true } })
+    expect(get).not.toHaveBeenCalledWith('/stores/1/products', expect.anything())
     useAuthStore.setState({ user: null })
   })
 

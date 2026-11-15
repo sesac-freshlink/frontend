@@ -472,6 +472,19 @@ const recommendedIds = new Set<number>([2, 5, 6, 8])
 /** 점주가 정한 선착순 한도 (가짜) */
 const firstComeLimits = new Map<number, number>([[3, 2]])
 
+/** 추천·선착순 줄에 붙는 지금 재고. 서버처럼 이 점포 가짜 재고 목록에 없는 상품은 null */
+function stockOf(productId: number) {
+  const item = inventory.find((i) => i.productId === productId)
+  if (!item) return null
+  const safetyStock = safetyStockOf(productId)
+  return {
+    availableQuantity: item.availableQuantity,
+    safetyStock,
+    lowStock: item.availableQuantity < safetyStock,
+    brand: item.brand,
+  }
+}
+
 function firstComeSettingOf(productId: number) {
   const item = inventory.find((i) => i.productId === productId)
   const limit = firstComeLimits.get(productId)
@@ -484,6 +497,7 @@ function firstComeSettingOf(productId: number) {
     limit: limit ?? null,
     used: limit !== undefined ? 0 : null,
     remaining: limit !== undefined ? Math.min(limit, item?.availableQuantity ?? 0) : null,
+    stock: stockOf(productId),
   }
 }
 
@@ -917,6 +931,7 @@ export const handlers = [
         name: item.name,
         category: item.category,
         recommended: recommendedIds.has(item.productId),
+        stock: stockOf(item.productId),
       })),
     ),
   ),
@@ -941,6 +956,7 @@ export const handlers = [
           name: item.name,
           category: item.category,
           recommended: body.recommended,
+          stock: stockOf(item.productId),
         }))
         .sort((a, b) => a.name.localeCompare(b.name, 'ko')),
     )

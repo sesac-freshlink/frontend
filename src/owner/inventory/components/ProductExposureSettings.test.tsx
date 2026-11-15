@@ -27,6 +27,7 @@ const recommendations: RecommendationItem[] = [
     name: '매운 컵라면 115g',
     category: '라면',
     recommended: true,
+    stock: { brand: '농심', availableQuantity: 0, lowStock: true, safetyStock: 5 },
   },
   {
     productId: 12,
@@ -34,6 +35,8 @@ const recommendations: RecommendationItem[] = [
     name: '흰 우유 500ml',
     category: '유제품',
     recommended: false,
+    // 흰 우유는 이 점포에 입고된 적이 없어 재고가 없다
+    stock: null,
   },
 ]
 
@@ -47,6 +50,7 @@ const firstCome: FirstComeSetting[] = [
     limit: 3,
     used: 1,
     remaining: 2,
+    stock: { brand: '농심', availableQuantity: 0, lowStock: true, safetyStock: 5 },
   },
   {
     productId: 12,
@@ -57,6 +61,7 @@ const firstCome: FirstComeSetting[] = [
     limit: null,
     used: null,
     remaining: null,
+    stock: null,
   },
 ]
 
@@ -90,24 +95,10 @@ function serverError(status: number, code: string, message: string) {
   })
 }
 
-/** 재고 목록 한 쪽(브랜드·판매 가능·상태 칸). 흰 우유는 아직 재고 목록에 없다고 둔다 */
-const inventoryPage = {
-  items: [{ productId: 15, brand: '농심', availableQuantity: 0, lowStock: true, safetyStock: 5 }],
-  page: 0,
-  size: 100,
-  totalElements: 1,
-  totalPages: 1,
-}
-
 function serve() {
   get.mockImplementation((url: string) =>
     Promise.resolve({
-      data:
-        url === '/owner/inventory/recommendations'
-          ? recommendations
-          : url === '/owner/inventory'
-            ? inventoryPage
-            : firstCome,
+      data: url === '/owner/inventory/recommendations' ? recommendations : firstCome,
     }),
   )
 }
@@ -417,7 +408,7 @@ describe('추천·선착순 탭 (11/14 탭 나눔)', () => {
   })
 
   it.each(['recommend', 'firstCome'] as const)(
-    '재고 목록의 브랜드·재고 상태를 상품 번호로 붙이고, 없으면 "-" (%s)',
+    '응답 줄의 재고(stock)로 브랜드·재고 상태를 보여 주고, 없으면 "-". 재고 목록은 따로 부르지 않는다 (%s)',
     async (tab) => {
       serve()
       renderSettings(tab)
@@ -429,9 +420,7 @@ describe('추천·선착순 탭 (11/14 탭 나눔)', () => {
       expect(within(await rowOf('흰 우유 500ml')).getAllByText('-').length).toBeGreaterThanOrEqual(
         2,
       )
-      expect(get).toHaveBeenCalledWith('/owner/inventory', {
-        params: { page: 0, size: 100 },
-      })
+      expect(get).not.toHaveBeenCalledWith('/owner/inventory', expect.anything())
     },
   )
 

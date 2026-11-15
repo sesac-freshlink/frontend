@@ -2,7 +2,7 @@ import { COL_WIDTH } from '../colWidth'
 import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react'
 import type { Sort } from '../useSortedRows'
 import { cn } from '@/shared/ui/cn'
-import type { InventoryItem } from '../api'
+import type { ProductStock } from '../api'
 
 /**
  * 매장 재고 탭들이 같이 쓰는 표 부품(재고 목록 탭에서 옮김, 11/15 추천·선착순 탭도 같은 틀).
@@ -82,7 +82,7 @@ export function SearchBox({
 }
 
 /** 재고 상태는 판매중·품절·부족 셋만(11/13 경우님: "정상" → "판매중"). 소비기한 임박·지남은 임박·폐기 화면에서 본다 */
-export function StockStatus({ item }: { item: InventoryItem }) {
+export function StockStatus({ item }: { item: ProductStock }) {
   if (item.availableQuantity === 0) {
     return (
       <span className="rounded-md bg-rose-700 px-2 py-0.5 text-xs font-semibold text-white">

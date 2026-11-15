@@ -1,9 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { useMemo } from 'react'
 import { api } from '@/shared/api/client'
 import { POLL_MS } from '@/shared/api/queryClient'
-import { useAuthStore } from '@/shared/auth'
 
 /** S-10 응답 한 줄. inventory-service InventorySummaryResponse 와 같은 모양 */
 export interface InventoryItem {
@@ -326,33 +324,6 @@ export function useInventory(query: InventoryQuery) {
   })
 }
 
-/**
- * S-10 재고 목록 "마감세일 수량" 칸. 점주 재고 목록 응답(InventorySummaryResponse)에는 이 값이 없어서,
- * 같은 점포 고객 상품 목록(GET /stores/{storeId}/products?clearance=true)이 주는 clearanceQuantity를 상품 번호로 붙인다.
- * 수량은 서버 마감세일 규칙(기한 24시간 안 lot, KST 06~23시, 선착순 상품 제외) 그대로다. 목록에 없는 상품은 0.
- * 점포를 모르면(로그인 전) 부르지 않고 undefined
- */
-export function useClearanceByProduct(): Map<number, number> | undefined {
-  const storeId = useAuthStore((s) => s.user?.storeId)
-  const clearance = useQuery({
-    queryKey: ['owner', 'inventory', 'clearance', storeId],
-    queryFn: async () =>
-      (
-        await api.get<{ productId: number; clearanceQuantity: number }[]>(
-          `/stores/${storeId}/products`,
-          { params: { clearance: true } },
-        )
-      ).data,
-    enabled: storeId !== undefined,
-    refetchInterval: POLL_MS.ownerInventory,
-  })
-  const data = clearance.data
-  return useMemo(
-    () => (data ? new Map(data.map((p) => [p.productId, p.clearanceQuantity])) : undefined),
-    [data],
-  )
-}
-
 /** 서버 쿼리 모양. 빈 조건은 보내지 않고, 상태는 쉼표로 잇는다(status=IMMINENT,LOW_STOCK) */
 export function inventoryParams(query: InventoryQuery): Record<string, string | number | boolean> {
   const q = query.q.trim()
@@ -491,12 +462,22 @@ export function useUpdateSafetyStock() {
 }
 
 /** 점주 추천상품 설정 한 줄. 상품 전체가 오고 recommended 면 고객 목록에 '추천'으로 보인다 */
+/**
+ * 추천·선착순 설정 줄에 서버가 붙이는 지금 재고(inventory ProductStock, 재고 목록과 같은 계산).
+ * 이 점포에 입고된 적 없는 상품은 null. brand 는 서버에 아직 없어 늘 비어 있다
+ */
+export type ProductStock = Pick<
+  InventoryItem,
+  'availableQuantity' | 'safetyStock' | 'lowStock' | 'brand'
+>
+
 export interface RecommendationItem {
   productId: number
   productCode: string
   name: string
   category: string
   recommended: boolean
+  stock: ProductStock | null
 }
 
 /** 점주 선착순 설정 한 줄. 상품 전체가 오고, firstCome 이 false 면 limit·used·remaining 은 null */
@@ -512,6 +493,7 @@ export interface FirstComeSetting {
   used: number | null
   /** 지금 더 팔 수 있는 수량 = min(한도 − used, 구매 가능 수량) */
   remaining: number | null
+  stock: ProductStock | null
 }
 
 /** 점주 추천상품 설정 목록 (상품 전체, 이름순). 탭을 열 때 읽는다 */
