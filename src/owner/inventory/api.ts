@@ -466,7 +466,7 @@ export function useUpdateSafetyStock() {
 /** 점주 추천상품 설정 한 줄. 상품 전체가 오고 recommended 면 고객 목록에 '추천'으로 보인다 */
 /**
  * 추천·선착순 설정 줄에 서버가 붙이는 지금 재고(inventory ProductStock, 재고 목록과 같은 계산).
- * 이 점포에 입고된 적 없는 상품은 null. brand 는 서버에 아직 없어 늘 비어 있다
+ * 이 점포에 입고된 적 없는 상품은 null. brand 는 상품 브랜드(inventory V12, 없으면 null)
  */
 export type ProductStock = Pick<
   InventoryItem,
