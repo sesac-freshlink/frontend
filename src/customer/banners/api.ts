@@ -16,12 +16,11 @@ export interface HomeBanner {
  * 홈 메인 배너 목록 (로그인한 고객만, 보이기 + 기간 안, 순서대로 최대 5장).
  * 서버에 아직 배포되지 않았으면 404 가 오고 홈은 배너 칸을 숨긴다. 실패한 API 를 여러 번 부르지 않게 다시 시도하지 않는다
  */
-/** 배너 길은 아직 로그인이 필요해(gateway) 로그인하지 않았으면 부르지 않는다(enabled=false) */
-export function useHomeBanners(enabled = true) {
+/** 로그인하지 않아도 부른다(gateway 공개 길, 11/15). 못 받으면(gateway 배포 전 401 등) 화면이 칸을 숨긴다 */
+export function useHomeBanners() {
   return useQuery({
     queryKey: ['customer', 'banners'],
     queryFn: async () => (await api.get<HomeBanner[]>('/members/banners')).data,
-    enabled,
     retry: false,
     staleTime: 5 * 60 * 1000,
   })

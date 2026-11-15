@@ -181,13 +181,25 @@ describe('고객 홈 (U-01)', () => {
     expect(within(nearby).queryByText('픽업 점포')).not.toBeInTheDocument()
   })
 
-  it('로그인하지 않아도 홈을 채우고, 내 정보·배너는 부르지 않는다 (11/15 H1·H2)', async () => {
+  it('로그인하지 않아도 홈을 채우고 배너도 보인다. 내 정보는 부르지 않는다 (11/15)', async () => {
     useAuthStore.setState({ user: null })
-    mockApi()
+    mockApi({
+      banners: [{ bannerId: 1, title: '오늘 밤 마감세일', imageUrl: '/b1.svg', noticeId: null }],
+    })
     renderHome()
     expect(await screen.findByRole('region', { name: '마감세일' })).toBeInTheDocument()
+    const banner = await screen.findByRole('region', { name: '알림 배너' })
+    expect(within(banner).getByRole('img', { name: '오늘 밤 마감세일' })).toBeInTheDocument()
     expect(get).not.toHaveBeenCalledWith('/members/me')
-    expect(get).not.toHaveBeenCalledWith('/members/banners')
+  })
+
+  it('로그인하지 않았는데 배너를 못 받으면(gateway 배포 전 401) 배너 칸만 숨긴다', async () => {
+    useAuthStore.setState({ user: null })
+    mockApi({ banners: Object.assign(new Error('401'), { response: { status: 401 } }) })
+    renderHome()
+    expect(await screen.findByRole('region', { name: '마감세일' })).toBeInTheDocument()
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/members/banners'))
+    expect(screen.queryByRole('region', { name: '알림 배너' })).not.toBeInTheDocument()
   })
 
   it('점포를 안 골랐고 위치를 거절하면 내 지역 첫 점포로 홈을 채운다', async () => {

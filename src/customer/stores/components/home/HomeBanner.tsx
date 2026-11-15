@@ -2,7 +2,6 @@ import { Pause, Play } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { useHomeBanners, type HomeBanner as Banner } from '@/customer/banners/api'
-import { useAuthStore } from '@/shared/auth'
 
 /** 배너가 저절로 넘어가는 간격 */
 export const BANNER_INTERVAL_MS = 4000
@@ -20,10 +19,8 @@ function prefersReducedMotion(): boolean {
  * 움직임 줄이기를 켠 사람에게는 저절로 넘기지 않는다
  */
 export function HomeBanner() {
-  const loggedIn = useAuthStore((s) => s.user !== null)
-  const banners = useHomeBanners(loggedIn)
-  // 로그인하지 않았으면 숨긴다(11/15 경우 결정 H2: 배너 길이 공개되기 전까지)
-  if (!loggedIn) return null
+  // 로그인하지 않아도 보인다(11/15). 못 받으면 아래 isError 로 조용히 숨긴다
+  const banners = useHomeBanners()
   if (banners.isPending) {
     return <div aria-hidden className="aspect-2/1 animate-pulse rounded-2xl bg-slate-200" />
   }
