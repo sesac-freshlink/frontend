@@ -284,7 +284,8 @@ export function OwnerLayout() {
       <PickupScanListener onConnectionChange={setQrConnected} />
       {/* AI 점주 비서: 오른쪽 아래 버튼, 화면 이동 없이 대화창을 띄운다 */}
       <AssistantLauncher />
-      <main className="min-w-0 flex-1 p-6">
+      {/* pb-24: 오른쪽 아래 AI 비서 버튼(bottom-6, size-14)이 맨 아래 줄 버튼을 덮지 않게 */}
+      <main className="min-w-0 flex-1 p-6 pb-24">
         <Outlet />
       </main>
     </div>
