@@ -16,8 +16,17 @@ vi.mock('@/owner/orders/api', () => ({
 }))
 vi.mock('@/owner/orders/pages/OwnerOrdersPage', () => ({ ReadyButton: () => null }))
 vi.mock('@/board/api', () => ({ useNotices: () => ({ data: { content: [] } }) }))
+/** 상태 조건별 재고 목록. 품절 1개(부족이기도 하다) + 부족 1개 → 재입고 필요는 2개 */
+const soldOutItem = { productId: 7, name: '참치 김밥', availableQuantity: 0, safetyStock: 5 }
+const lowItem = { productId: 8, name: '단팥빵', availableQuantity: 2, safetyStock: 5 }
+const inventoryByStatus: Record<string, { items: unknown[]; totalElements: number }> = {
+  SOLD_OUT: { items: [soldOutItem], totalElements: 1 },
+  RESTOCK: { items: [lowItem, soldOutItem], totalElements: 2 },
+}
 vi.mock('@/owner/inventory/api', () => ({
-  useInventory: () => ({ data: { items: [], totalElements: 0, lowStockCount: 0 } }),
+  useInventory: (query: { statuses: string[] }) => ({
+    data: inventoryByStatus[query.statuses[0]] ?? { items: [], totalElements: 0 },
+  }),
   useSalesRanking: () => ({ data: { items: [] } }),
   // 소비기한이 지난 lot 두 개(같은 상품 1,500개 + 다른 상품 40개)
   useExpiring: () => ({
@@ -49,5 +58,20 @@ describe('OwnerDashboardPage', () => {
     const card = screen.getByText('소비기한 지남').parentElement as HTMLElement
     expect(within(card).getByText('1,540개')).toBeInTheDocument()
     expect(within(card).getByText('상품 2개 폐기 처리 필요')).toBeInTheDocument()
+  })
+
+  it('재입고 필요는 품절 또는 부족 상품을 한 번씩 세고, 목록에 같은 상품이 두 번 나오지 않는다 (11/15)', () => {
+    render(
+      <MemoryRouter>
+        <OwnerDashboardPage />
+      </MemoryRouter>,
+    )
+    const stat = screen.getAllByText('재입고 필요')[0].parentElement as HTMLElement
+    expect(within(stat).getByText('2')).toBeInTheDocument()
+    expect(within(stat).getByText('품절 1')).toBeInTheDocument()
+    // 품절 먼저, 그다음 부족
+    expect(screen.getAllByText('참치 김밥')).toHaveLength(1)
+    const names = screen.getAllByText(/^(참치 김밥|단팥빵)$/).map((el) => el.textContent)
+    expect(names).toEqual(['참치 김밥', '단팥빵'])
   })
 })

@@ -819,7 +819,8 @@ export const handlers = [
           (status === 'LOW_STOCK' && item.lowStock) ||
           (status === 'IMMINENT' && item.imminentLotCount > 0) ||
           (status === 'EXPIRED' && item.expiredLotCount > 0) ||
-          (status === 'SOLD_OUT' && item.availableQuantity === 0),
+          (status === 'SOLD_OUT' && item.availableQuantity === 0) ||
+          (status === 'RESTOCK' && (item.availableQuantity === 0 || item.lowStock)),
       )
     const filtered = all.filter(matches).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
     return HttpResponse.json<InventoryListPage>({
