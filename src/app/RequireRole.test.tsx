@@ -3,7 +3,7 @@ import { createMemoryRouter, RouterProvider, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore, type AuthUser } from '@/shared/auth'
 import { authClient } from '@/shared/auth/store'
-import { RequireRole } from './RequireRole'
+import { AllowGuest, RequireRole, RootRedirect } from './RequireRole'
 
 const owner: AuthUser = { userId: 'o', role: 'OWNER', storeId: '1' }
 const customer: AuthUser = { userId: 'c', role: 'CUSTOMER' }
@@ -13,6 +13,8 @@ function renderAt(path: string) {
   const router = createMemoryRouter(
     [
       { path: '/login', element: <p>로그인 화면</p> },
+      { path: '/owner/login', element: <p>점주 로그인 화면</p> },
+      { path: '/admin/login', element: <p>관리자 로그인 화면</p> },
       {
         path: '/owner',
         element: <RequireRole role="OWNER" />,
@@ -50,8 +52,13 @@ function LoginProbe() {
 describe('RequireRole', () => {
   beforeEach(() => useAuthStore.setState({ user: null, restoring: false }))
 
-  it('로그인하지 않았으면 로그인 화면으로 보낸다', () => {
+  it('로그인하지 않았으면 그 역할의 로그인 화면으로 보낸다(점주 → /owner/login)', () => {
     renderAt('/owner/inventory')
+    expect(screen.getByText('점주 로그인 화면')).toBeInTheDocument()
+  })
+
+  it('로그인하지 않고 고객 전용 화면에 오면 고객 로그인(/login)으로 보낸다', () => {
+    renderAt('/customer')
     expect(screen.getByText('로그인 화면')).toBeInTheDocument()
   })
 
@@ -115,9 +122,9 @@ describe('RequireRole', () => {
     expect(screen.getByText('관리자 홈')).toBeInTheDocument()
   })
 
-  it('로그인하지 않고 관리자 화면에 오면 로그인 화면으로 보낸다', () => {
+  it('로그인하지 않고 관리자 화면에 오면 관리자 로그인 화면으로 보낸다', () => {
     renderAt('/admin/stores')
-    expect(screen.getByText('로그인 화면')).toBeInTheDocument()
+    expect(screen.getByText('관리자 로그인 화면')).toBeInTheDocument()
   })
 
   it('보던 중 세션이 만료되면(401 갱신 실패) 보던 주소를 들고 로그인 화면으로 간다', () => {
@@ -125,7 +132,7 @@ describe('RequireRole', () => {
     useAuthStore.setState({ user: owner })
     const router = createMemoryRouter(
       [
-        { path: '/login', element: <LoginProbe /> },
+        { path: '/owner/login', element: <LoginProbe /> },
         {
           path: '/owner',
           element: <RequireRole role="OWNER" />,
@@ -146,5 +153,42 @@ describe('RequireRole', () => {
     expect(screen.getByText('돌아갈 주소 /owner/inventory?tab=lots')).toBeInTheDocument()
     expect(signOut).toHaveBeenCalledTimes(1)
     signOut.mockRestore()
+  })
+})
+
+function renderGuest(path: string) {
+  const router = createMemoryRouter(
+    [
+      { path: '/', element: <RootRedirect /> },
+      { path: '/owner', element: <p>점주 홈</p> },
+      {
+        path: '/customer',
+        element: <AllowGuest role="CUSTOMER" />,
+        children: [{ index: true, element: <p>고객 홈</p> }],
+      },
+    ],
+    { initialEntries: [path] },
+  )
+  render(<RouterProvider router={router} />)
+}
+
+describe('로그인 없이 보는 화면 (11/15)', () => {
+  beforeEach(() => useAuthStore.setState({ user: null, restoring: false }))
+
+  it('로그인하지 않고 / 로 오면 고객 홈을 보여 준다', () => {
+    renderGuest('/')
+    expect(screen.getByText('고객 홈')).toBeInTheDocument()
+  })
+
+  it('로그인한 점주가 / 로 오면 점주 홈으로 간다', () => {
+    useAuthStore.setState({ user: owner })
+    renderGuest('/')
+    expect(screen.getByText('점주 홈')).toBeInTheDocument()
+  })
+
+  it('점주가 고객 둘러보기 화면에 오면 점주 홈으로 보낸다', () => {
+    useAuthStore.setState({ user: owner })
+    renderGuest('/customer')
+    expect(screen.getByText('점주 홈')).toBeInTheDocument()
   })
 })

@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
+import { useAuthStore } from '@/shared/auth'
 import { CustomerLayout } from './CustomerLayout'
 
 // 알림 종은 서버를 부르므로 이 테스트에서는 빈 칸으로 바꾼다
@@ -51,5 +52,20 @@ describe('CustomerLayout 하단 메뉴', () => {
     await act(() => router.navigate(-1))
     expect(scrollTo).not.toHaveBeenCalled()
     scrollTo.mockRestore()
+  })
+})
+
+describe('CustomerLayout 머리줄 (11/15 H5)', () => {
+  it('로그인하지 않았으면 오른쪽에 [로그인]이 있고, 누르면 보던 주소를 들고 간다', () => {
+    useAuthStore.setState({ user: null, restoring: false })
+    renderAt('/customer/stores/2?tab=near')
+    const login = screen.getByRole('link', { name: '로그인' })
+    expect(login).toHaveAttribute('href', '/login')
+  })
+
+  it('로그인했으면 [로그인]이 없다', () => {
+    useAuthStore.setState({ user: { userId: 'c', role: 'CUSTOMER' }, restoring: false })
+    renderAt('/customer')
+    expect(screen.queryByRole('link', { name: '로그인' })).not.toBeInTheDocument()
   })
 })

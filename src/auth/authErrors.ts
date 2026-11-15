@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { apiErrorCode } from '@/shared/api/errors'
-import type { LoginNotice } from '@/shared/auth'
+import type { LoginNotice, Role } from '@/shared/auth'
 
 /**
  * C-01·C-02 gateway BFF 오류 본문 {code, message, traceId} 의 code 를 화면 문구로 바꾼다.
@@ -88,4 +88,11 @@ export function loginNoticeMessage(
   if (notice === 'PASSWORD_CHANGED') return PASSWORD_CHANGED_MESSAGE
   if (notice === 'PASSWORD_CHANGED_OTHERS_ACTIVE') return PASSWORD_CHANGED_OTHERS_ACTIVE_MESSAGE
   return undefined
+}
+
+const ROLE_LABEL: Record<Role, string> = { OWNER: '점주', CUSTOMER: '고객', ADMIN: '관리자' }
+
+/** 다른 역할 계정으로 로그인했을 때 안내 (11/15 경우 결정 L4). 로그인은 바로 풀어 준다 */
+export function wrongRoleMessage(page: Role): string {
+  return `이 화면은 ${ROLE_LABEL[page]}용이에요. ${ROLE_LABEL[page]} 계정으로 로그인해 주세요.`
 }

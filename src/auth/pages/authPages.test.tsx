@@ -57,6 +57,8 @@ function renderAt(path: string, state?: { from: string }) {
   const router = createMemoryRouter(
     [
       { path: '/login', element: <LoginPage /> },
+      { path: '/owner/login', element: <LoginPage role="OWNER" /> },
+      { path: '/admin/login', element: <LoginPage role="ADMIN" /> },
       { path: '/signup', element: <SignupPage /> },
       { path: '/', element: <p>루트</p> },
       { path: '/customer', element: <p>고객 홈</p> },
@@ -239,7 +241,7 @@ describe('관리자 로그인', () => {
   })
 
   it('관리자는 관리자 홈으로 가고 회원 프로필(MB-03)을 부르지 않는다', async () => {
-    const router = renderAt('/login')
+    const router = renderAt('/admin/login')
     await fillLogin()
     expect(await screen.findByText('관리자 홈')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/admin')
@@ -247,21 +249,42 @@ describe('관리자 로그인', () => {
   })
 
   it('로그인 전에 보던 관리자 화면으로 돌려보낸다', async () => {
-    renderAt('/login', { from: '/admin/stores/new' })
+    renderAt('/admin/login', { from: '/admin/stores/new' })
     await fillLogin()
     expect(await screen.findByText('점포 등록')).toBeInTheDocument()
   })
 
   it('보던 화면이 다른 역할 영역이면 관리자 홈으로 보낸다', async () => {
-    renderAt('/login', { from: '/owner/inventory' })
+    renderAt('/admin/login', { from: '/owner/inventory' })
     await fillLogin()
     expect(await screen.findByText('관리자 홈')).toBeInTheDocument()
   })
 
   it('이미 로그인한 관리자가 로그인 화면에 오면 관리자 홈으로 보낸다', async () => {
     useAuthStore.setState({ user: admin })
-    renderAt('/login')
+    renderAt('/admin/login')
     expect(await screen.findByText('관리자 홈')).toBeInTheDocument()
+  })
+
+  it('관리자 로그인 화면에는 구글 로그인·회원가입이 없다', () => {
+    renderAt('/admin/login')
+    expect(screen.getByRole('heading', { name: 'FreshLink 관리자 로그인' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '구글로 로그인' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '회원가입' })).not.toBeInTheDocument()
+  })
+
+  it('고객 로그인 화면에서 관리자 계정으로 로그인하면 안내하고 로그인을 푼다 (11/15 L4)', async () => {
+    const toastError = vi.spyOn(toast, 'error')
+    const router = renderAt('/login')
+    await fillLogin()
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        '이 화면은 고객용이에요. 고객 계정으로 로그인해 주세요.',
+      ),
+    )
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(router.state.location.pathname).toBe('/login')
+    toastError.mockRestore()
   })
 
   it('로그인한 관리자가 회원가입 화면에 오면 관리자 홈으로 보낸다', async () => {

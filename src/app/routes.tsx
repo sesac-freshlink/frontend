@@ -37,12 +37,14 @@ import { AdminLayout } from './layouts/AdminLayout'
 import { CustomerLayout } from './layouts/CustomerLayout'
 import { OwnerDashboardPage } from '@/owner/dashboard/pages/OwnerDashboardPage'
 import { OwnerLayout } from './layouts/OwnerLayout'
-import { RequireRole, RootRedirect } from './RequireRole'
+import { AllowGuest, RequireRole, RootRedirect } from './RequireRole'
 
 /** 화면 목록은 README 3장과 같다. 화면을 추가하면 두 곳을 함께 고친다 */
 export const routes: RouteObject[] = [
   { path: '/', element: <RootRedirect /> },
   { path: '/login', element: <LoginPage /> },
+  { path: '/owner/login', element: <LoginPage role="OWNER" /> },
+  { path: '/admin/login', element: <LoginPage role="ADMIN" /> },
   { path: '/signup', element: <SignupPage /> },
   {
     path: '/owner',
@@ -71,7 +73,8 @@ export const routes: RouteObject[] = [
   },
   {
     path: '/customer',
-    element: <RequireRole role="CUSTOMER" />,
+    // 홈·점포·상품 둘러보기는 로그인 없이 본다(11/15 경우 결정). 주문·QR·마이페이지는 아래 RequireRole 안
+    element: <AllowGuest role="CUSTOMER" />,
     children: [
       {
         element: <CustomerLayout />,
@@ -82,30 +85,41 @@ export const routes: RouteObject[] = [
           { path: 'stores/:storeId/categories', element: <CategoriesPage /> },
           { path: 'stores/:storeId/info', element: <StoreDetailPage /> },
           { path: 'stores/:storeId/products/:productId', element: <StoreProductDetailPage /> },
-          { path: 'stores/:storeId/products/:productId/queue', element: <FirstComeQueuePage /> },
-          { path: 'orders', element: <OrderHistoryPage /> },
-          { path: 'orders/pickup-qr', element: <PickupQrPage /> },
-          { path: 'orders/:id', element: <OrderDetailPage /> },
-          { path: 'my', element: <MyPage /> },
-          { path: 'my/profile', element: <ProfileEditPage /> },
-          { path: 'my/withdraw', element: <WithdrawalPage /> },
           {
-            path: 'notices',
-            element: (
-              <NoticeListPage
-                basePath="/customer/notices"
-                back={{ to: '/customer/my', label: '마이페이지' }}
-              />
-            ),
-          },
-          {
-            path: 'notices/:noticeId',
-            element: <NoticeDetailPage basePath="/customer/notices" />,
-          },
-          { path: 'faq', element: <FaqPage back={{ to: '/customer/my', label: '마이페이지' }} /> },
-          {
-            path: 'my/password',
-            element: <PasswordChangePage backTo="/customer/my" backLabel="마이페이지" />,
+            element: <RequireRole role="CUSTOMER" />,
+            children: [
+              {
+                path: 'stores/:storeId/products/:productId/queue',
+                element: <FirstComeQueuePage />,
+              },
+              { path: 'orders', element: <OrderHistoryPage /> },
+              { path: 'orders/pickup-qr', element: <PickupQrPage /> },
+              { path: 'orders/:id', element: <OrderDetailPage /> },
+              { path: 'my', element: <MyPage /> },
+              { path: 'my/profile', element: <ProfileEditPage /> },
+              { path: 'my/withdraw', element: <WithdrawalPage /> },
+              {
+                path: 'notices',
+                element: (
+                  <NoticeListPage
+                    basePath="/customer/notices"
+                    back={{ to: '/customer/my', label: '마이페이지' }}
+                  />
+                ),
+              },
+              {
+                path: 'notices/:noticeId',
+                element: <NoticeDetailPage basePath="/customer/notices" />,
+              },
+              {
+                path: 'faq',
+                element: <FaqPage back={{ to: '/customer/my', label: '마이페이지' }} />,
+              },
+              {
+                path: 'my/password',
+                element: <PasswordChangePage backTo="/customer/my" backLabel="마이페이지" />,
+              },
+            ],
           },
         ],
       },

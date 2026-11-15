@@ -18,12 +18,13 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { useMyProfile } from '@/auth/api'
 import { DEFAULT_REGION, isRegionCode, REGIONS, type RegionCode } from '@/auth/regions'
 import { useCustomerOrders } from '@/customer/order/api'
 import { EMPTY_PERIOD } from '@/shared/api/period'
+import { useAuthStore } from '@/shared/auth'
 import { cn } from '@/shared/ui/cn'
 import { FullScreenSpinner } from '@/shared/ui/FullScreenSpinner'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/QueryState'
@@ -57,7 +58,8 @@ export function StoreSearchPage() {
   const profile = useMyProfile()
   const [params] = useSearchParams()
 
-  if (profile.isPending) return <FullScreenSpinner />
+  // 로그인하지 않았으면 프로필 조회가 꺼져 있다(isPending 그대로). 기다리지 않고 서울 기본으로 보인다(member M4)
+  if (profile.isLoading) return <FullScreenSpinner />
   // 로그인했는데 프로필이 없으면 프로필 등록 마무리 화면으로 (기능명세 M1)
   if (profile.data === null) return <Navigate to="/signup" replace />
 
@@ -439,6 +441,7 @@ interface TabRowsProps {
 /** 탭마다 목록 줄을 만든다. 점포 목록을 읽는 중·실패·빈 목록은 여기서 보여 준다 */
 function TabRows(props: TabRowsProps) {
   const { stores, searched, tab, favorites, position } = props
+  const loggedIn = useAuthStore((s) => s.user !== null)
   // 같은 점포 목록·위치·단골이면 같은 배열을 내려 지도가 핀을 다시 맞추지 않게 한다
   const near = useMemo(
     () => (stores.data ? nearRows(stores.data, position) : []),
@@ -458,7 +461,11 @@ function TabRows(props: TabRowsProps) {
       />
     )
   }
-  if (tab === 'recent') return <RecentRows {...props} storeList={stores.data} />
+  if (tab === 'recent') {
+    // 주문 내역은 로그인해야 읽는다. 로그인하지 않았으면 부르지 않고 로그인으로 안내한다
+    if (!loggedIn) return <RecentLoginPrompt />
+    return <RecentRows {...props} storeList={stores.data} />
+  }
   if (tab === 'favorite') {
     if (favs.length === 0) {
       return (
@@ -484,6 +491,22 @@ function TabRows(props: TabRowsProps) {
       rows={near}
       render={props.children}
     />
+  )
+}
+
+/** 최근 주문 탭(로그인 전): 로그인하면 이 화면으로 돌아온다 */
+function RecentLoginPrompt() {
+  const { pathname, search, hash } = useLocation()
+  return (
+    <EmptyState message="로그인하면 주문한 점포가 보여요.">
+      <Link
+        to="/login"
+        state={{ from: pathname + search + hash }}
+        className="text-sm text-emerald-700 underline hover:text-emerald-800"
+      >
+        로그인
+      </Link>
+    </EmptyState>
   )
 }
 

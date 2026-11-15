@@ -44,7 +44,8 @@ export function CustomerHomePage() {
   // 픽업 점포는 점포 둘러보기·점포 검색의 [픽업 점포로 정하기]와 홈 "더 가까운 점포" 안내의 [바꾸기]로 바뀐다
   const [pickup, setPickup] = useState<PickupStore | null>(readPickupStore)
 
-  if (profile.isPending) return <FullScreenSpinner />
+  // 로그인하지 않았으면 프로필 조회가 꺼져 있다(isPending 그대로). 기다리지 않고 서울 기본으로 보인다(member M4)
+  if (profile.isLoading) return <FullScreenSpinner />
   // 로그인했는데 프로필이 없으면 프로필 등록 마무리 화면으로 (기능명세 M1)
   if (profile.data === null) return <Navigate to="/signup" replace />
 
