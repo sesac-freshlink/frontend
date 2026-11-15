@@ -312,15 +312,16 @@ interface ErrorBody {
 
 /**
  * S-10 재고 목록 한 페이지 + S-15 3초 폴링으로 실시간 반영. 검색·필터·페이지는 서버가 한다.
- * 조건을 바꾸는 동안에는 앞 페이지를 그대로 보여 줘 표가 깜빡이지 않게 한다
+ * 조건을 바꾸는 동안에는 앞 페이지를 그대로 보여 줘 표가 깜빡이지 않게 한다.
+ * poll=false 는 이름·재고 숫자만 빌려 쓰는 화면(매출, lot 바로 열기)용: 3초마다 다시 읽지 않는다
  */
-export function useInventory(query: InventoryQuery) {
+export function useInventory(query: InventoryQuery, { poll = true }: { poll?: boolean } = {}) {
   return useQuery({
     queryKey: ['owner', 'inventory', query],
     queryFn: async () =>
       (await api.get<InventoryListPage>('/owner/inventory', { params: inventoryParams(query) }))
         .data,
-    refetchInterval: POLL_MS.ownerInventory,
+    refetchInterval: poll ? POLL_MS.ownerInventory : false,
     placeholderData: keepPreviousData,
   })
 }

@@ -203,9 +203,12 @@ export function useDayLedger(date: string) {
 /** 재고 목록 한 쪽(최대 100개, 조건 없음). 렌더마다 새 객체를 만들지 않게 밖에 둔다 */
 const STOCK_QUERY = { q: '', statuses: [], memoOnly: false, page: 0, size: 100 }
 
-/** 지금 재고를 상품 번호로 찾는 표 (S-10 재고 목록 한 쪽, 최대 100개). 재고 화면처럼 3초마다 다시 읽는다 */
+/**
+ * 지금 재고를 상품 번호로 찾는 표 (S-10 재고 목록 한 쪽, 최대 100개). 매출 화면은 재고 숫자를 곁들여 보여 줄 뿐이라
+ * 3초마다 다시 읽지 않는다(들어올 때·창으로 돌아올 때 다시 읽는다, 11/15 호출 줄이기)
+ */
 export function useStockByProduct(): Map<number, InventoryItem> {
-  const inventory = useInventory(STOCK_QUERY)
+  const inventory = useInventory(STOCK_QUERY, { poll: false })
   // 재고는 3초마다 다시 읽으므로 응답이 바뀔 때만 표를 새로 만든다
   const items = inventory.data?.items
   return useMemo(() => new Map((items ?? []).map((item) => [item.productId, item])), [items])
