@@ -381,9 +381,10 @@ export const boardHandlers = [
     return before === faqs.length ? faqNotFound() : new HttpResponse(null, { status: 204 })
   }),
 
-  // BN-01 홈 배너: 고객만, 보이기 + 기간 안, 순서대로 5장
+  // BN-01 홈 배너: 로그인하지 않은 사람·고객(점주·관리자는 403), 보이기 + 기간 안, 순서대로 5장
   http.get('/api/members/banners', () => {
-    if (mockSessionUser()?.role !== 'CUSTOMER') {
+    const role = mockSessionUser()?.role
+    if (role !== undefined && role !== 'CUSTOMER') {
       return HttpResponse.json(errorBody('FORBIDDEN', '권한이 없습니다'), { status: 403 })
     }
     const now = Date.now()
