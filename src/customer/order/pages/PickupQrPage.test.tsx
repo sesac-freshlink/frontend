@@ -74,6 +74,34 @@ describe('PickupQrPage (/customer/orders/pickup-qr, A16)', () => {
     )
   })
 
+  it('처음엔 받을 주문이 없어도(409) 준비 완료 주문이 목록에 생기면 새로고침 없이 QR을 만든다 (11/16)', async () => {
+    post
+      .mockRejectedValueOnce(
+        Object.assign(new Error('409'), {
+          isAxiosError: true,
+          response: { status: 409, data: { code: 'NO_PICKUP_WAITING_ORDER', message: 'x' } },
+        }),
+      )
+      .mockResolvedValue({ data: pass })
+    renderPage()
+    expect(await screen.findByRole('img', { name: '픽업 QR' })).toBeInTheDocument()
+    expect(post).toHaveBeenCalledTimes(2)
+  })
+
+  it('받을 주문이 정말 없으면 다시 409가 와도 계속 부르지 않는다', async () => {
+    get.mockResolvedValue({ data: { ...waiting, content: [] } })
+    post.mockRejectedValue(
+      Object.assign(new Error('409'), {
+        isAxiosError: true,
+        response: { status: 409, data: { code: 'NO_PICKUP_WAITING_ORDER', message: 'x' } },
+      }),
+    )
+    renderPage()
+    expect(await screen.findByText('받아 갈 주문이 없어요.')).toBeInTheDocument()
+    await waitFor(() => expect(get).toHaveBeenCalled())
+    expect(post).toHaveBeenCalledTimes(1)
+  })
+
   it('받아 갈 주문이 없으면(409) 안내만', async () => {
     post.mockRejectedValue(
       Object.assign(new Error('409'), {

@@ -1,4 +1,5 @@
 import { ChevronLeft, LoaderCircle } from 'lucide-react'
+import { useEffect } from 'react'
 import { Link } from 'react-router'
 import { usePickupWaitingOrders } from '../api'
 import { formatMmSs } from '../pickupQr'
@@ -6,13 +7,21 @@ import { usePickupQr } from '../usePickupQr'
 
 /**
  * /customer/orders/pickup-qr 고객 픽업 QR (추가 명세 A16). 점주에게 보여 주면 점주가 핸드폰으로 찍고,
- * 컴퓨터 화면에서 고른 주문을 픽업 완료로 바꾼다. 픽업 대기 목록은 5초마다 다시 읽는다
+ * 컴퓨터 화면에서 고른 주문을 픽업 완료로 바꾼다. 픽업 대기 목록은 5초마다 다시 읽는다.
+ * "받아 갈 주문 없음"일 때도 목록은 계속 읽어, 점주가 준비 완료를 누르면 새로고침 없이 QR을 만든다(11/16)
  */
 export function PickupQrPage() {
   const qr = usePickupQr(window.location.origin)
-  const waiting = usePickupWaitingOrders(!qr.noOrders)
+  const waiting = usePickupWaitingOrders()
   // 받아 갈 수 있는 건 준비 완료 주문만이다 (order-service PickupPassService, 픽업 신청 11/10)
   const orders = (waiting.data?.content ?? []).filter((o) => o.status === 'READY_FOR_PICKUP')
+  const { noOrders, renew } = qr
+  const readyCount = orders.length
+  // 처음엔 받을 주문이 없었는데 준비 완료 주문이 생기면(알림 또는 5초 폴링) QR을 다시 만든다.
+  // 다시 409가 와도 noOrders·readyCount가 그대로라 또 부르지 않는다
+  useEffect(() => {
+    if (noOrders && readyCount > 0) renew()
+  }, [noOrders, readyCount, renew])
 
   return (
     <section className="space-y-5">
