@@ -148,21 +148,42 @@ describe('관리자 메인배너 (A18)', () => {
     expect(put).toHaveBeenCalledWith('/admin/banners/order', { bannerIds: [1, 3, 2] })
   })
 
-  it('배너 올리기: 제목을 비우면 막고, 그림·공지·기간을 골라 맨 뒤 순서로 보낸다', async () => {
+  it('배너 올리기: 제목·그림이 없으면 막고, 그림을 올리고 공지·기간을 골라 맨 뒤 순서로 보낸다', async () => {
     serve([banner(1), banner(2, { sortOrder: 7 })])
-    post.mockResolvedValue({ data: banner(3) })
+    const issued = {
+      uploadUrl: 'https://s3.example/images/banners/abc.jpg?X-Amz-Expires=300',
+      imageKey: 'images/banners/abc.jpg',
+      imageUrl: '/images/banners/abc.jpg',
+      contentType: 'image/jpeg',
+      expiresAt: '2026-11-16T15:05:00+09:00',
+    }
+    post.mockImplementation(async (url: string) =>
+      url === '/admin/banners/image-upload-url' ? { data: issued } : { data: banner(3) },
+    )
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
     renderPage()
     await userEvent.click(await screen.findByRole('button', { name: '배너 올리기' }))
     const dialog = screen.getByRole('dialog', { name: '배너 올리기' })
     await userEvent.click(within(dialog).getByRole('button', { name: '저장' }))
     expect(await within(dialog).findByText('제목을 입력하세요')).toBeInTheDocument()
+    expect(within(dialog).getByText('그림을 올려 주세요')).toBeInTheDocument()
     expect(post).not.toHaveBeenCalled()
 
     await userEvent.type(within(dialog).getByLabelText('제목'), '  픽업 신청 잊지 마세요 ')
-    await userEvent.click(within(dialog).getByRole('radio', { name: '픽업 신청' }))
+    const file = new File(['jpg'], 'banner.jpg', { type: 'image/jpeg' })
+    await userEvent.upload(within(dialog).getByLabelText('그림 올리기'), file)
     expect(
-      within(dialog).getByRole('img', { name: '미리보기: 픽업 신청 잊지 마세요' }),
-    ).toHaveAttribute('src', '/banners/pickup-request.svg')
+      await within(dialog).findByRole('img', { name: '미리보기: 픽업 신청 잊지 마세요' }),
+    ).toHaveAttribute('src', expect.stringMatching(/^data:image\/jpeg/))
+    expect(post).toHaveBeenCalledWith('/admin/banners/image-upload-url', {
+      contentType: 'image/jpeg',
+    })
+    expect(fetchMock).toHaveBeenCalledWith(issued.uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: file,
+    })
     await userEvent.selectOptions(
       await within(dialog).findByLabelText('누르면 열 공지 (선택)'),
       '11월 마감세일 주간 안내',
@@ -173,7 +194,7 @@ describe('관리자 메인배너 (A18)', () => {
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith('/admin/banners', {
         title: '픽업 신청 잊지 마세요',
-        imageUrl: '/banners/pickup-request.svg',
+        imageUrl: '/images/banners/abc.jpg',
         noticeId: 4,
         sortOrder: 8,
         visible: true,
@@ -181,6 +202,19 @@ describe('관리자 메인배너 (A18)', () => {
         endsAt: null,
       }),
     )
+  })
+
+  it('JPG·PNG가 아닌 그림은 올리지 않고 알린다', async () => {
+    serve([])
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: '배너 올리기' }))
+    const dialog = screen.getByRole('dialog', { name: '배너 올리기' })
+    const gif = new File(['gif'], 'banner.gif', { type: 'image/gif' })
+    await userEvent.upload(within(dialog).getByLabelText('그림 올리기'), gif, {
+      applyAccept: false,
+    })
+    expect(await within(dialog).findByText('JPG나 PNG 그림만 올릴 수 있어요')).toBeInTheDocument()
+    expect(post).not.toHaveBeenCalled()
   })
 
   it('노출 시작이 끝보다 늦으면 저장하지 않는다', async () => {

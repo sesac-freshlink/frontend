@@ -2,13 +2,15 @@ import dayjs from 'dayjs'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
 import { z } from 'zod'
-import { type AdminBanner, BANNER_IMAGES, type BannerRequest } from './banners'
+import type { AdminBanner, BannerRequest } from './banners'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
 const KST = 'Asia/Seoul'
-const imageUrls = BANNER_IMAGES.map((i) => i.url) as [string, ...string[]]
+/** member BannerRequest.IMAGE_PATH 와 같다. 예전 예시 그림(/banners/…)과 올린 그림(/images/banners/…) 둘 다 */
+const BANNER_IMAGE_PATH =
+  /^\/(images\/)?banners\/[A-Za-z0-9][A-Za-z0-9._-]*\.(jpg|jpeg|png|webp|svg)$/
 
 /** 기간 입력 칸 값("2026-11-15T00:00", 한국 시간). 비면 그쪽 제한 없음 */
 const localDateTime = z
@@ -20,7 +22,7 @@ const localDateTime = z
 export const bannerSchema = z
   .object({
     title: z.string().trim().min(1, '제목을 입력하세요').max(50, '50자까지 쓸 수 있어요'),
-    imageUrl: z.enum(imageUrls, { error: '그림을 고르세요' }),
+    imageUrl: z.string().regex(BANNER_IMAGE_PATH, '그림을 올려 주세요'),
     /** 연결할 공지 ID. 빈 문자열이면 연결 없음 */
     noticeId: z.string().regex(/^(\d+)?$/, '공지를 다시 고르세요'),
     visible: z.boolean(),
@@ -55,7 +57,7 @@ export function bannerDefaults(b?: AdminBanner): BannerForm {
       }
     : {
         title: '',
-        imageUrl: BANNER_IMAGES[0].url,
+        imageUrl: '',
         noticeId: '',
         visible: true,
         startsAt: '',

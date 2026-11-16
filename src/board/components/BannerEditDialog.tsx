@@ -1,14 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useState } from 'react'
+import { ImagePlus, LoaderCircle } from 'lucide-react'
+import { type ChangeEvent, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 import { FormField } from '@/auth/components/FormField'
 import { describedBy, inputClass } from '@/auth/components/fieldStyles'
 import { apiErrorCode } from '@/shared/api/errors'
+import { isStoreImageType, readAsDataUrl, STORE_IMAGE_TYPES } from '@/shared/storeImage'
 import { cn } from '@/shared/ui/cn'
 import { useAdminNotices } from '../api'
-import { type AdminBanner, BANNER_IMAGES, useSaveBanner } from '../banners'
+import { type AdminBanner, useSaveBanner, useUploadBannerImage } from '../banners'
 import { type BannerForm, bannerDefaults, bannerSchema, toBannerRequest } from '../bannerForm'
 import { BoardDialog } from './BoardDialog'
 import { DialogButtons } from './DialogButtons'
@@ -27,13 +29,20 @@ const SAVE_ERRORS: Record<string, string> = {
   BANNER_NOT_FOUND: '이미 지운 배너예요. 목록을 다시 확인해 주세요',
 }
 
-/** 관리자 메인배너 등록·수정 창 (추가 명세 A18). 그림은 지금 frontend 가 가진 4장 중에서 고른다 */
+/**
+ * 관리자 메인배너 등록·수정 창 (추가 명세 A18). 그림은 파일을 올린다(11/16, 점포 이미지 올리기와 같은 방식, AD-18).
+ * 예전 예시 그림(/banners/…)으로 만든 배너도 그대로 보이고 고칠 수 있다
+ */
 export function BannerEditDialog({ banner, nextSortOrder, onClose }: Props) {
   const save = useSaveBanner()
+  const upload = useUploadBannerImage()
+  // 방금 올린 그림의 미리 보기(data:). S3에 올린 직후라 같은 주소로 바로 읽지 않는다
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [imageError, setImageError] = useState<string | null>(null)
   // 공지 고르기: 최근 공지 20개(고정 먼저). 지금 연결한 공지가 그 밖이면 따로 넣는다
   const notices = useAdminNotices(0)
   const [formError, setFormError] = useState<string | null>(null)
-  const { register, handleSubmit, formState, control } = useForm<
+  const { register, handleSubmit, formState, control, setValue } = useForm<
     BannerForm,
     unknown,
     z.output<typeof bannerSchema>
@@ -47,6 +56,26 @@ export function BannerEditDialog({ banner, nextSortOrder, onClose }: Props) {
   const noticeOptions = notices.data?.content ?? []
   const linkedMissing =
     banner?.noticeId != null && !noticeOptions.some((n) => n.noticeId === banner.noticeId)
+
+  const onPickImage = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setImageError(null)
+    const contentType = file.type
+    if (!isStoreImageType(contentType)) {
+      setImageError('JPG나 PNG 그림만 올릴 수 있어요')
+      return
+    }
+    try {
+      const issued = await upload.mutateAsync({ file, contentType })
+      setPreviewUrl(await readAsDataUrl(file))
+      setValue('imageUrl', issued.imageUrl, { shouldValidate: true, shouldDirty: true })
+    } catch {
+      setImageError('그림을 올리지 못했어요. 다시 시도해 주세요')
+    }
+  }
+  const shown = previewUrl ?? (imageUrl || null)
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null)
@@ -82,33 +111,53 @@ export function BannerEditDialog({ banner, nextSortOrder, onClose }: Props) {
           />
         </FormField>
 
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-slate-900">그림</legend>
-          <div className="grid grid-cols-2 gap-2">
-            {BANNER_IMAGES.map((img) => (
-              <label
-                key={img.url}
-                className={cn(
-                  'cursor-pointer rounded-lg border-2 border-transparent p-1 has-checked:border-emerald-600',
-                  'has-focus-visible:ring-2 has-focus-visible:ring-emerald-600',
-                )}
-              >
-                <input type="radio" value={img.url} {...register('imageUrl')} className="sr-only" />
-                <img src={img.url} alt="" className="aspect-2/1 w-full rounded object-cover" />
-                <span className="mt-1 block text-center text-xs text-slate-600">{img.label}</span>
-              </label>
-            ))}
-          </div>
-          {errors.imageUrl && <p className="text-xs text-red-600">{errors.imageUrl.message}</p>}
-        </fieldset>
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-slate-900">그림</p>
+          <label
+            className={cn(
+              'inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 has-focus-visible:ring-2 has-focus-visible:ring-emerald-600',
+              upload.isPending && 'pointer-events-none opacity-50',
+            )}
+          >
+            {upload.isPending ? (
+              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <ImagePlus className="size-4" aria-hidden="true" />
+            )}
+            {shown ? '다른 그림 올리기' : '그림 올리기'}
+            <input
+              type="file"
+              accept={STORE_IMAGE_TYPES.join(',')}
+              onChange={(e) => void onPickImage(e)}
+              disabled={upload.isPending}
+              aria-describedby="banner-image-hint"
+              className="sr-only"
+            />
+          </label>
+          <p id="banner-image-hint" className="text-xs text-slate-500">
+            JPG·PNG를 올릴 수 있어요. 가로 2:1(1200×600)이 홈 배너 칸에 꼭 맞아요. 저장을 눌러야
+            반영돼요
+          </p>
+          {(imageError ?? errors.imageUrl?.message) && (
+            <p role="alert" className="text-xs text-red-600">
+              {imageError ?? errors.imageUrl?.message}
+            </p>
+          )}
+        </div>
 
         <div className="space-y-1">
           <p className="text-sm font-medium text-slate-900">미리보기 (홈 배너 칸, 가로 2:1)</p>
-          <img
-            src={imageUrl}
-            alt={title ? `미리보기: ${title}` : '미리보기'}
-            className="aspect-2/1 w-full rounded-2xl object-cover"
-          />
+          {shown ? (
+            <img
+              src={shown}
+              alt={title ? `미리보기: ${title}` : '미리보기'}
+              className="aspect-2/1 w-full rounded-2xl object-cover"
+            />
+          ) : (
+            <div className="flex aspect-2/1 w-full items-center justify-center rounded-2xl bg-slate-100 text-sm text-slate-600">
+              그림을 올리면 여기에 보여요
+            </div>
+          )}
         </div>
 
         <FormField

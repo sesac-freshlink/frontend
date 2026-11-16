@@ -10,6 +10,8 @@ import type {
 } from '@/board/api'
 import type { AdminBanner, BannerRequest } from '@/board/banners'
 import type { HomeBanner } from '@/customer/banners/api'
+import type { StoreImageUploadUrl } from '@/admin/stores/api'
+import { MOCK_IMAGE_EXTENSIONS, MOCK_S3 } from './adminHandlers'
 import { mockSessionUser } from './authHandlers'
 
 /** member-service 가짜 API (김경우): 게시판 BD-01~03, 관리자 공지·FAQ (추가 명세 A17), 메인배너 BN-01·AD-13~17 (A18) */
@@ -400,6 +402,36 @@ export const boardHandlers = [
     '/api/admin/banners',
     () => adminOnly() ?? HttpResponse.json([...banners].sort(bannerOrder).map(withNoticeTitle)),
   ),
+  // AD-18 배너 그림 업로드 주소 (점포 이미지와 같은 모양). 본문이 없거나 contentType 이 없으면 image/jpeg
+  http.post('/api/admin/banners/image-upload-url', async ({ request }) => {
+    const denied = adminOnly()
+    if (denied) return denied
+    const req = (await request.json().catch(() => null)) as { contentType?: string } | null
+    const contentType = req?.contentType || 'image/jpeg'
+    const extension = MOCK_IMAGE_EXTENSIONS[contentType]
+    if (!extension) {
+      return HttpResponse.json(
+        errorBody('STORE_IMAGE_TYPE_INVALID', '점포 이미지는 JPG나 PNG만 올릴 수 있습니다'),
+        { status: 400 },
+      )
+    }
+    const imageKey = `images/banners/${crypto.randomUUID()}${extension}`
+    const body: StoreImageUploadUrl = {
+      uploadUrl: `${MOCK_S3}/${imageKey}?X-Amz-Expires=300`,
+      imageKey,
+      imageUrl: `/${imageKey}`,
+      contentType,
+      expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+    }
+    return HttpResponse.json(body)
+  }),
+  // S3 처럼 서명한 형식(키 확장자)과 Content-Type 이 다르면 거절한다
+  http.put(`${MOCK_S3}/images/banners/*`, ({ request }) => {
+    const extension = MOCK_IMAGE_EXTENSIONS[request.headers.get('Content-Type') ?? '']
+    return extension && new URL(request.url).pathname.endsWith(extension)
+      ? new HttpResponse(null, { status: 200 })
+      : new HttpResponse(null, { status: 403 })
+  }),
   http.post('/api/admin/banners', async ({ request }) => {
     const denied = adminOnly()
     if (denied) return denied

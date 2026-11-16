@@ -18,10 +18,16 @@ const b = (id: number, over: Partial<AdminBanner> = {}): AdminBanner => ({
 })
 
 describe('배너 입력 규칙 (A18)', () => {
-  const ok = { ...bannerDefaults(), title: '제목' }
+  const ok = { ...bannerDefaults(), title: '제목', imageUrl: '/images/banners/abc-1.png' }
 
-  it('제목 1~50자, 그림은 고를 수 있는 4장, 기간은 비워도 되고 시작 < 끝', () => {
+  it('제목 1~50자, 그림은 같은 사이트 배너 경로(올린 그림·예전 예시), 기간은 비워도 되고 시작 < 끝', () => {
     expect(bannerSchema.safeParse(ok).success).toBe(true)
+    // 새 배너는 그림이 비어 있어 올려야 저장된다(11/16)
+    expect(bannerSchema.safeParse({ ...bannerDefaults(), title: '제목' }).success).toBe(false)
+    expect(bannerSchema.safeParse({ ...ok, imageUrl: '/banners/guide.svg' }).success).toBe(true)
+    expect(bannerSchema.safeParse({ ...ok, imageUrl: '/images/stores/1/a.jpg' }).success).toBe(
+      false,
+    )
     expect(bannerSchema.safeParse({ ...ok, title: ' ' }).success).toBe(false)
     expect(bannerSchema.safeParse({ ...ok, title: '가'.repeat(51) }).success).toBe(false)
     expect(bannerSchema.safeParse({ ...ok, title: '가'.repeat(50) }).success).toBe(true)
@@ -39,7 +45,7 @@ describe('배너 입력 규칙 (A18)', () => {
     const parsed = bannerSchema.parse({ ...ok, noticeId: '4', endsAt: '2026-11-21T23:59' })
     expect(toBannerRequest(parsed, 12000)).toEqual({
       title: '제목',
-      imageUrl: '/banners/clearance.svg',
+      imageUrl: '/images/banners/abc-1.png',
       noticeId: 4,
       sortOrder: 9999,
       visible: true,

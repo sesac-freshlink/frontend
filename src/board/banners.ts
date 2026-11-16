@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
+import type { StoreImageUploadUrl } from '@/admin/stores/api'
 import { api } from '@/shared/api/client'
+import type { StoreImageType } from '@/shared/storeImage'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -36,15 +38,26 @@ export interface BannerRequest {
 }
 
 /**
- * 지금 고를 수 있는 배너 그림 (frontend public/banners/, 가로 2:1 1200×600, 11/11 결정 7·8).
- * 진아님 S3 images/banners/ 권한이 생기면 올리기로 바뀌고, 저장 값(같은 사이트 경로)은 그대로다
+ * AD-18 배너 그림 올리기 (11/16, 점포 이미지 올리기와 같은 방식): 형식(JPG·PNG)을 보내 업로드 주소를 받고(member)
+ * 그 주소로 파일을 바로 PUT 한다(S3). 돌려받은 imageUrl(/images/banners/…)을 배너 imageUrl 로 저장한다.
+ * S3 주소는 우리 API 가 아니라 api 인스턴스(baseURL·쿠키·CSRF 헤더)를 쓰지 않고 fetch 로 보낸다
  */
-export const BANNER_IMAGES = [
-  { url: '/banners/clearance.svg', label: '마감세일' },
-  { url: '/banners/first-come.svg', label: '선착순 신상품' },
-  { url: '/banners/pickup-request.svg', label: '픽업 신청' },
-  { url: '/banners/guide.svg', label: '이용 안내' },
-] as const
+export function useUploadBannerImage() {
+  return useMutation({
+    mutationFn: async ({ file, contentType }: { file: File; contentType: StoreImageType }) => {
+      const issued = (
+        await api.post<StoreImageUploadUrl>('/admin/banners/image-upload-url', { contentType })
+      ).data
+      const res = await fetch(issued.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': issued.contentType },
+        body: file,
+      })
+      if (!res.ok) throw new Error(`배너 그림 업로드 실패 ${res.status}`)
+      return issued
+    },
+  })
+}
 
 /** 홈에 한 번에 보이는 최대 장수 (member BannerService.HOME_LIMIT, 11/11 결정 3) */
 export const HOME_BANNER_LIMIT = 5
