@@ -66,15 +66,18 @@ export function usePickupQr(origin: string): UsePickupQrReturn {
     return () => clearInterval(timer)
   }, [])
 
+  // 화면이 효과(useEffect)에서 부를 수 있게 같은 함수를 계속 돌려준다
+  const renew = useCallback(() => {
+    setError(null)
+    issueNow()
+  }, [issueNow])
+
   return {
     pass,
     qrImage,
     secondsLeft: pass ? secondsLeft(pass.expiresAt, now) : 0,
     noOrders,
     error,
-    renew() {
-      setError(null)
-      issueNow()
-    },
+    renew,
   }
 }
