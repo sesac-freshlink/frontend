@@ -1,4 +1,4 @@
-import { Home, QrCode, ReceiptText, Store, UserRound, type LucideIcon } from 'lucide-react'
+import { Home, LogIn, QrCode, ReceiptText, Store, UserRound, type LucideIcon } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { useAuthStore } from '@/shared/auth'
@@ -54,16 +54,18 @@ export function CustomerLayout() {
           <img src="/logo.png" alt="freshLink 홈" className="h-7 w-auto" />
         </NavLink>
         <div className="-mr-2 flex items-center">
-          {/* 로그인하지 않았으면 알림 종 대신 [로그인]. 로그인하면 보던 화면으로 돌아온다(11/15 경우 결정 H5) */}
+          {/* 로그인하지 않았으면 알림 종 자리에 같은 모양의 로그인 아이콘(11/16 경우 결정). 로그인하면 보던 화면으로 돌아온다 */}
           {loggedIn ? (
             <NotificationBell align="end" />
           ) : (
             <Link
               to="/login"
               state={{ from: pathname + search + hash }}
-              className="flex min-h-11 items-center px-2 text-sm text-emerald-700 underline hover:text-emerald-800"
+              aria-label="로그인"
+              title="로그인"
+              className="flex size-11 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
             >
-              로그인
+              <LogIn className="size-5" aria-hidden />
             </Link>
           )}
         </div>
