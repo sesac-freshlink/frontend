@@ -725,6 +725,19 @@ export const orderHandlers = [
       const body: CreateOrderResponse = { orderId: o.orderId, orderNo: o.orderNo, status: o.status }
       return HttpResponse.json(body)
     }
+    // 서버처럼 같은 점포·상품의 열린 주문(확인 중·결제 대기)이 있으면 다른 키라도 막는다 (order V10, 11/15)
+    const open = [...orders.values()].some(
+      (o) =>
+        (o.status === 'RESERVING' || o.status === 'PAYMENT_WAITING') &&
+        o.storeId === req.storeId &&
+        o.productId === req.productId,
+    )
+    if (open) {
+      return HttpResponse.json(
+        { code: 'ORDER_ALREADY_PENDING', message: '결제하지 않은 주문이 있어요' },
+        { status: 409 },
+      )
+    }
     const id = nextOrderId++
     const now = new Date()
     orders.set(id, {
