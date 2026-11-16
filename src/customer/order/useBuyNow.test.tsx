@@ -9,7 +9,12 @@ import { useAuthStore } from '@/shared/auth'
 import { api } from '@/shared/api/client'
 import type { CustomerOrderSummary, Order } from './api'
 import { PendingOrderDialog } from './components/PendingOrderDialog'
-import { type BuyNowRequest, PENDING_CANCEL_FAILED_MESSAGE, useBuyNow } from './useBuyNow'
+import {
+  type BuyNowRequest,
+  PENDING_CANCEL_FAILED_MESSAGE,
+  PENDING_EXISTS_MESSAGE,
+  useBuyNow,
+} from './useBuyNow'
 
 vi.mock('@/shared/api/client', () => ({
   api: { get: vi.fn(), post: vi.fn() },
@@ -194,6 +199,39 @@ describe('결제하지 않은 주문 안내 (11/12)', () => {
     expect(post).not.toHaveBeenCalled()
     // 닫으면 [구매하기]로 포커스가 돌아온다
     expect(screen.getByRole('button', { name: '구매하기' })).toHaveFocus()
+  })
+
+  it('두 탭에서 거의 같이 눌러 서버가 막으면(409 ORDER_ALREADY_PENDING) 결제 대기 주문을 다시 찾아 같은 안내 창을 띄운다 (11/15)', async () => {
+    // 처음 확인 때는 아직 없고, 서버가 막은 뒤 다시 찾으면 다른 탭이 만든 결제 대기가 있다
+    let listCalls = 0
+    get.mockImplementation(async (url: string) => {
+      if (url === '/orders') {
+        listCalls += 1
+        return { data: { content: listCalls === 1 ? [] : [pendingRow], page: 0, size: 10 } }
+      }
+      if (url === '/orders/45') return { data: pendingOrder() }
+      throw new Error(`unexpected ${url}`)
+    })
+    post.mockRejectedValue(errorWith('ORDER_ALREADY_PENDING'))
+    renderBuy()
+    await userEvent.click(screen.getByRole('button', { name: '구매하기' }))
+
+    expect(
+      await screen.findByRole('dialog', { name: '결제하지 않은 주문이 있어요' }),
+    ).toBeInTheDocument()
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('서버가 막았는데 결제 대기 주문을 못 찾으면(아직 주문 확인 중 등) 알리고 주문하지 않는다', async () => {
+    serve([])
+    post.mockRejectedValue(errorWith('ORDER_ALREADY_PENDING'))
+    renderBuy()
+    await userEvent.click(screen.getByRole('button', { name: '구매하기' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(PENDING_EXISTS_MESSAGE))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('where')).not.toBeInTheDocument()
   })
 
   it('결제 대기 확인에 실패하면 막지 않고 바로 주문한다', async () => {

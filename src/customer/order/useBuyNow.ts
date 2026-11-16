@@ -12,6 +12,9 @@ import { cancelBeforePayment } from './refund'
 /** 앞 주문 결제 전 취소가 안 됐을 때 (결제 처리 중 등). 새 주문은 만들지 않는다 */
 export const PENDING_CANCEL_FAILED_MESSAGE = '잠시 후 다시 시도해 주세요.'
 
+/** 서버가 열린 주문 때문에 막았는데(409 ORDER_ALREADY_PENDING) 결제 대기 주문을 찾지 못했을 때 (아직 주문 확인 중 등) */
+export const PENDING_EXISTS_MESSAGE = '결제하지 않은 주문이 있어요. 주문 내역에서 확인해 주세요.'
+
 /** 마감세일 함께 사기 주문 생성 거절 문구 */
 const CLEARANCE_ERRORS: Record<string, string> = {
   CLEARANCE_NOT_ON_SALE: '마감세일은 06:00~23:00에만 살 수 있어요.',
@@ -67,7 +70,8 @@ export function useBuyNow(): UseBuyNowReturn {
   const [cancelling, setCancelling] = useState(false)
 
   const create = useCallback(
-    async (request: BuyNowRequest, replace: boolean): Promise<boolean> => {
+    // 'pending' = 서버가 같은 점포·상품의 열린 주문 때문에 막았다(409 ORDER_ALREADY_PENDING, 다른 탭에서 먼저 만든 경우 등)
+    async (request: BuyNowRequest, replace: boolean): Promise<boolean | 'pending'> => {
       const body = {
         storeId: request.storeId,
         storeName: request.storeName,
@@ -88,8 +92,11 @@ export function useBuyNow(): UseBuyNowReturn {
         return true
       } catch (e) {
         const code = apiErrorCode(e)
-        // 같은 키로 다른 내용을 보낸 경우. 다음 시도는 새 키로 한다
-        if (code === 'IDEMPOTENCY_KEY_REUSED') attempt.current = null
+        // 같은 키로 다른 내용을 보낸 경우·열린 주문 때문에 막힌 경우. 다음 시도는 새 키로 한다
+        if (code === 'IDEMPOTENCY_KEY_REUSED' || code === 'ORDER_ALREADY_PENDING')
+          attempt.current = null
+        // 안내 창은 부르는 쪽(buy)이 결제 대기 주문을 다시 찾아 띄운다
+        if (code === 'ORDER_ALREADY_PENDING') return 'pending'
         // 남은 수량·마감세일 여부가 바뀌었을 수 있어 상품을 다시 읽는다
         void queryClient.invalidateQueries({
           queryKey: ['customer', 'stores', request.storeId, 'product', request.productId],
@@ -131,7 +138,18 @@ export function useBuyNow(): UseBuyNowReturn {
       }
       if (!found) {
         try {
-          return await create(request, replace)
+          const created = await create(request, replace)
+          if (created !== 'pending') return created
+          // 서버가 막았다(두 탭에서 거의 같이 누른 경우 등). 결제 대기 주문을 다시 찾아 같은 안내 창을 띄운다
+          found = await fetchPendingOrder(
+            request.storeId,
+            request.storeName,
+            request.productId,
+          ).catch(() => null)
+          if (!found) {
+            toast.error(PENDING_EXISTS_MESSAGE)
+            return false
+          }
         } finally {
           inFlight.current = false
         }
@@ -180,9 +198,11 @@ export function useBuyNow(): UseBuyNowReturn {
       void queryClient.invalidateQueries({ queryKey: ['customer', 'orders'] })
       void queryClient.invalidateQueries({ queryKey: ['customer', 'order', guard.order.orderId] })
     }
-    const ok = await create(guard.request, guard.replace)
+    const created = await create(guard.request, guard.replace)
+    // 앞 주문을 풀었는데도 막히면(만료 정리가 아직 안 돈 1분 안쪽 등) 새 주문을 만들지 않고 알린다
+    if (created === 'pending') toast.error(PENDING_EXISTS_MESSAGE)
     setCancelling(false)
-    guard.resolve(ok)
+    guard.resolve(created === true)
   }, [guard, create, queryClient])
 
   const pendingDialog: PendingOrderDialogProps | null = guard
