@@ -157,6 +157,24 @@ export interface UpdateSafetyStockRequest {
   safetyStock: number
 }
 
+/**
+ * 분류 하나의 마감세일 설정(11/17). inventory-service ClearanceSettingResponse 와 같은 모양.
+ * 판매 시간은 saleStartHour시 정각부터 saleEndHour시 정각 전까지(24 = 자정). 상품 전체의 분류가 가나다순으로 온다
+ */
+export interface ClearanceSettingItem {
+  category: string
+  enabled: boolean
+  /** 할인율(%), 1~95. 단가는 10원 단위 내림, 최소 10원 */
+  discountPercent: number
+  saleStartHour: number
+  saleEndHour: number
+  /** false 면 점주가 정하지 않아 기본값(적용, 30%, 06~23시)이다 */
+  customized: boolean
+}
+
+/** 분류 하나의 마감세일 설정 저장 요청 */
+export type UpdateClearanceSettingRequest = Omit<ClearanceSettingItem, 'customized'>
+
 /** S-42 통계 한 줄. inventory-service ProductStatsResponse 와 같은 모양. 수량은 모두 양수 */
 export interface ProductStats {
   productId: number
@@ -458,6 +476,29 @@ export function useUpdateSafetyStock() {
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ['owner', 'safetyStocks'] }),
+        queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
+      ]),
+  })
+}
+
+/** 분류별 마감세일 설정. 설정값이라 폴링하지 않고, 바꾸면 다시 읽는다 */
+export function useClearanceSettings() {
+  return useQuery({
+    queryKey: ['owner', 'clearanceSettings'],
+    queryFn: async () =>
+      (await api.get<ClearanceSettingItem[]>('/owner/inventory/clearance-settings')).data,
+  })
+}
+
+/** 분류 하나의 마감세일 설정 저장. 재고 목록의 마감세일 수량도 바뀌므로 같이 다시 읽는다 */
+export function useUpdateClearanceSetting() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (request: UpdateClearanceSettingRequest) =>
+      (await api.put<ClearanceSettingItem>('/owner/inventory/clearance-settings', request)).data,
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['owner', 'clearanceSettings'] }),
         queryClient.invalidateQueries({ queryKey: ['owner', 'inventory'] }),
       ]),
   })

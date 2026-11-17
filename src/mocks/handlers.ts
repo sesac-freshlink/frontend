@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw'
 import type { StoreProduct } from '@/customer/stores/api'
 import type {
   AdjustmentHistoryItem,
+  ClearanceSettingItem,
   AdjustRequest,
   AdjustResponse,
   DisposalHistoryItem,
@@ -100,6 +101,22 @@ const inventory: Omit<
 const salesPace: Record<number, Pick<InventoryItem, 'dailySales' | 'daysOfStock'>> = {
   1: { dailySales: 4.3, daysOfStock: 4 },
   2: { dailySales: 5.0, daysOfStock: 2 },
+}
+
+/** 분류별 마감세일 설정. 정하지 않은 분류는 기본값(적용, 30%, 06~23시). 김밥은 꺼 두어 처음부터 "직접 정함"이 보인다 */
+const DEFAULT_CLEARANCE_SETTING = {
+  enabled: true,
+  discountPercent: 30,
+  saleStartHour: 6,
+  saleEndHour: 23,
+}
+const clearanceSettings = new Map<string, Omit<ClearanceSettingItem, 'category' | 'customized'>>([
+  ['김밥', { enabled: false, discountPercent: 30, saleStartHour: 6, saleEndHour: 23 }],
+])
+
+function toClearanceSettingItem(category: string): ClearanceSettingItem {
+  const saved = clearanceSettings.get(category)
+  return { category, ...(saved ?? DEFAULT_CLEARANCE_SETTING), customized: saved !== undefined }
 }
 
 /** S-40 점포 안전재고. 정하지 않은 상품은 5. 바나나우유는 12로 정해 두어 처음부터 부족 배지가 보인다 */
@@ -362,6 +379,7 @@ const storeProducts: StoreProduct[] = [
     // 오늘까지 lot 4개는 마감세일(30% 할인, 10원 아래 버림)
     clearanceQuantity: 4,
     clearancePrice: 1050,
+    clearanceDiscountPercent: 30,
     clearanceExpiry: kstEndOfDay(0),
   },
   {
@@ -418,6 +436,7 @@ const storeProducts: StoreProduct[] = [
     nearestExpiry: kstEndOfDay(1),
     clearanceQuantity: 3,
     clearancePrice: 3850,
+    clearanceDiscountPercent: 30,
     clearanceExpiry: kstHoursFromNow(2.5),
   },
   {
@@ -434,6 +453,7 @@ const storeProducts: StoreProduct[] = [
     nearestExpiry: kstEndOfDay(1),
     clearanceQuantity: 2,
     clearancePrice: 3430,
+    clearanceDiscountPercent: 30,
     clearanceExpiry: kstHoursFromNow(5),
   },
   {
@@ -463,6 +483,7 @@ const storeProducts: StoreProduct[] = [
     nearestExpiry: kstEndOfDay(1),
     clearanceQuantity: 1,
     clearancePrice: 2660,
+    clearanceDiscountPercent: 30,
     clearanceExpiry: kstHoursFromNow(0.7),
   },
 ]
@@ -982,6 +1003,35 @@ export const handlers = [
   http.delete('/api/owner/inventory/first-come/:productId', ({ params }) => {
     firstComeLimits.delete(Number(params.productId))
     return HttpResponse.json(firstComeSettingOf(Number(params.productId)))
+  }),
+  http.get('/api/owner/inventory/clearance-settings', () =>
+    HttpResponse.json<ClearanceSettingItem[]>(
+      [...new Set(storeProducts.map((product) => product.category))]
+        .sort((a, b) => a.localeCompare(b, 'ko'))
+        .map(toClearanceSettingItem),
+    ),
+  ),
+  http.put('/api/owner/inventory/clearance-settings', async ({ request }) => {
+    const body = (await request.json()) as Omit<ClearanceSettingItem, 'customized'>
+    if (!storeProducts.some((product) => product.category === body.category)) {
+      return HttpResponse.json(
+        { code: 'CATEGORY_NOT_FOUND', message: '없는 분류입니다', traceId: '' },
+        { status: 404 },
+      )
+    }
+    if (body.saleStartHour >= body.saleEndHour) {
+      return HttpResponse.json(
+        {
+          code: 'INVALID_CLEARANCE_SETTING',
+          message: '마감세일 판매 시작 시각은 끝 시각보다 빨라야 합니다',
+          traceId: '',
+        },
+        { status: 400 },
+      )
+    }
+    const { category, ...setting } = body
+    clearanceSettings.set(category, setting)
+    return HttpResponse.json(toClearanceSettingItem(category))
   }),
   http.get('/api/owner/inventory/safety-stocks', () =>
     HttpResponse.json<SafetyStockItem[]>(

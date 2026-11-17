@@ -3,18 +3,31 @@ import type { StoreProduct } from './api'
 
 type ClearanceFields = Pick<
   StoreProduct,
-  'availableQuantity' | 'firstCome' | 'clearanceQuantity' | 'clearancePrice'
+  | 'availableQuantity'
+  | 'firstCome'
+  | 'clearanceQuantity'
+  | 'clearancePrice'
+  | 'clearanceDiscountPercent'
 >
 
-/** 마감세일 할인율(%). inventory ClearancePolicy 와 같다. 화면 문구에만 쓰고 금액은 서버가 준 clearancePrice 를 쓴다 */
-export const CLEARANCE_DISCOUNT_PERCENT = 30
+/** 서버가 할인율을 아직 주지 않을 때(inventory 배포 전) 보이는 할인율(%). 예전 고정값이다 */
+export const DEFAULT_CLEARANCE_DISCOUNT_PERCENT = 30
 
-/** 마감세일 수량·단가. 선착순이거나 수량이 0이거나 서버가 아직 주지 않으면 null */
-export function clearanceOf(product: ClearanceFields): { quantity: number; price: number } | null {
+/**
+ * 마감세일 수량·단가·할인율. 선착순이거나 수량이 0이거나 서버가 아직 주지 않으면 null.
+ * 할인율은 점포가 분류마다 정한 값(clearanceDiscountPercent)이고, 화면 문구에만 쓴다. 금액은 서버가 준 clearancePrice 를 쓴다
+ */
+export function clearanceOf(
+  product: ClearanceFields,
+): { quantity: number; price: number; percent: number } | null {
   const quantity = product.clearanceQuantity ?? 0
   const price = product.clearancePrice ?? null
   if (product.firstCome || quantity <= 0 || price === null) return null
-  return { quantity, price }
+  return {
+    quantity,
+    price,
+    percent: product.clearanceDiscountPercent ?? DEFAULT_CLEARANCE_DISCOUNT_PERCENT,
+  }
 }
 
 /** 구매 시트에서 고른 수량. normal = 기본(정가), clearance = 마감세일 */

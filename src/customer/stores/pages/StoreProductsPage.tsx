@@ -28,7 +28,7 @@ import { ProductBadges } from '../components/ProductBadges'
 import { PhotoOrIcon } from '../components/PhotoOrIcon'
 import { PullIndicator } from '../components/PullIndicator'
 import { productLabel } from '../productLabel'
-import { CLEARANCE_DISCOUNT_PERCENT, clearanceOf } from '../clearance'
+import { clearanceOf } from '../clearance'
 import {
   isProductShortcut,
   type ProductShortcut,
@@ -524,7 +524,7 @@ function ProductCard({
       {clearance ? (
         <span className="block">
           <span className="flex items-baseline gap-1">
-            <span className="text-sm font-bold text-rose-700">{CLEARANCE_DISCOUNT_PERCENT}%</span>
+            <span className="text-sm font-bold text-rose-700">{clearance.percent}%</span>
             <span className="text-base font-bold text-slate-900 tabular-nums">
               {formatWon(clearance.price)}
             </span>

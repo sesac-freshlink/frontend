@@ -86,7 +86,7 @@ export interface StoreProduct {
   /** 먼저 받게 될 상품의 소비기한(+09:00). 소비기한 빠른 것부터 준다. 품절이면 null */
   nearestExpiry: string | null
   /**
-   * 마감세일(소비기한 24시간 안, 30% 할인) 수량. 판매 시간(06~23시) 밖이거나 선착순 상품이면 0.
+   * 마감세일(소비기한 24시간 안) 수량. 점포가 분류마다 정한 판매 시간 밖이거나, 그 분류를 마감세일에서 뺐거나, 선착순 상품이면 0.
    * availableQuantity 는 마감세일을 뺀 기본 수량이다. inventory 가 마감세일을 배포하기 전에는 오지 않는다
    */
   clearanceQuantity?: number
@@ -94,6 +94,8 @@ export interface StoreProduct {
   clearancePrice?: number | null
   /** 마감세일 상품의 소비기한(+09:00). clearanceQuantity 가 0이면 null */
   clearanceExpiry?: string | null
+  /** 마감세일 할인율(%). 점포가 분류마다 정한다(기본 30, 11/17). clearanceQuantity 가 0이면 null. 배포 전 응답에는 없다 */
+  clearanceDiscountPercent?: number | null
   /** 이 점포의 최근 7일 순판매 수량(판매 − 환불 복원, 0 아래면 0). 추천순과 같은 값(inventory #72). 배포 전 응답에는 없다 */
   soldRecently?: number
 }
@@ -127,7 +129,7 @@ export interface StoreProductFilter {
   recommendedOnly?: boolean
   /** 신상품만 */
   newOnly?: boolean
-  /** 지금 마감세일로 살 수 있는 상품만(inventory #71 clearance=true, 06~23시·선착순 제외) */
+  /** 지금 마감세일로 살 수 있는 상품만(inventory #71 clearance=true, 점포가 정한 판매 시간 밖·마감세일을 뺀 분류·선착순 제외) */
   clearanceOnly?: boolean
   /** 선착순 상품만(inventory #71 firstCome=true) */
   firstComeOnly?: boolean
