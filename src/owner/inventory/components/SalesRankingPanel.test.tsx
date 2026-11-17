@@ -1,3 +1,4 @@
+import { formatShortDate } from '@/owner/sales/sales'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AxiosError, AxiosHeaders } from 'axios'
 import { render, screen, waitFor, within } from '@testing-library/react'
@@ -107,10 +108,10 @@ describe('상품별 판매 순위', () => {
         .map((cell) => cell.textContent),
     )
     expect(cells).toEqual([
-      ['1', '제육볶음 도시락P001', '5개', '41.7%'],
-      ['2', '흰 우유 500mlP012', '3개', '25%'],
-      ['2', '매운 컵라면 115gP015', '3개', '25%'],
-      ['4', '단팥빵P017', '1개', '8.3%'],
+      ['1', '제육볶음 도시락', '5개', '41.7%'],
+      ['2', '흰 우유 500ml', '3개', '25%'],
+      ['2', '매운 컵라면 115g', '3개', '25%'],
+      ['4', '단팥빵', '1개', '8.3%'],
     ])
   })
 
@@ -128,7 +129,7 @@ describe('상품별 판매 순위', () => {
     )
     expect(screen.getByRole('button', { name: '오늘' })).toHaveAttribute('aria-pressed', 'true')
     // 하루면 날짜를 하나만 보여 준다
-    expect(screen.getByText(statsPeriod(1).to)).toBeInTheDocument()
+    expect(screen.getByText(formatShortDate(statsPeriod(1).to))).toBeInTheDocument()
   })
 
   it('최근 30일 버튼을 누르면 30일로 다시 부른다', async () => {

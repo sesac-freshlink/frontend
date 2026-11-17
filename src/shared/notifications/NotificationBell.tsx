@@ -53,11 +53,11 @@ export function NotificationBell({ align = 'end', className }: Props) {
         onClick={() => setOpen((v) => !v)}
         aria-label={count > 0 ? `알림 ${count}개 안 읽음` : '알림'}
         aria-expanded={open}
-        className="relative rounded-full p-1 text-slate-500 hover:bg-slate-100"
+        className="relative flex size-11 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
       >
         <Bell className="size-5" />
         {count > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] leading-4 font-bold text-white tabular-nums">
+          <span className="absolute top-1.5 right-1.5 min-w-4 rounded-full bg-rose-700 px-1 text-center text-[10px] leading-4 font-bold text-white tabular-nums">
             {count > 99 ? '99+' : count}
           </span>
         )}
@@ -104,7 +104,7 @@ function NotificationPanel({
           type="button"
           onClick={() => markAllRead.mutate()}
           disabled={!hasUnread || markAllRead.isPending}
-          className="text-xs text-emerald-600 disabled:text-slate-300"
+          className="text-xs text-emerald-700 hover:text-emerald-800 disabled:text-slate-300"
         >
           모두 읽음
         </button>
@@ -115,7 +115,7 @@ function NotificationPanel({
             <LoaderCircle className="size-5 animate-spin" aria-label="불러오는 중" />
           </div>
         ) : list.isError ? (
-          <p className="py-8 text-center text-sm text-red-600">알림을 불러오지 못했어요.</p>
+          <p className="py-8 text-center text-sm text-rose-700">알림을 불러오지 못했어요.</p>
         ) : list.data.content.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-500">새 알림이 없어요.</p>
         ) : (

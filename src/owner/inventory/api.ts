@@ -9,13 +9,17 @@ export interface InventoryItem {
   productCode: string
   name: string
   category: string
+  /** 브랜드. 서버가 아직 안 주면 없음(화면은 "-") */
+  brand?: string | null
+  /** 마감세일로 파는 수량(판매 가능 안에 포함). 서버가 아직 안 주면 없음(화면은 "-") */
+  clearanceQuantity?: number | null
   price: number
   /** 상품 이미지 주소. 없으면 null (화면이 자리표시를 보여 준다) */
   imageUrl: string | null
   totalQuantity: number
   reservedQuantity: number
   availableQuantity: number
-  /** 수량이 남은 lot 중 가장 빠른 유통기한(+09:00). 없으면 null */
+  /** 수량이 남은 lot 중 가장 빠른 소비기한(+09:00). 없으면 null */
   nearestExpiry: string | null
   imminentLotCount: number
   expiredLotCount: number
@@ -32,7 +36,8 @@ export interface InventoryItem {
 }
 
 /** S-10 상태 필터. 여러 개면 모두 만족하는 상품만 */
-export type InventoryStatusFilter = 'IMMINENT' | 'EXPIRED' | 'SOLD_OUT' | 'LOW_STOCK'
+/** RESTOCK = 품절 또는 부족(점주 홈 재입고 필요). 재고 화면 칩에는 없다 */
+export type InventoryStatusFilter = 'IMMINENT' | 'EXPIRED' | 'SOLD_OUT' | 'LOW_STOCK' | 'RESTOCK'
 
 /** S-10 재고 목록 검색 조건. 서버가 거르고 페이지로 자른다 */
 export interface InventoryQuery {
@@ -220,7 +225,7 @@ export interface AdjustmentHistoryItem {
   createdAt: string
 }
 
-/** 유통기한 달력의 lot 하나. 상태는 서버가 지금 시각으로 계산한다 */
+/** 소비기한 달력의 lot 하나. 상태는 서버가 지금 시각으로 계산한다 */
 export interface ExpiryCalendarLot {
   lotId: number
   productId: number
@@ -233,7 +238,7 @@ export interface ExpiryCalendarLot {
   status: InventoryLotStatus
 }
 
-/** 유통기한 달력의 하루. lot 이 있는 날만 온다 */
+/** 소비기한 달력의 하루. lot 이 있는 날만 온다 */
 export interface ExpiryCalendarDay {
   /** "YYYY-MM-DD" */
   date: string
@@ -243,7 +248,7 @@ export interface ExpiryCalendarDay {
   lots: ExpiryCalendarLot[]
 }
 
-/** 유통기한 달력. inventory-service ExpiryCalendarResponse 와 같은 모양 */
+/** 소비기한 달력. inventory-service ExpiryCalendarResponse 와 같은 모양 */
 export interface ExpiryCalendar {
   /** "YYYY-MM" */
   month: string
@@ -307,15 +312,16 @@ interface ErrorBody {
 
 /**
  * S-10 재고 목록 한 페이지 + S-15 3초 폴링으로 실시간 반영. 검색·필터·페이지는 서버가 한다.
- * 조건을 바꾸는 동안에는 앞 페이지를 그대로 보여 줘 표가 깜빡이지 않게 한다
+ * 조건을 바꾸는 동안에는 앞 페이지를 그대로 보여 줘 표가 깜빡이지 않게 한다.
+ * poll=false 는 이름·재고 숫자만 빌려 쓰는 화면(매출, lot 바로 열기)용: 3초마다 다시 읽지 않는다
  */
-export function useInventory(query: InventoryQuery) {
+export function useInventory(query: InventoryQuery, { poll = true }: { poll?: boolean } = {}) {
   return useQuery({
     queryKey: ['owner', 'inventory', query],
     queryFn: async () =>
       (await api.get<InventoryListPage>('/owner/inventory', { params: inventoryParams(query) }))
         .data,
-    refetchInterval: POLL_MS.ownerInventory,
+    refetchInterval: poll ? POLL_MS.ownerInventory : false,
     placeholderData: keepPreviousData,
   })
 }
@@ -333,7 +339,7 @@ export function inventoryParams(query: InventoryQuery): Record<string, string | 
 }
 
 /**
- * S-11 상품 하나의 lot 목록 (유통기한 빠른 순, 수량 0 제외).
+ * S-11 상품 하나의 lot 목록 (소비기한 빠른 순, 수량 0 제외).
  * 패널이 열려 있는 동안만 쓰이므로 같은 주기로 폴링해 목록과 숫자가 어긋나지 않게 한다
  */
 export function useInventoryLots(productId: number) {
@@ -363,7 +369,7 @@ export function useLedger({ type }: { type?: LedgerType } = {}) {
   })
 }
 
-/** S-30 임박·경과 lot (유통기한 빠른 순). 폐기 뒤 수량이 줄어드는 것이 보이도록 같은 주기로 다시 읽는다 */
+/** S-30 임박·경과 lot (소비기한 빠른 순). 폐기 뒤 수량이 줄어드는 것이 보이도록 같은 주기로 다시 읽는다 */
 export function useExpiring() {
   return useQuery({
     queryKey: ['owner', 'expiring'],
@@ -458,12 +464,22 @@ export function useUpdateSafetyStock() {
 }
 
 /** 점주 추천상품 설정 한 줄. 상품 전체가 오고 recommended 면 고객 목록에 '추천'으로 보인다 */
+/**
+ * 추천·선착순 설정 줄에 서버가 붙이는 지금 재고(inventory ProductStock, 재고 목록과 같은 계산).
+ * 이 점포에 입고된 적 없는 상품은 null. brand 는 상품 브랜드(inventory V12, 없으면 null)
+ */
+export type ProductStock = Pick<
+  InventoryItem,
+  'availableQuantity' | 'safetyStock' | 'lowStock' | 'brand'
+>
+
 export interface RecommendationItem {
   productId: number
   productCode: string
   name: string
   category: string
   recommended: boolean
+  stock: ProductStock | null
 }
 
 /** 점주 선착순 설정 한 줄. 상품 전체가 오고, firstCome 이 false 면 limit·used·remaining 은 null */
@@ -479,6 +495,7 @@ export interface FirstComeSetting {
   used: number | null
   /** 지금 더 팔 수 있는 수량 = min(한도 − used, 구매 가능 수량) */
   remaining: number | null
+  stock: ProductStock | null
 }
 
 /** 점주 추천상품 설정 목록 (상품 전체, 이름순). 탭을 열 때 읽는다 */
@@ -584,7 +601,7 @@ export function useAdjustments() {
   })
 }
 
-/** 유통기한 달력 (그 달에 기한이 끝나는 lot 을 날짜별로). 달을 바꿀 때 읽고, 폐기·조정하면 다시 읽는다 */
+/** 소비기한 달력 (그 달에 기한이 끝나는 lot 을 날짜별로). 달을 바꿀 때 읽고, 폐기·조정하면 다시 읽는다 */
 export function useExpiryCalendar(month: string) {
   return useQuery({
     queryKey: ['owner', 'expiryCalendar', month],

@@ -36,7 +36,7 @@ export function PickupCodeEntry() {
           <button
             type="submit"
             disabled={!valid}
-            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
             열기
           </button>

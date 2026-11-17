@@ -18,13 +18,17 @@ export function NoticeDetailPage({ basePath }: Props) {
   const notice = useNotice(id)
 
   return (
-    <article className="space-y-4">
-      <Link to={basePath} className="flex items-center gap-1 text-sm text-slate-500">
+    // 점주 넓은 화면에서도 본문 한 줄이 너무 길지 않게 폭을 묶는다(고객 화면은 원래 더 좁아 그대로)
+    <article className="max-w-3xl space-y-4">
+      <Link
+        to={basePath}
+        className="-ml-1 inline-flex min-h-11 items-center gap-1 pr-2 text-sm text-slate-500"
+      >
         <ChevronLeft className="size-4" />
         공지사항
       </Link>
       {!validId && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-rose-700">
           없는 공지예요.
         </p>
       )}
@@ -35,7 +39,7 @@ export function NoticeDetailPage({ basePath }: Props) {
         </p>
       )}
       {notice.isError && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-rose-700">
           {apiErrorCode(notice.error) === 'NOTICE_NOT_FOUND'
             ? '없는 공지예요.'
             : '공지를 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.'}
@@ -45,7 +49,7 @@ export function NoticeDetailPage({ basePath }: Props) {
         <>
           <header className="space-y-1 border-b border-slate-200 pb-3">
             <h1 className="text-xl font-bold text-slate-900">{notice.data.title}</h1>
-            <p className="text-xs text-slate-400">{formatDate(notice.data.createdAt)}</p>
+            <p className="text-xs text-slate-500">{formatDate(notice.data.createdAt)}</p>
           </header>
           <p className="text-sm leading-relaxed whitespace-pre-line text-slate-700">
             {notice.data.content}

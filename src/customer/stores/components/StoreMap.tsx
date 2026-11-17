@@ -42,7 +42,7 @@ export function StoreMap({ latitude, longitude, name }: StoreMapProps) {
 
   if (!ready || failed) {
     return (
-      <div className="flex h-48 flex-col items-center justify-center gap-1 rounded-lg bg-slate-50 text-sm text-slate-400">
+      <div className="flex h-48 flex-col items-center justify-center gap-1 rounded-lg bg-slate-50 text-sm text-slate-500">
         <MapPin className="size-5" aria-hidden="true" />
         {failed ? '지도를 불러오지 못했어요' : '지도가 아직 없어요'}
       </div>

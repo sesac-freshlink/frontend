@@ -97,7 +97,7 @@ describe('OwnerStorePage (/owner/store, A15)', () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('점포 정보를 수정했어요'))
     expect(patch).toHaveBeenCalledWith('/owner/store', { description: '24시간 영업' })
     expect(post).not.toHaveBeenCalled()
-    expect(screen.getByRole('heading', { name: '점포 수정' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '내 점포' })).toBeInTheDocument()
   })
 
   it('사진을 고르면 바로 미리 보고, 저장하면 업로드 주소 → PUT → 키를 보낸다', async () => {

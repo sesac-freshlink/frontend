@@ -1,56 +1,122 @@
-import { Home, LogOut, ReceiptText, UserRound } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router'
+import { Home, LogIn, QrCode, ReceiptText, Store, UserRound, type LucideIcon } from 'lucide-react'
+import { useEffect } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { useAuthStore } from '@/shared/auth'
 import { NotificationBell } from '@/shared/notifications/NotificationBell'
+import { useNotificationRefresh } from '@/shared/realtime/useNotificationRefresh'
 import { cn } from '@/shared/ui/cn'
 
-const TABS = [
+const PICKUP_QR_PATH = '/customer/orders/pickup-qr'
+
+interface Tab {
+  to: string
+  label: string
+  icon: LucideIcon
+  end: boolean
+}
+
+const LEFT_TABS: Tab[] = [
   { to: '/customer', label: '홈', icon: Home, end: true },
-  { to: '/customer/orders', label: '주문 내역', icon: ReceiptText, end: false },
-  { to: '/customer/my', label: '마이', icon: UserRound, end: false },
+  { to: '/customer/stores', label: '점포 검색', icon: Store, end: true },
 ]
 
-/** 고객 화면: 핸드폰(세로 화면)용 상단 바(알림 종·로그아웃) + 하단 탭 */
+// 공지는 마이페이지 메뉴의 [공지사항]으로 들어간다
+const RIGHT_TABS: Tab[] = [
+  { to: '/customer/orders', label: '주문 내역', icon: ReceiptText, end: false },
+  { to: '/customer/my', label: '마이페이지', icon: UserRound, end: false },
+]
+
+/**
+ * 고객 화면: 핸드폰(세로 화면)용 상단 바(로고·알림 종) + 하단 탭.
+ * 하단 탭 가운데에 픽업 QR 을 크게 둔다(가게에서 바로 꺼내 보여 주는 화면이라서).
+ * 로그아웃은 마이페이지에만 둔다(상단에서 잘못 눌러 로그아웃되지 않게)
+ */
 export function CustomerLayout() {
-  const signOut = useAuthStore((s) => s.signOut)
+  const { pathname, search, hash } = useLocation()
+  const loggedIn = useAuthStore((s) => s.user !== null)
+  const navigationType = useNavigationType()
+  // 점주 준비 완료 알림이 오면 주문 상세·내역·픽업 QR 목록을 바로 다시 읽는다 (11/14 경우 결정 R1·R6)
+  useNotificationRefresh()
+  // 새 화면으로 이동하면 맨 위부터 보이게 한다(11/12: 홈 아래 '내 주변 점포'를 누르면 점포 화면이 중간부터 열리던 문제).
+  // 뒤로·앞으로 가기(POP)는 브라우저가 이전 위치를 되살리게 그대로 둔다
+  useEffect(() => {
+    if (navigationType !== 'POP') window.scrollTo(0, 0)
+  }, [pathname, navigationType])
+  const onPickupQr = pathname.startsWith(PICKUP_QR_PATH)
+  // 픽업 QR 화면에서는 [주문 내역] 칸을 켜지 않는다(주소가 /customer/orders/… 라도)
+  const ordersInactive = onPickupQr
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-white">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-        <p className="font-bold text-emerald-600">FreshLink</p>
-        <div className="flex items-center gap-3">
-          <NotificationBell align="end" />
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            aria-label="로그아웃"
-            className="text-slate-500"
-          >
-            <LogOut className="size-5" />
-          </button>
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-1.5">
+        <NavLink to="/customer" className="-ml-1 flex min-h-11 items-center">
+          {/* 로고 원본(final_project/로고.svg) 그대로. 색을 바꾸지 않는다 */}
+          <img src="/logo.png" alt="freshLink 홈" className="h-7 w-auto" />
+        </NavLink>
+        <div className="-mr-2 flex items-center">
+          {/* 로그인하지 않았으면 알림 종 자리에 같은 모양의 로그인 아이콘(11/16 경우 결정). 로그인하면 보던 화면으로 돌아온다 */}
+          {loggedIn ? (
+            <NotificationBell align="end" />
+          ) : (
+            <Link
+              to="/login"
+              state={{ from: pathname + search + hash }}
+              aria-label="로그인"
+              title="로그인"
+              className="flex size-11 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+            >
+              <LogIn className="size-5" aria-hidden />
+            </Link>
+          )}
         </div>
       </header>
-      <main className="flex-1 p-4">
+      <main className="flex flex-1 flex-col p-4 pb-8">
         <Outlet />
       </main>
-      <nav className="sticky bottom-0 flex border-t border-slate-200 bg-white">
-        {TABS.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            className={({ isActive }) =>
-              cn(
-                'flex flex-1 flex-col items-center gap-1 py-2 text-xs text-slate-500',
-                isActive && 'text-emerald-600',
-              )
-            }
-          >
-            <Icon className="size-5" />
-            {label}
-          </NavLink>
+      <nav
+        aria-label="하단 메뉴"
+        className="sticky bottom-0 z-10 flex items-end border-t border-slate-200 bg-white pb-1"
+      >
+        {LEFT_TABS.map((tab) => (
+          <TabLink key={tab.to} tab={tab} forceInactive={onPickupQr} />
+        ))}
+        <NavLink
+          to={PICKUP_QR_PATH}
+          className="flex flex-1 flex-col items-center gap-0.5 text-xs font-semibold text-emerald-700"
+        >
+          {/* 초록 바탕 + 흰 아이콘(대비 3.8:1, 그림 기준 3:1 이상) */}
+          <span className="-mt-5 flex size-14 items-center justify-center rounded-full border-4 border-white bg-emerald-600 text-white shadow-lg">
+            <QrCode className="size-6" aria-hidden />
+          </span>
+          픽업 QR
+        </NavLink>
+        {RIGHT_TABS.map((tab) => (
+          <TabLink
+            key={tab.to}
+            tab={tab}
+            forceInactive={tab.to === '/customer/orders' && ordersInactive}
+          />
         ))}
       </nav>
     </div>
+  )
+}
+
+function TabLink({ tab, forceInactive }: { tab: Tab; forceInactive: boolean }) {
+  const { to, label, icon: Icon, end } = tab
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) =>
+        cn(
+          'flex min-h-14 flex-1 flex-col items-center justify-center gap-1 border-t-4 border-transparent text-xs text-slate-500',
+          isActive && !forceInactive && 'border-emerald-600 font-semibold text-emerald-700',
+        )
+      }
+    >
+      <Icon className="size-5" aria-hidden />
+      {label}
+    </NavLink>
   )
 }

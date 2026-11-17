@@ -61,7 +61,7 @@ describe('재고 조정 모달 (S-14)', () => {
   it('지금 실물·예약을 보여 주고, 처음에는 같은 수량이라 조정할 수 없다', () => {
     renderDialog()
     expect(screen.getByRole('dialog', { name: '재고 조정' })).toBeInTheDocument()
-    expect(screen.getByText('흰 우유 500ml · 유통기한 10/30')).toBeInTheDocument()
+    expect(screen.getByText('흰 우유 500ml · 소비기한 10/30')).toBeInTheDocument()
     expect(screen.getByText('10개')).toBeInTheDocument()
     expect(screen.getByText('3개')).toBeInTheDocument()
     expect(countInput()).toHaveValue(10)

@@ -1,4 +1,4 @@
-export { homePathFor, isRole } from './claims'
+export { homePathFor, isRole, loginPathFor } from './claims'
 export { useAuthStore } from './store'
 export type {
   AuthUser,

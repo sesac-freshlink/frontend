@@ -1,15 +1,17 @@
+import { MIXED_ORDER_NOTICE } from '@/customer/order/clearance'
+import { BuyBar, BuyButton } from './BuyBar'
 import { Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router'
 import { MAX_QUANTITY, type CheckoutItem } from '@/customer/order/checkout'
-import { formatHHmm, formatWon } from '@/customer/order/format'
+import { PendingOrderDialog } from '@/customer/order/components/PendingOrderDialog'
+import { useBuyNow } from '@/customer/order/useBuyNow'
+import { formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
 import type { StoreProductDetail } from '../api'
 import {
   canDecrease,
   canIncrease,
   CLEARANCE_DISCOUNT_PERCENT,
-  clearanceCheckoutPath,
   clearanceOf,
   initialSelection,
   selectionAmount,
@@ -18,9 +20,13 @@ import {
   type SheetSelection,
 } from '../clearance'
 
+/** 마감세일 시트 설명 한 줄 (11/12 경우 문구. 상품별 "몇 시까지 드세요"는 뺐다) */
+export const CLEARANCE_SHEET_NOTICE =
+  '소비기한이 임박한 상품을 할인받아 당일 23시까지 구매할 수 있어요.'
+
 /**
- * 마감세일 구매 시트. 기본(정가)과 마감세일 두 줄에서 수량을 고르고 주문 화면으로 간다.
- * 두 줄 합계 1~5개, 한 줄만 사도 된다. 그 사이 마감세일이 다 팔리면 주문이 실패하고 다시 고르게 된다(주문 화면이 안내한다).
+ * 마감세일 구매 시트. 기본(정가)과 마감세일 두 줄에서 수량을 고르고 [N원 구매하기]로 바로 주문을 만든다(주문·결제 화면은 11/11 없앴다).
+ * 두 줄 합계 1~5개, 한 줄만 사도 된다. 그 사이 마감세일이 다 팔리면 주문이 실패하고 결제 대기 화면이 어느 쪽이 모자란지 알리고 다시 고르게 한다.
  * 마감세일이 없으면(clearanceOf 가 null) 그리지 않는다
  */
 export function ClearanceSheet({
@@ -32,6 +38,7 @@ export function ClearanceSheet({
 }) {
   const clearance = clearanceOf(product)
   const [selection, setSelection] = useState<SheetSelection>(() => initialSelection(product))
+  const buyNow = useBuyNow()
   if (!clearance) return null
 
   const change = (row: SheetRow, delta: number) =>
@@ -47,10 +54,7 @@ export function ClearanceSheet({
         <h2 id="clearance-sheet-title" className="text-sm font-semibold text-slate-900">
           마감세일 {CLEARANCE_DISCOUNT_PERCENT}%
         </h2>
-        <p className="text-xs text-slate-500">
-          유통기한이 하루 안 남은 상품을 싸게 팔아요.
-          {product.clearanceExpiry && ` ${formatHHmm(product.clearanceExpiry)}까지 드세요.`}
-        </p>
+        <p className="text-xs break-keep text-slate-500">{CLEARANCE_SHEET_NOTICE}</p>
       </div>
 
       <ul className="divide-y divide-rose-100">
@@ -84,22 +88,29 @@ export function ClearanceSheet({
         </span>
       </p>
 
-      {item ? (
-        <Link
-          to={clearanceCheckoutPath(item, selection)}
-          className="block rounded-lg bg-emerald-600 py-3 text-center text-sm font-medium text-white"
-        >
-          구매하기
-        </Link>
-      ) : (
-        <button
-          type="button"
-          disabled
-          className="w-full rounded-lg bg-emerald-600 py-3 text-sm font-medium text-white opacity-40"
-        >
-          구매하기
-        </button>
-      )}
+      {/* [N원 구매하기]는 화면 아래 고정 띠에 둔다. 점포를 모르면(주소로 바로 들어옴) 누를 수 없다 */}
+      <BuyBar>
+        {/* 마감세일과 일반을 같이 고르면 모두 당일 픽업이 된다는 한 줄(11/11 경우 결정, 주문은 나누지 않는다) */}
+        {selection.clearance > 0 && selection.normal > 0 && (
+          <p className="mb-2 text-sm font-medium break-keep text-amber-800">{MIXED_ORDER_NOTICE}</p>
+        )}
+        <BuyButton
+          amount={selectionAmount(product, selection)}
+          pending={buyNow.pending}
+          disabled={!item}
+          onClick={() =>
+            item &&
+            void buyNow.buy({
+              storeId: item.storeId,
+              storeName: item.storeName,
+              productId: item.productId,
+              quantity: total,
+              clearanceQuantity: selection.clearance,
+            })
+          }
+        />
+      </BuyBar>
+      {buyNow.pendingDialog && <PendingOrderDialog {...buyNow.pendingDialog} />}
     </section>
   )
 }
@@ -127,7 +138,7 @@ function SheetRowView({
   onChange,
 }: RowProps) {
   const stepClass =
-    'flex size-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 disabled:opacity-40'
+    'flex size-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 disabled:opacity-40'
   return (
     <li className="flex items-center justify-between gap-3 py-2.5">
       <span className="min-w-0">
@@ -137,7 +148,7 @@ function SheetRowView({
             {formatWon(price)}
           </span>
           {basePrice !== undefined && (
-            <span className="text-xs text-slate-400 tabular-nums line-through">
+            <span className="text-xs text-slate-500 tabular-nums line-through">
               {formatWon(basePrice)}
             </span>
           )}

@@ -10,7 +10,7 @@ export function LotDetailPage() {
   const { productId } = useParams()
   const id = productId !== undefined && /^\d+$/.test(productId) ? Number(productId) : undefined
   // 상품명만 찾는다. 첫 100개 안에 없으면 이름 없이 보여 준다(패널은 이름이 없어도 동작한다)
-  const inventory = useInventory(NAME_LOOKUP)
+  const inventory = useInventory(NAME_LOOKUP, { poll: false })
   const productName = inventory.data?.items.find((item) => item.productId === id)?.name
 
   return (

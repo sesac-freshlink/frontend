@@ -2,7 +2,16 @@ import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { formatWon } from '@/customer/order/format'
 import { cn } from '@/shared/ui/cn'
-import { useSales, useSalesStream, type SalesResponse, type SalesUnit } from '../api'
+import {
+  useSales,
+  useSalesStream,
+  type SalesPeriod,
+  type SalesResponse,
+  type SalesUnit,
+} from '../api'
+import { SalesRankingPanel } from '@/owner/inventory/components/SalesRankingPanel'
+import { TabButton } from '@/owner/inventory/components/TabButton'
+import { SalesDayDialog } from '../components/SalesDayDialog'
 import { SalesChart } from '../components/SalesChart'
 import {
   formatShortDate,
@@ -26,12 +35,60 @@ const CHART_TITLE: Record<SalesUnit, string> = {
   month: '월별 순매출',
 }
 
+type View = 'period' | 'ranking'
+
 /**
- * 점주 매출 대시보드 (기능 ID 미정, order-service GET /owner/orders/sales).
+ * 점주 매출 메뉴. 기간 매출과 상품별 판매 순위(11/14 경우 결정: 결제·픽업에서 옮김)를 위 탭으로 나눈다.
+ * 탭을 떠나면 그쪽 조회·매출 SSE 도 멈춘다
+ */
+export function OwnerSalesPage() {
+  const [view, setView] = useState<View>('period')
+
+  return (
+    <section className="space-y-4">
+      <h1 className="text-xl font-bold text-slate-900">매출</h1>
+      <div
+        role="tablist"
+        aria-label="기간 매출·판매 순위"
+        className="flex gap-1 border-b border-slate-200"
+      >
+        <TabButton
+          label="기간 매출"
+          selected={view === 'period'}
+          onSelect={() => setView('period')}
+        />
+        <TabButton
+          label="상품별 판매 순위"
+          selected={view === 'ranking'}
+          onSelect={() => setView('ranking')}
+        />
+      </div>
+      {view === 'period' ? <PeriodSales /> : <SalesRanking />}
+    </section>
+  )
+}
+
+function SalesRanking() {
+  return (
+    <div className="space-y-4">
+      <div>
+        {/* 바로 위 탭 이름과 같아 화면에는 숨기고, 화면 읽기 프로그램의 구역 제목으로만 둔다 */}
+        <h2 className="sr-only">상품별 판매 순위</h2>
+        <p className="text-sm text-slate-500">
+          결제가 끝나 실제로 팔린 수량(환불로 되돌린 수량은 뺌)을 많이 판 순서로 보여 줘요.
+        </p>
+      </div>
+      <SalesRankingPanel />
+    </div>
+  )
+}
+
+/**
+ * 기간 매출 탭 (기능 ID 미정, order-service GET /owner/orders/sales).
  * 위에 오늘·이번 주 순매출과 고른 기간의 결제·환불 건수 카드, 아래에 기간·단위 선택과 순매출 그래프·표를 둔다.
  * 화면에 들어올 때와 기간·단위를 바꿀 때 읽고, 결제가 완료되면 매출 SSE(useSalesStream)를 받아 다시 읽는다
  */
-export function OwnerSalesPage() {
+function PeriodSales() {
   // 오늘·이번 주는 화면에 들어올 때 정한다. 자정을 넘기면 빠른 기간 버튼을 다시 누르면 된다
   const [now] = useState(() => new Date())
   const today = kstToday(now)
@@ -62,64 +119,70 @@ export function OwnerSalesPage() {
     !error && sales.data && !sales.isPlaceholderData ? sumPeriods(sales.data.periods) : null
 
   return (
-    <section className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">매출</h1>
-        <p className="text-sm text-slate-500">
-          결제 승인 시각(한국 시간) 기준이에요. 순매출은 결제 금액에서 환불 금액을 뺀 값이에요.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <p className="text-sm text-slate-500">
+        결제 승인 시각(한국 시간) 기준이에요. 순매출은 결제 금액에서 환불 금액을 뺀 값이에요.
+      </p>
 
-      <div className="grid grid-cols-4 gap-4">
-        <SummaryCard
-          label="오늘 매출"
-          sub={`${formatShortDate(today)} 순매출`}
-          value={weekTotals && formatWon(weekTotals.today)}
-          failed={weekSales.isError}
-        />
-        <SummaryCard
-          label="이번 주 매출"
-          sub={`${formatShortDate(week.from)} ~ 오늘 순매출`}
-          value={weekTotals && formatWon(weekTotals.week)}
-          failed={weekSales.isError}
-        />
-        <SummaryCard
-          label="결제 건수"
-          sub="고른 기간"
-          value={totals && `${totals.paidCount.toLocaleString('ko-KR')}건`}
-          failed={!error && sales.isError}
-        />
-        <SummaryCard
-          label="환불 건수"
-          sub="고른 기간"
-          value={totals && `${totals.refundCount.toLocaleString('ko-KR')}건`}
-          failed={!error && sales.isError}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-3 rounded-lg border border-slate-200 bg-white p-4">
-        <ToggleGroup
-          label="기간"
-          options={QUICK_RANGES}
-          selected={preset}
-          onSelect={choosePreset}
-        />
-        <div className="flex items-end gap-2">
-          <DateInput label="시작일" value={range.from} onChange={(v) => changeDate('from', v)} />
-          <span className="pb-1.5 text-slate-400">~</span>
-          <DateInput label="종료일" value={range.to} onChange={(v) => changeDate('to', v)} />
+      {/* 요약 숫자·기간 고르기·그래프를 한 판에 둬서, 기간을 바꾸면 무엇이 바뀌는지 한눈에 보이게 한다 */}
+      <div className="rounded-lg border border-slate-200 bg-white">
+        <div className="grid grid-cols-4 divide-x divide-slate-200 border-b border-slate-200">
+          <SummaryCard
+            label="오늘 매출"
+            sub={`${formatShortDate(today)} 순매출`}
+            value={weekTotals && formatWon(weekTotals.today)}
+            failed={weekSales.isError}
+          />
+          <SummaryCard
+            label="이번 주 매출"
+            sub={`${formatShortDate(week.from)} ~ 오늘 순매출`}
+            value={weekTotals && formatWon(weekTotals.week)}
+            failed={weekSales.isError}
+          />
+          <SummaryCard
+            label="결제 건수"
+            sub="고른 기간"
+            value={totals && `${totals.paidCount.toLocaleString('ko-KR')}건`}
+            failed={!error && sales.isError}
+          />
+          <SummaryCard
+            label="환불 건수"
+            sub="고른 기간"
+            value={totals && `${totals.refundCount.toLocaleString('ko-KR')}건`}
+            failed={!error && sales.isError}
+          />
         </div>
-        <ToggleGroup label="단위" options={UNITS} selected={unit} onSelect={setUnit} />
+
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-b border-slate-200 p-4">
+          <ToggleGroup
+            label="기간"
+            options={QUICK_RANGES}
+            selected={preset}
+            onSelect={choosePreset}
+          />
+          <div className="flex items-end gap-2">
+            <DateInput label="시작일" value={range.from} onChange={(v) => changeDate('from', v)} />
+            <span className="pb-1.5 text-slate-500">~</span>
+            <DateInput label="종료일" value={range.to} onChange={(v) => changeDate('to', v)} />
+          </div>
+          <ToggleGroup label="단위" options={UNITS} selected={unit} onSelect={setUnit} />
+        </div>
+
+        {error ? (
+          <p role="alert" className="py-16 text-center text-sm text-red-600">
+            {error}
+          </p>
+        ) : (
+          <SalesChartArea sales={sales} />
+        )}
       </div>
 
-      {error ? (
-        <p role="alert" className="py-16 text-center text-sm text-red-600">
-          {error}
-        </p>
-      ) : (
-        <SalesBody sales={sales} />
+      {!error && sales.data && !isAllZero(sales.data.periods) && (
+        <div className={cn(sales.isPlaceholderData && 'opacity-60')}>
+          <SalesTable data={sales.data} />
+        </div>
       )}
-    </section>
+    </div>
   )
 }
 
@@ -136,14 +199,14 @@ function SummaryCard({
   failed: boolean
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="p-4">
       <p className="text-sm font-medium text-slate-500">{label}</p>
       {failed ? (
         <p className="mt-2 text-sm text-red-600">불러오지 못했어요</p>
       ) : (
         <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{value ?? '-'}</p>
       )}
-      <p className="mt-1 text-xs text-slate-400">{sub}</p>
+      <p className="mt-1 text-xs text-slate-500">{sub}</p>
     </div>
   )
 }
@@ -175,7 +238,7 @@ function ToggleGroup<T extends string>({
             onClick={() => onSelect(option.value)}
             className={cn(
               'rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap text-slate-600 hover:bg-slate-100',
-              option.value === selected && 'bg-emerald-600 text-white hover:bg-emerald-600',
+              option.value === selected && 'bg-emerald-700 text-white hover:bg-emerald-700',
             )}
           >
             {option.label}
@@ -202,16 +265,17 @@ function DateInput({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900 tabular-nums focus:border-emerald-500 focus:outline-none"
+        className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900 tabular-nums focus:border-emerald-600 focus-visible:outline-2 focus-visible:outline-emerald-700"
       />
     </label>
   )
 }
 
-function SalesBody({ sales }: { sales: ReturnType<typeof useSales> }) {
+/** 판 안의 그래프 칸. 불러오는 중·오류·매출 없음도 같은 자리에 보여 준다 */
+function SalesChartArea({ sales }: { sales: ReturnType<typeof useSales> }) {
   if (sales.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -223,76 +287,95 @@ function SalesBody({ sales }: { sales: ReturnType<typeof useSales> }) {
   const range = `${formatShortDate(data.from)} ~ ${formatShortDate(data.to)}`
   if (isAllZero(data.periods)) {
     return (
-      <p className="rounded-lg border border-slate-200 bg-white py-16 text-center text-sm text-slate-500">
-        {range} 동안 결제된 매출이 없어요.
-      </p>
+      <p className="py-16 text-center text-sm text-slate-500">{range} 동안 결제된 매출이 없어요.</p>
     )
   }
   // 기간·단위를 바꿔 새로 읽는 동안에는 앞 결과를 흐리게 보여 준다
   return (
-    <div className={cn('space-y-6', sales.isPlaceholderData && 'opacity-60')}>
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-900">{CHART_TITLE[data.unit]}</h2>
-          <p className="flex items-center gap-2 text-sm text-slate-500 tabular-nums">
-            {sales.isFetching && (
-              <LoaderCircle className="size-4 animate-spin" aria-label="새로 불러오는 중" />
-            )}
-            {range}
-          </p>
-        </div>
-        <SalesChart periods={data.periods} unit={data.unit} title={CHART_TITLE[data.unit]} />
+    <div className={cn('p-4', sales.isPlaceholderData && 'opacity-60')}>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-semibold text-slate-900">{CHART_TITLE[data.unit]}</h2>
+        <p className="flex items-center gap-2 text-sm text-slate-500 tabular-nums">
+          {sales.isFetching && (
+            <LoaderCircle className="size-4 animate-spin" aria-label="새로 불러오는 중" />
+          )}
+          {range}
+        </p>
       </div>
-      <SalesTable data={data} />
+      <SalesChart periods={data.periods} unit={data.unit} title={CHART_TITLE[data.unit]} />
     </div>
   )
 }
 
 function SalesTable({ data }: { data: SalesResponse }) {
   const totals = sumPeriods(data.periods)
+  const [opened, setOpened] = useState<SalesPeriod | null>(null)
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left whitespace-nowrap text-slate-500">
-          <tr>
-            <th className="px-3 py-3 font-medium">기간</th>
-            <th className="px-3 py-3 text-right font-medium">결제 금액</th>
-            <th className="px-3 py-3 text-right font-medium">환불 금액</th>
-            <th className="px-3 py-3 text-right font-medium">순매출</th>
-            <th className="px-3 py-3 text-right font-medium">결제 건수</th>
-            <th className="px-3 py-3 text-right font-medium">환불 건수</th>
-            <th className="px-3 py-3 text-right font-medium">취소 건수</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200 whitespace-nowrap text-slate-900 tabular-nums">
-          {data.periods.map((p) => (
-            <tr key={p.period}>
-              <td className="px-3 py-2.5">{periodLabel(p.period, data.unit, data)}</td>
-              <td className="px-3 py-2.5 text-right">{formatWon(p.paidAmount)}</td>
-              <td className="px-3 py-2.5 text-right">{formatWon(p.refundAmount)}</td>
-              <td className="px-3 py-2.5 text-right font-medium">{formatWon(p.netAmount)}</td>
-              <td className="px-3 py-2.5 text-right">{p.paidCount}건</td>
-              <td className="px-3 py-2.5 text-right">{p.refundCount}건</td>
-              <td className="px-3 py-2.5 text-right">{p.canceledCount}건</td>
+    <div className="space-y-2">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left whitespace-nowrap text-slate-500">
+            <tr>
+              <th className="px-3 py-3 font-medium">기간</th>
+              <th className="px-3 py-3 text-right font-medium">결제 금액</th>
+              <th className="px-3 py-3 text-right font-medium">환불 금액</th>
+              <th className="px-3 py-3 text-right font-medium">순매출</th>
+              <th className="px-3 py-3 text-right font-medium">결제 건수</th>
+              <th className="px-3 py-3 text-right font-medium">환불 건수</th>
+              <th className="px-3 py-3 text-right font-medium">취소 건수</th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot className="border-t border-slate-300 bg-slate-50 font-semibold whitespace-nowrap text-slate-900 tabular-nums">
-          <tr>
-            <th scope="row" className="px-3 py-3 text-left">
-              합계
-            </th>
-            <td className="px-3 py-3 text-right">{formatWon(totals.paidAmount)}</td>
-            <td className="px-3 py-3 text-right">{formatWon(totals.refundAmount)}</td>
-            <td className="px-3 py-3 text-right">{formatWon(totals.netAmount)}</td>
-            <td className="px-3 py-3 text-right">{totals.paidCount.toLocaleString('ko-KR')}건</td>
-            <td className="px-3 py-3 text-right">{totals.refundCount.toLocaleString('ko-KR')}건</td>
-            <td className="px-3 py-3 text-right">
-              {totals.canceledCount.toLocaleString('ko-KR')}건
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-200 whitespace-nowrap text-slate-900 tabular-nums">
+            {data.periods.map((p) => (
+              <tr key={p.period}>
+                <td className="px-3 py-1">
+                  {/* 일 단위일 때만 날짜를 누르면 그날 팔린 상품 창이 뜬다 (11/14 시안 B) */}
+                  {data.unit === 'day' ? (
+                    <button
+                      type="button"
+                      onClick={() => setOpened(p)}
+                      className="min-h-11 text-emerald-700 underline hover:text-emerald-800"
+                    >
+                      {periodLabel(p.period, data.unit, data)}
+                    </button>
+                  ) : (
+                    <span className="inline-block py-1.5">
+                      {periodLabel(p.period, data.unit, data)}
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2.5 text-right">{formatWon(p.paidAmount)}</td>
+                <td className="px-3 py-2.5 text-right">{formatWon(p.refundAmount)}</td>
+                <td className="px-3 py-2.5 text-right font-medium">{formatWon(p.netAmount)}</td>
+                <td className="px-3 py-2.5 text-right">{p.paidCount}건</td>
+                <td className="px-3 py-2.5 text-right">{p.refundCount}건</td>
+                <td className="px-3 py-2.5 text-right">{p.canceledCount}건</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="border-t border-slate-300 bg-slate-50 font-semibold whitespace-nowrap text-slate-900 tabular-nums">
+            <tr>
+              <th scope="row" className="px-3 py-3 text-left">
+                합계
+              </th>
+              <td className="px-3 py-3 text-right">{formatWon(totals.paidAmount)}</td>
+              <td className="px-3 py-3 text-right">{formatWon(totals.refundAmount)}</td>
+              <td className="px-3 py-3 text-right">{formatWon(totals.netAmount)}</td>
+              <td className="px-3 py-3 text-right">{totals.paidCount.toLocaleString('ko-KR')}건</td>
+              <td className="px-3 py-3 text-right">
+                {totals.refundCount.toLocaleString('ko-KR')}건
+              </td>
+              <td className="px-3 py-3 text-right">
+                {totals.canceledCount.toLocaleString('ko-KR')}건
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {data.unit === 'day' && (
+        <p className="text-xs text-slate-500">날짜를 누르면 그날 팔린 상품을 볼 수 있어요.</p>
+      )}
+      {opened && <SalesDayDialog period={opened} onClose={() => setOpened(null)} />}
     </div>
   )
 }

@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
-  checkoutPath,
+  checkoutQuery,
   clampQuantity,
   MAX_QUANTITY,
   parseCheckout,
   parseTossRedirect,
+  productPath,
   successUrlFor,
 } from './checkout'
 
-describe('checkoutPath / parseCheckout', () => {
+describe('checkoutQuery / parseCheckout', () => {
   const item = {
     storeId: 1,
     storeName: '프레시 강남점',
@@ -17,23 +18,17 @@ describe('checkoutPath / parseCheckout', () => {
     price: 1700,
   }
 
-  it('상품 화면이 만든 주소를 주문 화면이 그대로 읽는다', () => {
-    const path = checkoutPath(item)
-    expect(path.startsWith('/customer/orders/new?')).toBe(true)
-    expect(parseCheckout(new URL(path, 'http://x').searchParams)).toEqual(item)
+  it('상품 화면이 만든 쿼리를 대기 화면이 그대로 읽는다', () => {
+    expect(parseCheckout(new URLSearchParams(checkoutQuery(item)))).toEqual(item)
   })
 
   it('구매 가능 수량을 넘기면 함께 읽는다', () => {
-    const path = checkoutPath({ ...item, available: 3 })
-    expect(parseCheckout(new URL(path, 'http://x').searchParams)?.available).toBe(3)
+    const q = checkoutQuery({ ...item, available: 3 })
+    expect(parseCheckout(new URLSearchParams(q))?.available).toBe(3)
   })
 
-  it('선착순 입장권 표시를 넘기면 함께 읽고, 없으면 칸을 만들지 않는다', () => {
-    const path = checkoutPath({ ...item, available: 1, firstCome: true })
-    expect(parseCheckout(new URL(path, 'http://x').searchParams)).toMatchObject({ firstCome: true })
-    expect(parseCheckout(new URL(checkoutPath(item), 'http://x').searchParams)).not.toHaveProperty(
-      'firstCome',
-    )
+  it('상품 상세 주소', () => {
+    expect(productPath(item)).toBe('/customer/stores/1/products/15')
   })
 
   it('값이 빠지거나 숫자가 아니면 null', () => {

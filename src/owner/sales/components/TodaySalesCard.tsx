@@ -20,7 +20,7 @@ export function TodaySalesCard({ live = true }: { live?: boolean }) {
     >
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-slate-500">오늘 매출</p>
-        <ChevronRight className="size-4 text-slate-400" aria-hidden="true" />
+        <ChevronRight className="size-4 text-slate-500" aria-hidden="true" />
       </div>
       {isError ? (
         <p role="alert" className="mt-2 text-sm text-red-600">
@@ -31,7 +31,7 @@ export function TodaySalesCard({ live = true }: { live?: boolean }) {
           {totals ? formatWon(totals.netAmount) : '-'}
         </p>
       )}
-      <p className="mt-1 text-xs text-slate-400">
+      <p className="mt-1 text-xs text-slate-500">
         {formatShortDate(today)} 순매출
         {totals &&
           !isError &&

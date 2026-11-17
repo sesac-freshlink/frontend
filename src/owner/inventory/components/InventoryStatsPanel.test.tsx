@@ -1,3 +1,4 @@
+import { formatShortDate } from '@/owner/sales/sales'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AxiosError, AxiosHeaders } from 'axios'
 import { render, screen, waitFor, within } from '@testing-library/react'
@@ -125,7 +126,9 @@ describe('판매·폐기 통계 (S-42)', () => {
       'true',
     )
     const { from, to } = statsPeriod(30)
-    expect(screen.getByText(`${from} ~ ${to}`)).toBeInTheDocument()
+    expect(
+      screen.getByText(`${formatShortDate(from)} ~ ${formatShortDate(to)}`),
+    ).toBeInTheDocument()
   })
 
   it('변동이 없으면 합계 0 과 폐기율 "-", 안내 문구를 보여 준다', async () => {

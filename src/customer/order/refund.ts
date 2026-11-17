@@ -121,11 +121,16 @@ export function cancelBody(reason: CancelReasonCode, detail: string): CancelOrde
   return reason === 'ETC' ? { reason, reasonDetail: detail.trim() } : { reason }
 }
 
+/** A7 결제 전 취소 요청만 (구매하기 안내 창의 [새로 주문하기]도 쓴다) */
+export async function cancelBeforePayment(orderId: number): Promise<unknown> {
+  return (await api.post(`/orders/${orderId}/payment/cancel`)).data
+}
+
 /** A7 결제 전 취소 (POST /orders/{orderId}/payment/cancel). 사유 없이, 끝나면 주문을 다시 읽는다 */
 export function useCancelBeforePayment(orderId: number) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async () => (await api.post(`/orders/${orderId}/payment/cancel`)).data,
+    mutationFn: () => cancelBeforePayment(orderId),
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ['customer', 'order', orderId] }),

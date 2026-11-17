@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   canDecrease,
   canIncrease,
-  clearanceCheckoutPath,
   clearanceOf,
   initialSelection,
   selectionAmount,
@@ -53,26 +52,5 @@ describe('구매 시트 수량', () => {
 
   it('합계 금액은 기본 정가와 마감세일 단가를 더한다', () => {
     expect(selectionAmount(product, { normal: 2, clearance: 1 })).toBe(1500 * 2 + 1050)
-  })
-})
-
-describe('clearanceCheckoutPath', () => {
-  it('주문 화면 쿼리 뒤에 합계(quantity)와 마감세일 수량(clearanceQuantity)을 붙인다', () => {
-    const path = clearanceCheckoutPath(
-      {
-        storeId: 1,
-        storeName: '강남점',
-        productId: 7,
-        productName: '참치마요',
-        price: 1500,
-        available: 3,
-      },
-      { normal: 1, clearance: 2 },
-    )
-    const q = new URL(path, 'http://x').searchParams
-    expect(path.startsWith('/customer/orders/new?')).toBe(true)
-    expect(q.get('productId')).toBe('7')
-    expect(q.get('quantity')).toBe('3')
-    expect(q.get('clearanceQuantity')).toBe('2')
   })
 })

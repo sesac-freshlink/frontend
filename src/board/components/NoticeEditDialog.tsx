@@ -18,7 +18,7 @@ interface Props {
   onClose(): void
 }
 
-/** 관리자 공지 쓰기·고치기 창 (추가 명세 A17) */
+/** 관리자 공지 쓰기·수정 창 (추가 명세 A17) */
 export function NoticeEditDialog({ notice, onClose }: Props) {
   const save = useSaveNotice()
   const [formError, setFormError] = useState<string | null>(null)
@@ -36,7 +36,7 @@ export function NoticeEditDialog({ notice, onClose }: Props) {
     setFormError(null)
     try {
       await save.mutateAsync({ noticeId: notice?.noticeId ?? null, body: toNoticeRequest(values) })
-      toast.success(notice ? '공지를 고쳤어요' : '공지를 올렸어요')
+      toast.success(notice ? '공지를 수정했어요' : '공지를 올렸어요')
       onClose()
     } catch {
       setFormError('저장하지 못했어요. 잠시 뒤 다시 시도해 주세요')
@@ -44,7 +44,7 @@ export function NoticeEditDialog({ notice, onClose }: Props) {
   })
 
   return (
-    <BoardDialog title={notice ? '공지 고치기' : '공지 쓰기'} busy={isSubmitting} onClose={onClose}>
+    <BoardDialog title={notice ? '공지 수정' : '공지 쓰기'} busy={isSubmitting} onClose={onClose}>
       <form onSubmit={onSubmit} noValidate className="space-y-4">
         <FormField id="notice-title" label="제목" error={errors.title?.message} hint="100자까지">
           <input

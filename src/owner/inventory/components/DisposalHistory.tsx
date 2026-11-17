@@ -63,7 +63,7 @@ export function DisposalHistory() {
 function HistoryTable({ disposals }: { disposals: ReturnType<typeof useDisposals> }) {
   if (disposals.isPending) {
     return (
-      <div className="flex justify-center py-6 text-slate-400">
+      <div className="flex justify-center py-6 text-slate-500">
         <LoaderCircle className="size-5 animate-spin" aria-label="폐기 요청 불러오는 중" />
       </div>
     )
@@ -86,7 +86,7 @@ function HistoryTable({ disposals }: { disposals: ReturnType<typeof useDisposals
           <tr>
             <th className="px-4 py-2 font-medium">요청 시각</th>
             <th className="px-3 py-2 font-medium">상품</th>
-            <th className="px-3 py-2 font-medium">유통기한</th>
+            <th className="px-3 py-2 font-medium">소비기한</th>
             <th className="px-3 py-2 text-right font-medium">수량</th>
             <th className="px-3 py-2 font-medium">상태</th>
             <th className="px-4 py-2 font-medium">처리 시각</th>

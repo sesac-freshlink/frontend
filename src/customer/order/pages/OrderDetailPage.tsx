@@ -1,16 +1,24 @@
 import axios from 'axios'
 import { CircleCheck, CircleX, LoaderCircle, PackageCheck, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { cn } from '@/shared/ui/cn'
 import { useOrder, type Order } from '../api'
+import { BackLink } from '../components/BackLink'
 import { CancelReasonDialog } from '../components/CancelReasonDialog'
-import { ConfirmDialog } from '../components/ConfirmDialog'
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { OrderSummary, type SummaryRow } from '../components/OrderSummary'
 import { PickupRequestButton } from '../components/PickupRequestButton'
 import { ReceiptLink } from '../components/ReceiptLink'
-import { isSameDayPickup, lineText, SAME_DAY_PICKUP_NOTICE, shortageMessage } from '../clearance'
+import {
+  isMixedOrder,
+  isSameDayPickup,
+  lineText,
+  MIXED_ORDER_NOTICE,
+  SAME_DAY_PICKUP_NOTICE,
+  shortageMessage,
+} from '../clearance'
 import { formatRemaining } from '../countdown'
 import { formatDateTime, formatHHmm, formatPickupDate, formatWon } from '../format'
 import { customerMessage, paymentInterruptedMessage } from '../orderStatus'
@@ -25,20 +33,42 @@ import {
 import { TossPaymentWidget } from '../TossPaymentWidget'
 import { useCountdown } from '../useCountdown'
 import { useTossReturn } from '../useTossReturn'
-import { OrderCheckoutView } from './OrderCheckoutView'
 
 /**
  * U-21·U-22·U-31 /customer/orders/:id
- * - :id 가 new 면 주문·결제 화면 (주문 만들기 전)
+ * - :id 가 new 면 옛 주문·결제 화면 주소다. 화면을 없앴으므로(11/11) 상품 상세, 상품을 모르면 홈으로 보낸다
  * - 숫자면 주문 상태를 2초마다 읽어(POLL_MS.orderDetail) 상태별 화면을 보여 준다
  */
 export function OrderDetailPage() {
   const { id } = useParams()
-  if (id === 'new') return <OrderCheckoutView />
+  if (id === 'new') return <OldCheckoutRedirect />
 
   const orderId = id !== undefined && /^\d+$/.test(id) ? Number(id) : undefined
   if (orderId === undefined) return <NotFound />
-  return <OrderView key={orderId} orderId={orderId} />
+  return (
+    <div className="space-y-2">
+      <BackLink to="/customer/orders" label="주문 내역" />
+      <OrderView key={orderId} orderId={orderId} />
+    </div>
+  )
+}
+
+/** 옛 /customer/orders/new?storeId=..&productId=.. 주소. 수량은 이제 상품 상세에서 고른다 */
+function OldCheckoutRedirect() {
+  const [params] = useSearchParams()
+  const storeId = params.get('storeId')
+  const productId = params.get('productId')
+  const storeName = params.get('storeName')?.trim()
+  if (!storeId || !productId || !/^\d+$/.test(storeId) || !/^\d+$/.test(productId)) {
+    return <Navigate to="/customer" replace />
+  }
+  return (
+    <Navigate
+      to={`/customer/stores/${storeId}/products/${productId}`}
+      state={storeName ? { storeName } : undefined}
+      replace
+    />
+  )
 }
 
 function OrderView({ orderId }: { orderId: number }) {
@@ -51,7 +81,7 @@ function OrderView({ orderId }: { orderId: number }) {
     if (status === 403 || status === 404) return <NotFound />
     return (
       <section className="space-y-3 py-10 text-center">
-        <p className="text-sm text-red-600">주문을 불러오지 못했어요.</p>
+        <p className="text-sm text-rose-700">주문을 불러오지 못했어요.</p>
         <button
           type="button"
           onClick={() => void order.refetch()}
@@ -132,7 +162,14 @@ function pickupRows(order: Order): SummaryRow[] {
 function PickupNotice({ order }: { order: Order }) {
   if (!order.pickupDeadline) return null
   if (isSameDayPickup(order)) {
-    return <p className="text-sm text-amber-800">{SAME_DAY_PICKUP_NOTICE}</p>
+    return (
+      <div className="space-y-0.5 text-sm text-amber-800">
+        {SAME_DAY_PICKUP_NOTICE.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
+        {isMixedOrder(order) && <p className="pt-1 font-medium break-keep">{MIXED_ORDER_NOTICE}</p>}
+      </div>
+    )
   }
   return (
     <p className="text-sm text-slate-500">
@@ -180,7 +217,7 @@ function Payable({
           role="timer"
           className={cn(
             'rounded-lg p-3 text-center text-lg font-bold',
-            timeUp ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700',
+            timeUp ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700',
           )}
         >
           {timeUp ? '결제 시간이 끝났어요' : formatRemaining(remaining)}
@@ -308,7 +345,7 @@ function RefundSection({ order }: { order: Order }) {
         </p>
       )}
       {retry && (
-        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+        <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
           환불에 실패했어요. 다시 신청해 주세요.
         </p>
       )}
@@ -321,7 +358,7 @@ function RefundSection({ order }: { order: Order }) {
           }}
           className={cn(
             'flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-medium',
-            retry ? 'bg-emerald-600 text-white' : 'border border-slate-300 text-slate-600',
+            retry ? 'bg-emerald-700 text-white' : 'border border-slate-300 text-slate-600',
           )}
         >
           {retry && <RotateCcw className="size-4" aria-hidden="true" />}
@@ -365,7 +402,7 @@ function Refunded({ order }: { order: Order }) {
       <OrderSummary rows={rows} />
       <Link
         to="/customer/orders"
-        className="block rounded-lg bg-emerald-600 py-3 text-center font-medium text-white"
+        className="block rounded-lg bg-emerald-700 py-3 text-center font-medium text-white"
       >
         주문 내역으로
       </Link>
@@ -392,13 +429,14 @@ function Paid({ order }: { order: Order }) {
       <ReceiptLink url={order.payment?.receiptUrl ?? null} className="flex justify-center" />
       <div className="space-y-1 text-center">
         {/* 기한 날짜는 위 표의 "픽업 기한" 줄에 있다. 문장에 다시 넣으면 폰 폭에서 "까/지"로 끊긴다 */}
-        <p className="text-sm text-slate-500">
-          {ready
-            ? '준비가 끝났어요. 매장에서 주문번호를 보여 주고 받아 가세요'
-            : requested
-              ? '오늘 받아 가실 수 있게 준비해요. 준비되면 알려 드려요'
-              : '픽업 신청을 하면 매장에서 준비해요'}
-        </p>
+        {/* 아직 신청 전이면 아래 픽업 안내(PickupNotice)가 같은 말을 하므로 한 줄만 보인다 */}
+        {(ready || requested) && (
+          <p className="text-sm text-slate-500">
+            {ready
+              ? '준비가 끝났어요. 매장에서 주문번호를 보여 주고 받아 가세요'
+              : '오늘 받아 가실 수 있게 준비해요. 준비되면 알려 드려요'}
+          </p>
+        )}
         <PickupNotice order={order} />
       </div>
       {requestable && <PickupRequestButton orderId={order.orderId} orderNo={order.orderNo} />}
@@ -447,7 +485,7 @@ function Failed({ order, title }: { order: Order; title: string }) {
   return (
     <section className="space-y-4">
       <div className="flex flex-col items-center gap-2 py-6">
-        <CircleX className="size-12 text-red-600" />
+        <CircleX className="size-12 text-rose-700" />
         <h1 className="text-center text-lg font-bold text-slate-900">{title}</h1>
         <p className="text-sm text-slate-500">주문번호 {order.orderNo}</p>
         {shortage && <p className="text-center text-sm text-slate-700">{shortage}</p>}
@@ -466,7 +504,7 @@ function Failed({ order, title }: { order: Order; title: string }) {
         <Link
           to={`/customer/stores/${order.storeId}/products/${order.productId}`}
           state={{ storeName: order.storeName }}
-          className="block rounded-lg bg-emerald-600 py-3 text-center font-medium text-white"
+          className="block rounded-lg bg-emerald-700 py-3 text-center font-medium text-white"
         >
           다시 고르기
         </Link>
@@ -474,7 +512,7 @@ function Failed({ order, title }: { order: Order; title: string }) {
         <Link
           to={`/customer/stores/${order.storeId}`}
           state={{ storeName: order.storeName }}
-          className="block rounded-lg bg-emerald-600 py-3 text-center font-medium text-white"
+          className="block rounded-lg bg-emerald-700 py-3 text-center font-medium text-white"
         >
           상품으로 돌아가기
         </Link>
@@ -487,7 +525,7 @@ function NotFound() {
   return (
     <section className="space-y-3 py-10 text-center">
       <p className="text-sm text-slate-500">주문을 찾을 수 없어요.</p>
-      <Link to="/customer" className="text-sm text-emerald-600 underline">
+      <Link to="/customer" className="text-sm text-emerald-700 underline hover:text-emerald-800">
         홈으로
       </Link>
     </section>

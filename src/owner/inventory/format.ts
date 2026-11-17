@@ -13,7 +13,7 @@ export function formatWon(amount: number): string {
   return `${amount.toLocaleString('ko-KR')}원`
 }
 
-/** 유통기한(+09:00, 그날 23:59:59)을 "10/24" 로. 없으면 "-" */
+/** 소비기한(+09:00, 그날 23:59:59)을 "10/24" 로. 없으면 "-" */
 export function formatExpiry(iso: string | null): string {
   if (iso === null) return '-'
   return dayjs(iso).tz(KST).format('MM/DD')

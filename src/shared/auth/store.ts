@@ -49,9 +49,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   signUp: (input) => authClient.signUp(input),
   confirmSignUp: (email, code) => authClient.confirmSignUp(email, code),
   async signOut(notice) {
+    // 구글로 들어온 사람만 Cognito 로그인 기록을 지우러 간다(다음 구글 로그인 때 계정을 고르게). Cognito 는 /login 으로만 돌려보내므로
+    // 이메일 로그인(점주·관리자·이메일 고객)은 이동하지 않고, 화면 가드가 역할별 로그인(/owner/login 등)으로 보낸다(11/16).
+    // passwordLogin 을 모르는 옛 응답(undefined)은 이메일 로그인으로 본다(bffClient toAuthUser 와 같다)
+    const viaGoogle = get().user?.passwordLogin === false
     await authClient.signOut()
     set({ user: null, loginNotice: notice ?? null })
-    if (!isMockApi) leaveForSsoLogout(notice)
+    if (!isMockApi && viaGoogle) leaveForSsoLogout(notice)
   },
   async refreshSession() {
     const user = await authClient.refresh()

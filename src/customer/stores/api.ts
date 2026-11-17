@@ -3,6 +3,13 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { useQueries } from '@tanstack/react-query'
 import type { RegionCode } from '@/auth/regions'
 import { api } from '@/shared/api/client'
+import {
+  bestRow,
+  categoriesOf,
+  categoryPhotos,
+  clearanceRow,
+  firstPhotoByCategory,
+} from './homeRows'
 
 /** ST-01 응답 한 줄 */
 export interface StoreSummary {
@@ -11,6 +18,9 @@ export interface StoreSummary {
   name: string
   address: string
   region: RegionCode
+  /** 지도 좌표(11/10 member ST-01부터). 관리자가 안 넣었으면 null, 그 전 응답에는 칸이 없다 */
+  latitude?: number | null
+  longitude?: number | null
 }
 
 export interface StoreSearchParams {
@@ -73,17 +83,19 @@ export interface StoreProduct {
   newArrival: boolean
   /** 점주가 정한 선착순 상품. 구매는 대기열을 거친다 */
   firstCome: boolean
-  /** 먼저 받게 될 상품의 유통기한(+09:00). 유통기한 빠른 것부터 준다. 품절이면 null */
+  /** 먼저 받게 될 상품의 소비기한(+09:00). 소비기한 빠른 것부터 준다. 품절이면 null */
   nearestExpiry: string | null
   /**
-   * 마감세일(유통기한 24시간 안, 30% 할인) 수량. 판매 시간(06~23시) 밖이거나 선착순 상품이면 0.
+   * 마감세일(소비기한 24시간 안, 30% 할인) 수량. 판매 시간(06~23시) 밖이거나 선착순 상품이면 0.
    * availableQuantity 는 마감세일을 뺀 기본 수량이다. inventory 가 마감세일을 배포하기 전에는 오지 않는다
    */
   clearanceQuantity?: number
   /** 마감세일 단가(원). clearanceQuantity 가 0이면 null */
   clearancePrice?: number | null
-  /** 마감세일 상품의 유통기한(+09:00). clearanceQuantity 가 0이면 null */
+  /** 마감세일 상품의 소비기한(+09:00). clearanceQuantity 가 0이면 null */
   clearanceExpiry?: string | null
+  /** 이 점포의 최근 7일 순판매 수량(판매 − 환불 복원, 0 아래면 0). 추천순과 같은 값(inventory #72). 배포 전 응답에는 없다 */
+  soldRecently?: number
 }
 
 /** U-10 상품 상세. inventory-service StoreProductDetailResponse 와 같은 모양(목록 한 줄과 필드가 같다) */
@@ -115,6 +127,10 @@ export interface StoreProductFilter {
   recommendedOnly?: boolean
   /** 신상품만 */
   newOnly?: boolean
+  /** 지금 마감세일로 살 수 있는 상품만(inventory #71 clearance=true, 06~23시·선착순 제외) */
+  clearanceOnly?: boolean
+  /** 선착순 상품만(inventory #71 firstCome=true) */
+  firstComeOnly?: boolean
 }
 
 /** 서버로 보낼 쿼리. 기본값인 조건은 넣지 않는다 */
@@ -126,6 +142,8 @@ export function storeProductParams(filter: StoreProductFilter): Record<string, s
   if (filter.sort && filter.sort !== 'NAME') params.sort = filter.sort
   if (filter.recommendedOnly) params.recommended = true
   if (filter.newOnly) params.newOnly = true
+  if (filter.clearanceOnly) params.clearance = true
+  if (filter.firstComeOnly) params.firstCome = true
   return params
 }
 
@@ -178,12 +196,58 @@ export function useStoreProducts(
   })
 }
 
-/** U-10 카테고리 칩. 상품 전체의 카테고리(가나다순). 들어올 때 한 번 읽는다 */
-export function useStoreCategories(storeId: number) {
+/** 점포 상품 전부(조건 없음) 읽기. useStoreProducts(storeId) 와 같은 queryKey 라 홈 줄끼리 한 번만 부른다 */
+function allProductsQuery(storeId: number) {
+  return {
+    queryKey: ['customer', 'stores', storeId, 'products', {}],
+    queryFn: async () => (await api.get<StoreProduct[]>(`/stores/${storeId}/products`)).data,
+  }
+}
+
+/**
+ * 홈 '마감세일' 줄. 홈의 다른 줄과 같은 상품 전부 목록(한 번 읽기)에서 homeRows.clearanceRow 로
+ * 지금 마감세일로 살 수 있는 상품만 마감 빠른 순으로 고른다(서버 clearance=true 와 같은 clearanceQuantity, 11/15 호출 줄이기)
+ */
+export function useClearanceProducts(storeId: number) {
+  return useQuery({ ...allProductsQuery(storeId), select: clearanceRow })
+}
+
+/** 홈 '신상품' 줄. 상품 전부 목록에서 newArrival 만(서버 newOnly=true 와 같은 값, 상품명순) */
+export function useNewArrivals(storeId: number) {
+  return useQuery({ ...allProductsQuery(storeId), select: newArrivalsOf })
+}
+
+function newArrivalsOf(products: StoreProduct[]): StoreProduct[] {
+  return products.filter((p) => p.newArrival)
+}
+
+/** 홈 카테고리 칸 사진(분류별 첫 상품 사진). 마감세일 줄과 같은 상품 전부 목록을 쓴다 */
+export function useCategoryPhotos(storeId: number) {
+  return useQuery({ ...allProductsQuery(storeId), select: categoryPhotos })
+}
+
+/** 점포 상품 목록 분류 줄 사진(분류별 첫 상품 사진, 12개 분류 전부). 홈 줄과 같은 상품 전부 목록을 쓴다 */
+export function useStoreCategoryPhotos(storeId: number) {
+  return useQuery({ ...allProductsQuery(storeId), select: firstPhotoByCategory })
+}
+
+/** 홈 베스트 상품 개수(1~5위, 11/11 경우 시안) */
+export const BEST_PRODUCT_COUNT = 5
+
+/**
+ * 홈 베스트 상품(분류별, 11/12). 고객용 판매 순위 API 가 따로 없어 상품 전부 목록의 soldRecently(최근 7일 순판매)로
+ * homeRows.bestRow 가 서버 sort=POPULAR 와 같은 순서로 앞 5개를 고른다. 분류를 바꿔도 다시 부르지 않는다(11/15)
+ */
+export function useBestProducts(storeId: number, category = '') {
   return useQuery({
-    queryKey: ['customer', 'stores', storeId, 'categories'],
-    queryFn: async () => (await api.get<string[]>(`/stores/${storeId}/products/categories`)).data,
+    ...allProductsQuery(storeId),
+    select: (products: StoreProduct[]) => bestRow(products, category, BEST_PRODUCT_COUNT),
   })
+}
+
+/** U-10 카테고리 칩. 상품 전부 목록의 분류(가나다순, 서버 /products/categories 와 같다). 홈·목록과 같은 한 번 읽기를 쓴다 */
+export function useStoreCategories(storeId: number) {
+  return useQuery({ ...allProductsQuery(storeId), select: categoriesOf })
 }
 
 /** 주변 점포 재고 한 줄. inventory-service StoreStockResponse 와 같은 모양 */
@@ -191,7 +255,7 @@ export interface StoreStock {
   storeId: number
   /** 그 점포에서 지금 살 수 있는 수량(1 이상) */
   availableQuantity: number
-  /** 먼저 받게 될 상품의 유통기한(+09:00) */
+  /** 먼저 받게 될 상품의 소비기한(+09:00) */
   nearestExpiry: string
 }
 
@@ -204,21 +268,64 @@ export function useProductStores(productId: number, enabled: boolean) {
   })
 }
 
+/** 주변 점포 재고에 쓰는 점포 정보: 이름·지역·좌표. 점포 목록 한 줄이나 점포 상세에서 얻는다 */
+export type StorePlace = Pick<StoreDetail, 'storeId' | 'name' | 'region' | 'latitude' | 'longitude'>
+
+/** 점포 목록 한 줄이나 상세에 좌표 칸이 있는지. 좌표가 들어오기 전(member #34 전) 목록이면 상세를 읽는다 */
+function isStorePlace(value: unknown): value is StorePlace {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'storeId' in value &&
+    'latitude' in value &&
+    'longitude' in value
+  )
+}
+
+export interface UseStorePlacesReturn {
+  /** 읽은 점포만 담는다 */
+  places: ReadonlyMap<number, StorePlace>
+  /** 목록·상세를 아직 읽는 중. 끝나기 전에 "재고 없음"을 보이지 않게 쓴다 */
+  isPending: boolean
+}
+
 /**
- * 여러 점포의 상세(이름·지역·좌표)를 한 번에 읽는다. useStoreDetail 과 같은 queryKey 라 이미 읽은 점포는 다시 묻지 않는다.
- * 점포 목록 API 에 좌표가 생기면 그걸 쓰도록 바꾼다. 읽은 점포만 Map 으로 돌려준다
+ * 주변 점포 재고(U-10)용으로 여러 점포의 이름·지역·좌표를 읽는다.
+ * 지금 점포의 상세로 지역을 알고, 그 지역 점포 목록(ST-01, 11/10부터 좌표가 있다)을 한 번 읽는다.
+ * 목록에 없는 점포(다른 지역)나 좌표 칸이 없는 목록이면 그 점포만 상세를 읽는다.
+ * 상세는 useStoreDetail 과, 목록은 점포 검색(useStores)의 빈 검색어와 같은 queryKey 라 이미 읽은 것은 다시 묻지 않는다
  */
-export function useStoreDetails(storeIds: number[]): ReadonlyMap<number, StoreDetail> {
-  const results = useQueries({
-    queries: storeIds.map((storeId) => ({
+export function useStorePlaces(currentStoreId: number, storeIds: number[]): UseStorePlacesReturn {
+  const current = useStoreDetail(currentStoreId)
+  const region = isStorePlace(current.data) ? current.data.region : undefined
+  const regionStores = useQuery({
+    queryKey: ['customer', 'stores', region, ''],
+    queryFn: async () => (await api.get<StoreSummary[]>('/stores', { params: { region } })).data,
+    enabled: region !== undefined,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const listed = new Map<number, StorePlace>()
+  if (Array.isArray(regionStores.data)) {
+    for (const row of regionStores.data as unknown[]) {
+      if (isStorePlace(row)) listed.set(row.storeId, row)
+    }
+  }
+  // 목록을 다 읽기 전에는 상세를 묻지 않는다. 목록을 못 읽으면(지역을 모름·오류) 상세로 읽는다
+  const waiting = region === undefined ? current.isPending : regionStores.isPending
+  const detailIds = waiting ? [] : storeIds.filter((id) => id !== currentStoreId && !listed.has(id))
+  const details = useQueries({
+    queries: detailIds.map((storeId) => ({
       queryKey: ['customer', 'stores', storeId, 'detail'],
       queryFn: async () => (await api.get<StoreDetail>(`/stores/${storeId}`)).data,
       staleTime: 5 * 60 * 1000,
     })),
   })
-  const map = new Map<number, StoreDetail>()
-  results.forEach((r, i) => {
-    if (r.data && typeof r.data === 'object' && 'storeId' in r.data) map.set(storeIds[i], r.data)
+
+  const places = new Map<number, StorePlace>(listed)
+  if (isStorePlace(current.data)) places.set(currentStoreId, current.data)
+  details.forEach((r, i) => {
+    if (isStorePlace(r.data)) places.set(detailIds[i], r.data)
   })
-  return map
+  return { places, isPending: waiting || details.some((r) => r.isPending) }
 }

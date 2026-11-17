@@ -6,7 +6,7 @@ import type { OrderStatus } from './orderStatus'
 import type { RefundStatus } from './refund'
 
 /** 픽업 신청 확인 창 문구. 신청하면 기한이 신청한 날 23:59로 당겨진다 (order-service Order.requestPickup) */
-export const PICKUP_REQUEST_CONFIRM = '오늘 23:59까지 받아 가셔야 해요'
+export const PICKUP_REQUEST_CONFIRM = '오늘 23시 59분까지 받아 가셔야 해요'
 
 /** 결제 화면·결제 완료 화면의 기한 안내. 신청하지 않거나 받아 가지 않으면 기한이 지나 환불되지 않는다 */
 export const PICKUP_REQUEST_NOTICE =

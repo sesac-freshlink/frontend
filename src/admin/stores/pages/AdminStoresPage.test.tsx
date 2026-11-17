@@ -198,8 +198,12 @@ describe('관리자 점포 목록 (A-02)', () => {
     const row = rowOf('프레시 20호점')
     expect(row.getByText('-')).toBeInTheDocument()
     expect(row.getByText('등록 중')).toBeInTheDocument()
-    expect(row.getByRole('button', { name: '프레시 20호점 수정' })).toBeDisabled()
-    await userEvent.click(row.getByRole('button', { name: '프레시 20호점 수정' }))
+    expect(
+      row.getByRole('button', { name: '프레시 20호점 수정 (등록 중이라 수정할 수 없어요)' }),
+    ).toBeDisabled()
+    await userEvent.click(
+      row.getByRole('button', { name: '프레시 20호점 수정 (등록 중이라 수정할 수 없어요)' }),
+    )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 

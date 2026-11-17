@@ -22,7 +22,7 @@ export function AdminStoresPage() {
         </div>
         <Link
           to="/admin/stores/new"
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
         >
           점포 등록
         </Link>
@@ -43,7 +43,7 @@ interface StoreTableProps {
 function StoreTable({ stores, page, onPageChange, onEdit }: StoreTableProps) {
   if (stores.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -103,7 +103,12 @@ function StoreTable({ stores, page, onPageChange, onEdit }: StoreTableProps) {
                 <td className="px-4 py-3 text-right">
                   <button
                     type="button"
-                    aria-label={`${s.name} 수정`}
+                    // 등록 중이라 꺼진 이유는 마우스 글(title)만으로는 읽어 주지 않아 이름에도 넣는다
+                    aria-label={
+                      s.status === 'PENDING'
+                        ? `${s.name} 수정 (등록 중이라 수정할 수 없어요)`
+                        : `${s.name} 수정`
+                    }
                     disabled={s.status === 'PENDING'}
                     title={s.status === 'PENDING' ? '등록 중인 점포는 수정할 수 없어요' : undefined}
                     onClick={() => onEdit(s)}
@@ -117,7 +122,9 @@ function StoreTable({ stores, page, onPageChange, onEdit }: StoreTableProps) {
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-center gap-4 text-sm text-slate-600">
+      {/* 점주 화면 표와 같이 왼쪽에 전체 개수, 가운데 쪽 넘김 */}
+      <div className="relative flex items-center justify-center gap-4 text-sm text-slate-600">
+        <p className="absolute left-0 text-slate-500 tabular-nums">총 {data.totalElements}개</p>
         <button
           type="button"
           onClick={() => onPageChange(page - 1)}

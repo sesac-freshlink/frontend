@@ -12,6 +12,10 @@ import { OwnerSalesPage } from './OwnerSalesPage'
 dayjs.extend(utc)
 
 vi.mock('@/shared/api/client', () => ({ api: { get: vi.fn() } }))
+// 날짜 창은 따로 테스트한다. 여기서는 누른 날짜로 창을 여는지만 본다
+vi.mock('../components/SalesDayDialog', () => ({
+  SalesDayDialog: ({ period }: { period: { period: string } }) => <p>날짜 창 {period.period}</p>,
+}))
 const get = vi.mocked(api.get)
 
 /**
@@ -204,5 +208,68 @@ describe('점주 매출 대시보드', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(within(card('오늘 매출')).getByText('0원')).toBeInTheDocument()
     expect(within(card('결제 건수')).getByText('0건')).toBeInTheDocument()
+  })
+
+  it('일 단위 표의 날짜를 누르면 그날 팔린 상품 창을 열고, 주·월 단위에서는 날짜가 버튼이 아니다 (11/14 시안 B)', async () => {
+    renderPage()
+    const day = await screen.findByRole('button', { name: '10/28(수)' })
+    expect(screen.getByText('날짜를 누르면 그날 팔린 상품을 볼 수 있어요.')).toBeInTheDocument()
+    fireEvent.click(day)
+    expect(screen.getByText('날짜 창 2026-10-28')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '주' }))
+    await waitFor(() =>
+      expect(
+        screen.queryByText('날짜를 누르면 그날 팔린 상품을 볼 수 있어요.'),
+      ).not.toBeInTheDocument(),
+    )
+  })
+})
+
+describe('매출 탭 (11/14 상품별 판매 순위를 결제·픽업에서 옮김)', () => {
+  beforeEach(() => {
+    get.mockReset()
+    get.mockImplementation(async (url, config) =>
+      url === '/owner/inventory/sales-ranking'
+        ? {
+            data: {
+              from: '2026-10-23',
+              to: '2026-10-29',
+              totalSoldQuantity: 5,
+              items: [
+                {
+                  rank: 1,
+                  productId: 15,
+                  productCode: 'P015',
+                  name: '매운 컵라면 115g',
+                  category: '라면',
+                  imageUrl: null,
+                  soldQuantity: 5,
+                  share: 1,
+                },
+              ],
+            },
+          }
+        : sales(paramsOf(config)),
+    )
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-29T03:00:00Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('처음엔 기간 매출 탭이고, 상품별 판매 순위 탭으로 바꾸면 판매 순위를 부른다', async () => {
+    renderPage()
+    expect(await screen.findByRole('img', { name: /^일별 순매출 그래프/ })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '기간 매출' })).toHaveAttribute('aria-selected', 'true')
+
+    await userEvent.click(screen.getByRole('tab', { name: '상품별 판매 순위' }))
+
+    expect(await screen.findByText('매운 컵라면 115g')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '상품별 판매 순위' })).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /^일별 순매출 그래프/ })).not.toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/owner/inventory/sales-ranking', expect.anything())
   })
 })

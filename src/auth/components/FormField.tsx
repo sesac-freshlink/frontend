@@ -21,7 +21,7 @@ export function FormField({ id, label, error, hint, children }: Props) {
       </label>
       {children}
       {note && (
-        <p id={describedBy(id)} className={cn('text-xs text-slate-500', error && 'text-red-600')}>
+        <p id={describedBy(id)} className={cn('text-xs text-slate-500', error && 'text-rose-700')}>
           {note}
         </p>
       )}

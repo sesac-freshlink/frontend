@@ -1,11 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
 import type { Order } from '../api'
-import { checkoutPath } from '../checkout'
 import { PICKUP_REQUEST_NOTICE } from '../pickupRequest'
 import { OrderDetailPage } from './OrderDetailPage'
 
@@ -105,6 +104,15 @@ describe('주문 상세 (U-22·U-31)', () => {
     renderAt('/customer/orders/123')
     expect(await screen.findByText('주문을 확인하고 있어요')).toBeInTheDocument()
     expect(get).toHaveBeenCalledWith('/orders/123')
+  })
+
+  it('위에 주문 내역으로 돌아가는 링크가 있다', async () => {
+    orderReturns({ status: 'PAYMENT_WAITING' })
+    renderAt('/customer/orders/123')
+    expect(await screen.findByRole('link', { name: '주문 내역' })).toHaveAttribute(
+      'href',
+      '/customer/orders',
+    )
   })
 
   it('결제 대기면 결제 수단과 10분 안내를 보여 준다', async () => {
@@ -231,7 +239,8 @@ describe('주문 상세 (U-22·U-31)', () => {
     renderAt('/customer/orders/123')
     expect(await screen.findByText('결제 완료')).toBeInTheDocument()
     expect(screen.getByText('10월 22일(목)까지')).toBeInTheDocument()
-    expect(screen.getByText('픽업 신청을 하면 매장에서 준비해요')).toBeInTheDocument()
+    // 신청 전에는 같은 말을 두 번 하지 않고 픽업 안내 한 줄만 보인다
+    expect(screen.queryByText('픽업 신청을 하면 매장에서 준비해요')).not.toBeInTheDocument()
     expect(screen.getByText(PICKUP_REQUEST_NOTICE)).toBeInTheDocument()
   })
 
@@ -246,7 +255,7 @@ describe('주문 상세 (U-22·U-31)', () => {
     renderAt('/customer/orders/123')
     await userEvent.click(await screen.findByRole('button', { name: '픽업 신청' }))
     expect(screen.getByRole('dialog', { name: '픽업 신청할까요?' })).toBeInTheDocument()
-    expect(screen.getByText('오늘 23:59까지 받아 가셔야 해요')).toBeInTheDocument()
+    expect(screen.getByText('오늘 23시 59분까지 받아 가셔야 해요')).toBeInTheDocument()
     expect(post).not.toHaveBeenCalled()
     const dialog = screen.getByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: '픽업 신청' }))
@@ -342,84 +351,26 @@ describe('주문 상세 (U-22·U-31)', () => {
   })
 })
 
-describe('주문·결제 화면 (U-21)', () => {
-  const path = checkoutPath({
-    storeId: 1,
-    storeName: '프레시 강남점',
-    productId: 15,
-    productName: '매운 컵라면 115g',
-    price: 1700,
-  })
-
+describe('옛 주문·결제 화면 주소 (/customer/orders/new)', () => {
   beforeEach(() => {
     get.mockReset()
     post.mockReset()
   })
 
-  function idempotencyKeys() {
-    return post.mock.calls.map(
-      (c) => (c[2] as { headers: Record<string, string> }).headers['Idempotency-Key'],
+  it('상품 값이 있으면 그 상품 상세로 보내고 주문을 만들지 않는다', async () => {
+    const router = renderAt(
+      '/customer/orders/new?storeId=1&storeName=%ED%94%84%EB%A0%88%EC%8B%9C&productId=15&productName=x&price=1700',
     )
-  }
-
-  it('[결제하기]를 누를 때 주문을 만들고 주문 화면으로 간다', async () => {
-    post.mockResolvedValue({ data: { orderId: 123, orderNo: base.orderNo, status: 'RESERVING' } })
-    orderReturns({ status: 'RESERVING', productName: null, amount: null })
-    const router = renderAt(path)
-
-    await userEvent.click(screen.getByRole('button', { name: '수량 더하기' }))
-    expect(screen.getByText('3,400원')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '결제하기' }))
-
-    await waitFor(() => expect(router.state.location.pathname).toBe('/customer/orders/123'))
-    expect(post).toHaveBeenCalledWith(
-      '/orders',
-      { storeId: 1, storeName: '프레시 강남점', productId: 15, quantity: 2 },
-      expect.objectContaining({ headers: { 'Idempotency-Key': expect.any(String) } }),
-    )
+    expect(await screen.findByText('상품 상세')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/customer/stores/1/products/15')
+    expect(router.state.location.state).toEqual({ storeName: '프레시' })
+    expect(post).not.toHaveBeenCalled()
   })
 
-  it('실패 뒤 다시 누르면 같은 키, 수량을 바꾸면 새 키를 보낸다', async () => {
-    post.mockRejectedValueOnce(new Error('network')).mockRejectedValueOnce(new Error('network'))
-    renderAt(path)
-
-    await userEvent.click(screen.getByRole('button', { name: '결제하기' }))
-    await screen.findByRole('button', { name: '결제하기' })
-    await userEvent.click(screen.getByRole('button', { name: '결제하기' }))
-    await screen.findByRole('button', { name: '결제하기' })
-    await userEvent.click(screen.getByRole('button', { name: '수량 더하기' }))
-    post.mockResolvedValue({ data: { orderId: 9, orderNo: 'FL-1', status: 'RESERVING' } })
-    get.mockResolvedValue({ data: { ...base, orderId: 9, status: 'RESERVING' } })
-    await userEvent.click(screen.getByRole('button', { name: '결제하기' }))
-
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(3))
-    const [first, retry, changed] = idempotencyKeys()
-    expect(retry).toBe(first)
-    expect(changed).not.toBe(first)
-  })
-
-  it('선착순 입장권으로 온 주문은 1개만 살 수 있다고 안내하고 수량을 늘릴 수 없다', () => {
-    renderAt(
-      checkoutPath({
-        storeId: 1,
-        storeName: '프레시 강남점',
-        productId: 15,
-        productName: '매운 컵라면 115g',
-        price: 1700,
-        available: 1,
-        firstCome: true,
-      }),
-    )
-    expect(screen.getByText('선착순 상품은 한 사람이 1개만 살 수 있어요')).toBeInTheDocument()
-    expect(screen.queryByText(/한 번에 5개까지/)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '수량 더하기' })).toBeDisabled()
-  })
-
-  it('상품 정보가 주소에 없으면 다시 고르게 한다', () => {
-    renderAt('/customer/orders/new')
-    expect(
-      screen.getByText('상품 정보를 찾을 수 없어요. 상품을 다시 골라 주세요.'),
-    ).toBeInTheDocument()
+  it('상품 값이 없으면 홈으로 보낸다', async () => {
+    const router = renderAt('/customer/orders/new')
+    expect(await screen.findByText('고객 홈')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/customer')
   })
 })
 
@@ -427,127 +378,6 @@ describe('마감세일 함께 사기', () => {
   beforeEach(() => {
     get.mockReset()
     post.mockReset()
-  })
-
-  // 시트(이태우)는 고른 수량만 주소로 넘긴다. 가격·남은 수는 주문 화면이 상품 API로 직접 읽는다
-  const clearancePath = (quantity: number, clearanceQuantity: number) =>
-    checkoutPath({
-      storeId: 1,
-      storeName: '프레시 강남점',
-      productId: 31,
-      productName: '꿀밤고구마 800g',
-      price: 4990,
-      available: 10,
-      quantity,
-      clearanceQuantity,
-    })
-
-  const product = {
-    productId: 31,
-    name: '꿀밤고구마 800g',
-    category: '채소',
-    price: 4990,
-    imageUrl: null,
-    availableQuantity: 10,
-    soldOut: false,
-    recommended: false,
-    newArrival: false,
-    firstCome: false,
-    nearestExpiry: null,
-    clearanceQuantity: 2,
-    clearancePrice: 3490,
-    clearanceExpiry: null,
-  }
-
-  /** 상품 API는 product, 주문 조회는 order 로 답한다 */
-  function answers(productBody: object | Error, order?: Partial<Order>) {
-    get.mockImplementation(async (url: string) => {
-      if (url === '/stores/1/products/31') {
-        if (productBody instanceof Error) throw productBody
-        return { data: productBody }
-      }
-      return { data: { ...base, ...order } }
-    })
-  }
-
-  it('주문 화면이 상품 API로 가격·남은 수를 읽어 두 줄과 합계, 당일 픽업 안내를 보여 주고 마감세일 수량을 보낸다', async () => {
-    post.mockResolvedValue({ data: { orderId: 123, orderNo: base.orderNo, status: 'RESERVING' } })
-    answers(product, { status: 'RESERVING', productName: null, amount: null })
-    renderAt(clearancePath(2, 1))
-
-    expect(await screen.findByText('8,480원')).toBeInTheDocument()
-    expect(get).toHaveBeenCalledWith('/stores/1/products/31')
-    expect(screen.getByRole('note')).toHaveTextContent('오늘 23:59까지 픽업해 주세요')
-    await userEvent.click(screen.getByRole('button', { name: '마감세일 수량 더하기' }))
-    expect(screen.getByText('11,970원')).toBeInTheDocument()
-    // 상품 API의 마감세일 남은 수(2)에 닿으면 더 못 늘린다
-    expect(screen.getByRole('button', { name: '마감세일 수량 더하기' })).toBeDisabled()
-    await userEvent.click(screen.getByRole('button', { name: '결제하기' }))
-
-    await waitFor(() =>
-      expect(post).toHaveBeenCalledWith(
-        '/orders',
-        {
-          storeId: 1,
-          storeName: '프레시 강남점',
-          productId: 31,
-          quantity: 3,
-          clearanceQuantity: 2,
-        },
-        expect.anything(),
-      ),
-    )
-  })
-
-  it('두 줄을 모두 0으로 줄이면 결제하기가 꺼지고, 마감세일이 0이면 당일 안내를 숨긴다', async () => {
-    answers(product)
-    renderAt(clearancePath(2, 1))
-    await userEvent.click(await screen.findByRole('button', { name: '마감세일 수량 빼기' }))
-    expect(screen.getByRole('note')).toHaveTextContent(PICKUP_REQUEST_NOTICE)
-    await userEvent.click(screen.getByRole('button', { name: '기본 수량 빼기' }))
-    expect(screen.getByRole('button', { name: '결제하기' })).toBeDisabled()
-  })
-
-  it('고른 마감세일이 지금 남은 수보다 많으면 남은 수로 줄이고 알려 준다', async () => {
-    answers(product)
-    renderAt(clearancePath(3, 3))
-    expect(await screen.findByText('마감세일 상품이 2개 남아 2개로 줄였어요.')).toBeInTheDocument()
-    expect(screen.getByText('6,980원')).toBeInTheDocument()
-  })
-
-  it('그새 마감세일이 끝났으면 마감세일 줄을 숨기고 기본으로 고르게 한다', async () => {
-    answers({ ...product, clearanceQuantity: 0, clearancePrice: null })
-    renderAt(clearancePath(2, 1))
-    expect(
-      await screen.findByText('마감세일이 끝났어요. 기본 상품으로 골라 주세요.'),
-    ).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '마감세일 수량 더하기' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '수량 더하기' })).toBeInTheDocument()
-  })
-
-  it('상품을 못 읽으면 마감세일 안내를 띄우고 기본 결제는 그대로 된다', async () => {
-    answers(new Error('network'))
-    renderAt(clearancePath(2, 1))
-    expect(
-      await screen.findByText(
-        '마감세일 정보를 불러오지 못했어요. 기본 상품은 그대로 살 수 있어요.',
-      ),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '결제하기' })).toBeEnabled()
-  })
-
-  it('마감세일 시트에서 오지 않았으면 지금처럼 수량 한 줄', () => {
-    renderAt(
-      checkoutPath({
-        storeId: 1,
-        storeName: '프레시 강남점',
-        productId: 15,
-        productName: '매운 컵라면 115g',
-        price: 1700,
-      }),
-    )
-    expect(screen.getByRole('button', { name: '수량 더하기' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '마감세일 수량 더하기' })).not.toBeInTheDocument()
   })
 
   it('결제 대기 상세에 두 줄과 당일 픽업 안내를 보여 준다', async () => {
@@ -568,7 +398,16 @@ describe('마감세일 함께 사기', () => {
 
     expect(await screen.findByText('마감세일 1개 3,490원')).toBeInTheDocument()
     expect(screen.getByText('기본 1개 4,990원')).toBeInTheDocument()
-    expect(screen.getByText(/오늘 23:59까지 픽업해 주세요/)).toBeInTheDocument()
+    // 마감세일 안내는 문장마다 한 줄씩 세 줄 (11/11 경우 문구)
+    expect(screen.getByText('마감 세일 제품은 당일 픽업이 원칙이에요.')).toBeInTheDocument()
+    expect(screen.getByText('오늘 23시 59분까지 픽업해 주세요.')).toBeInTheDocument()
+    expect(screen.getByText('미픽업 시 환불되지 않으며, 물품은 폐기 처리돼요.')).toBeInTheDocument()
+    // 마감세일 1 + 일반 1 로 섞인 주문이라 모두 당일 픽업이 된다는 줄을 더한다
+    expect(
+      screen.getByText(
+        '마감세일과 일반 상품을 같이 주문하면 모두 당일 픽업 주문이 돼요. 오늘 함께 받아 가 주세요.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('마감세일이 끝나 실패하면 남은 수를 알려 주고 다시 고르기는 상품 상세로 간다', async () => {

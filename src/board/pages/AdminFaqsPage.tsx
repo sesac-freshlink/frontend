@@ -17,9 +17,9 @@ export function AdminFaqsPage() {
   const onDelete = async (faqId: number) => {
     try {
       await remove.mutateAsync(faqId)
-      toast.success('질문을 지웠어요')
+      toast.success('질문을 삭제했어요')
     } catch {
-      toast.error('지우지 못했어요. 잠시 뒤 다시 시도해 주세요')
+      toast.error('삭제하지 못했어요. 잠시 뒤 다시 시도해 주세요')
     }
   }
 
@@ -33,13 +33,13 @@ export function AdminFaqsPage() {
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
         >
           질문 쓰기
         </button>
       </div>
       {faqs.isPending && (
-        <div className="flex justify-center py-16 text-slate-400">
+        <div className="flex justify-center py-16 text-slate-500">
           <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
         </div>
       )}
@@ -74,10 +74,10 @@ export function AdminFaqsPage() {
                     <button
                       type="button"
                       onClick={() => setEditing(f)}
-                      aria-label={`${f.question} 고치기`}
+                      aria-label={`${f.question} 수정`}
                       className="rounded-lg border border-slate-300 px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
                     >
-                      고치기
+                      수정
                     </button>
                     <DeleteButton
                       label={f.question}

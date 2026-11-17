@@ -9,6 +9,7 @@ import type {
   RefundStatus,
 } from '@/customer/order/refund'
 import { api } from '@/shared/api/client'
+import { POLL_MS } from '@/shared/api/queryClient'
 import { type DatePeriod, isReversedPeriod, periodParams } from '@/shared/api/period'
 
 /**
@@ -38,8 +39,18 @@ export interface OwnerOrder {
   refund: RefundInfo | null
 }
 
-/** A6 점주 주문 목록 구분 */
-export type OwnerOrderTab = 'PICKUP_WAITING' | 'PICKED_UP' | 'CANCELED' | 'PICKUP_EXPIRED'
+/**
+ * A6 점주 주문 목록 구분. PICKUP_WAITING 은 결제 완료·픽업 신청·준비 완료를 한데 보는 예전 구분이다(서버에 남아 있고 화면은 11/15부터 쓰지 않는다).
+ * 결제·픽업 화면은 11/15부터 ALL·PICKUP_REQUESTED(픽업 대기)·READY_FOR_PICKUP(준비 완료)으로 나눠 본다
+ */
+export type OwnerOrderTab =
+  | 'ALL'
+  | 'PICKUP_WAITING'
+  | 'PICKUP_REQUESTED'
+  | 'READY_FOR_PICKUP'
+  | 'PICKED_UP'
+  | 'CANCELED'
+  | 'PICKUP_EXPIRED'
 
 /** OR-05 응답 */
 export interface PickupResponse {
@@ -62,7 +73,8 @@ const ownerOrdersKey = ['owner', 'orders']
 
 /**
  * S-50·A6 점주 주문 목록 (order-service OR-04 + tab·page·size·from·to). 자기 점포 주문을 구분별로 페이지 응답으로 받는다.
- * 점포는 gateway 가 붙이는 X-Store-Id 로 정해진다. 진입·구분 전환·[새로 고침] 때만 부른다 (폴링 없음).
+ * 점포는 gateway 가 붙이는 X-Store-Id 로 정해진다. 진입·구분 전환·[새로 고침] 때 부르고, 화면이 보이는 동안
+ * POLL_MS.ownerOrders 마다, 창으로 돌아올 때 다시 읽는다 (11/14 경우 결정 R3). 새 픽업 신청 알림(NEW_ORDER)이 오면 바로 다시 읽는다(R2).
  * 시작 날짜가 끝 날짜보다 늦으면 서버가 400 을 주므로 부르지 않는다
  */
 export function useOwnerOrders({ tab, page, size, period }: OwnerOrdersQuery) {
@@ -77,7 +89,7 @@ export function useOwnerOrders({ tab, page, size, period }: OwnerOrdersQuery) {
       ).data,
     enabled: !isReversedPeriod(period),
     placeholderData: keepPreviousData,
-    refetchOnWindowFocus: false,
+    refetchInterval: POLL_MS.ownerOrders,
   })
 }
 

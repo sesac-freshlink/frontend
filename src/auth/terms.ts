@@ -3,7 +3,8 @@
  * 글을 바꾸면 버전도 바꾸고 member-service MemberRules 의 버전도 같이 바꾼다
  */
 export const TERMS_VERSION = '2026-11-06'
-export const PRIVACY_VERSION = '2026-11-06'
+/** 11/14 3장 보관 기간 변경(주문·결제 기록 5년, 탈퇴 이력 5년). 다시 동의받지 않는다(11/6 결정). 서버 MemberRules 와 같은 값 */
+export const PRIVACY_VERSION = '2026-11-14'
 
 export interface TermsDocument {
   id: 'terms' | 'privacy'
@@ -95,7 +96,9 @@ export const PRIVACY_POLICY: TermsDocument = {
       heading: '3. 보관 기간',
       lines: [
         '회원 정보: 탈퇴할 때까지',
-        '탈퇴 뒤: 프로필은 지우고, 주문 기록은 이름을 "탈퇴 회원"으로 바꿔 남깁니다. 탈퇴 이력(이메일, 탈퇴 시각)은 30일 동안 보관합니다.',
+        '탈퇴 뒤 프로필: 바로 지웁니다.',
+        '주문·결제 기록: 탈퇴 뒤에도 이름을 "탈퇴 회원"으로 바꿔 5년 동안 보관합니다. 5년이 지나면 누구의 주문인지 알 수 없게 회원 번호를 지우고, 매출 통계로만 남깁니다.',
+        '탈퇴 이력(이메일, 탈퇴 시각): 탈퇴한 분이 지난 결제 내역을 요청할 때 본인을 찾기 위해 5년 동안 보관한 뒤 지웁니다.',
       ],
     },
     {

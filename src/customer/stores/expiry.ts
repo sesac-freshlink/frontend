@@ -8,7 +8,7 @@ dayjs.extend(timezone)
 /** 날짜는 브라우저 시간대와 상관없이 서버와 같은 한국 날짜로 센다 */
 const KST = 'Asia/Seoul'
 
-/** 유통기한이 이 일수 안에 끝날 때만 배지를 보여 준다(그보다 멀면 굳이 알리지 않는다) */
+/** 소비기한이 이 일수 안에 끝날 때만 배지를 보여 준다(그보다 멀면 굳이 알리지 않는다) */
 export const EXPIRY_BADGE_DAYS = 3
 
 export interface ExpiryBadgeInfo {
@@ -19,7 +19,7 @@ export interface ExpiryBadgeInfo {
 }
 
 /**
- * U-10 유통기한 D-day 배지. 먼저 받게 될 상품의 유통기한(+09:00)이 한국 날짜로 오늘이면 "오늘까지",
+ * U-10 소비기한 D-day 배지. 먼저 받게 될 상품의 소비기한(+09:00)이 한국 날짜로 오늘이면 "오늘까지",
  * 1~EXPIRY_BADGE_DAYS일 뒤면 "D-n". 품절(null)이거나 더 멀면 null. 이미 지난 기한은 서버가 팔지 않으므로 오지 않는다
  */
 export function expiryBadge(

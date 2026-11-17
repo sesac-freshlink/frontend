@@ -68,7 +68,7 @@ function orderNo(id: number, ms = Date.now()) {
   return `FL-${kstDate(ms).replaceAll('-', '')}-${String(id).padStart(6, '0')}`
 }
 
-/** 픽업 기한: 오늘부터 days 일 뒤 그날 23:59:59 KST (진짜는 lot 유통기한 중 가장 빠른 날) */
+/** 픽업 기한: 오늘부터 days 일 뒤 그날 23:59:59 KST (진짜는 lot 소비기한 중 가장 빠른 날) */
 function pickupDeadline(days: number) {
   const kstDate = new Date(Date.now() + 9 * 3_600_000 + days * 86_400_000)
     .toISOString()
@@ -381,7 +381,20 @@ const OWNER_TABS: Record<
   OwnerOrderTab,
   { statuses: readonly OrderStatus[]; sortBy: (o: MockOrder) => string }
 > = {
+  ALL: {
+    statuses: [
+      'PAID',
+      'PICKUP_REQUESTED',
+      'READY_FOR_PICKUP',
+      'PICKED_UP',
+      'PICKUP_EXPIRED',
+      'REFUNDED',
+    ],
+    sortBy: (o) => o.paidAt ?? '',
+  },
   PICKUP_WAITING: { statuses: AWAITING_PICKUP, sortBy: (o) => o.paidAt ?? '' },
+  PICKUP_REQUESTED: { statuses: ['PICKUP_REQUESTED'], sortBy: (o) => o.paidAt ?? '' },
+  READY_FOR_PICKUP: { statuses: ['READY_FOR_PICKUP'], sortBy: (o) => o.paidAt ?? '' },
   PICKED_UP: { statuses: ['PICKED_UP'], sortBy: (o) => o.pickedUpAt ?? '' },
   CANCELED: {
     statuses: ['PAID', 'PICKUP_REQUESTED', 'REFUNDED'],
@@ -712,6 +725,19 @@ export const orderHandlers = [
       const body: CreateOrderResponse = { orderId: o.orderId, orderNo: o.orderNo, status: o.status }
       return HttpResponse.json(body)
     }
+    // 서버처럼 같은 점포·상품의 열린 주문(확인 중·결제 대기)이 있으면 다른 키라도 막는다 (order V10, 11/15)
+    const open = [...orders.values()].some(
+      (o) =>
+        (o.status === 'RESERVING' || o.status === 'PAYMENT_WAITING') &&
+        o.storeId === req.storeId &&
+        o.productId === req.productId,
+    )
+    if (open) {
+      return HttpResponse.json(
+        { code: 'ORDER_ALREADY_PENDING', message: '결제하지 않은 주문이 있어요' },
+        { status: 409 },
+      )
+    }
     const id = nextOrderId++
     const now = new Date()
     orders.set(id, {
@@ -745,7 +771,7 @@ export const orderHandlers = [
     const body: CreateOrderResponse = { orderId: id, orderNo: orderNo(id), status: 'RESERVING' }
     return HttpResponse.json(body, { status: 201 })
   }),
-  // OR-06 고객 주문 내역 (A3): 구분·기간으로 거르고 주문일시 최신순
+  // OR-06 고객 주문 내역 (A3): 구분·기간·상품명으로 거르고 주문일시 최신순
   http.get('/api/orders', ({ request }) => {
     const q = readListParams(
       new URL(request.url),
@@ -754,13 +780,17 @@ export const orderHandlers = [
     )
     if (q instanceof Response) return q
     const statuses = CUSTOMER_TABS[q.tab]
+    // 상품명 검색(OR-06 q, 11/11): 서버처럼 앞뒤 공백 빼고 대소문자 없이 상품명 일부
+    const keyword = (new URL(request.url).searchParams.get('q') ?? '').trim().toLowerCase()
     for (const o of orders.values()) advance(o)
     const rows = [...orders.values()]
       .filter(
         (o) =>
           (q.tab === 'ALL'
             ? statuses.includes(o.status)
-            : inTab(o, statuses, q.tab === 'CANCELED')) && q.inPeriod(o),
+            : inTab(o, statuses, q.tab === 'CANCELED')) &&
+          q.inPeriod(o) &&
+          (!keyword || (o.productName ?? '').toLowerCase().includes(keyword)),
       )
       .sort(newestFirst((o) => o.createdAt))
       .map(customerOrder)
@@ -844,7 +874,13 @@ export const orderHandlers = [
     if (q instanceof Response) return q
     const { statuses, sortBy } = OWNER_TABS[q.tab]
     const rows = [...orders.values()]
-      .filter((o) => inTab(o, statuses, q.tab === 'CANCELED') && q.inPeriod(o))
+      // 전체는 서버처럼 환불 상태와 상관없이 넣는다
+      .filter(
+        (o) =>
+          (q.tab === 'ALL'
+            ? statuses.includes(o.status)
+            : inTab(o, statuses, q.tab === 'CANCELED')) && q.inPeriod(o),
+      )
       .sort(newestFirst(sortBy))
       .map(ownerOrder)
     return HttpResponse.json(toPage(rows, q.page, q.size))

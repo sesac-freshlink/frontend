@@ -74,7 +74,7 @@ export function thisWeekRange(now: Date = new Date()): SalesRange {
 /** 기간이 잘못됐으면 화면 문구, 맞으면 null. 서버 검사(필수, from ≤ to, 최대 366일)와 같다 */
 export function rangeError({ from, to }: SalesRange): string | null {
   if (!from || !to) return '시작일과 종료일을 모두 골라 주세요.'
-  if (from > to) return '시작일이 종료일보다 늦어요.'
+  if (from > to) return '시작일이 종료일보다 늦어요. 시작일을 종료일보다 앞 날짜로 골라 주세요.'
   if (day(to).diff(day(from), 'day') + 1 > MAX_DAYS) {
     return `기간은 최대 ${MAX_DAYS}일까지 볼 수 있어요.`
   }
@@ -206,4 +206,47 @@ export function chartSummary(periods: SalesPeriod[], unit: SalesUnit, title: str
   const range = first === last ? first : `${first} ~ ${last}`
   if (top.netAmount <= 0) return `${title} 그래프. ${range}, 매출 없음`
   return `${title} 그래프. ${range}, 합계 ${formatWon(total)}, 가장 높은 때 ${axisLabel(top.period, unit)} ${formatWon(top.netAmount)}`
+}
+
+/** "2026-11-13" → "11월 13일(금)" (매출 상세·매출 날짜 창) */
+export function formatDayTitle(date: string): string {
+  const d = day(date)
+  return `${d.month() + 1}월 ${d.date()}일(${WEEKDAYS[d.day()]})`
+}
+
+/** 날짜를 n일 옮긴다 ("yyyy-MM-dd") */
+export function shiftDay(date: string, n: number): string {
+  return day(date).add(n, 'day').format('YYYY-MM-DD')
+}
+
+/** 주소의 date 가 "yyyy-MM-dd" 실제 날짜면 그대로, 아니면 null */
+export function parseDayParam(value: string | null): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  return day(value).format('YYYY-MM-DD') === value ? value : null
+}
+
+/** 상품별 매출 합계: 팔린 수량과 그중 마감세일 수량 */
+export function sumSoldProducts(items: { soldQuantity: number; clearanceQuantity: number }[]): {
+  sold: number
+  clearance: number
+} {
+  return items.reduce(
+    (acc, i) => ({
+      sold: acc.sold + i.soldQuantity,
+      clearance: acc.clearance + i.clearanceQuantity,
+    }),
+    { sold: 0, clearance: 0 },
+  )
+}
+
+/** 그날 폐기 합계: 폐기 수량(양수)과 상품 수 */
+export function disposalSummary(rows: { type: string; productId: number; quantity: number }[]): {
+  quantity: number
+  products: number
+} {
+  const disposals = rows.filter((r) => r.type === 'DISPOSE')
+  return {
+    quantity: disposals.reduce((sum, r) => sum + Math.abs(r.quantity), 0),
+    products: new Set(disposals.map((r) => r.productId)).size,
+  }
 }

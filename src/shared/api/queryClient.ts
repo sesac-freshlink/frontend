@@ -15,11 +15,15 @@ export const queryClient = new QueryClient({
 
 /**
  * 폴링 주기. S-15 점주 재고는 3초, 고객 주문 상세는 2초, 선착순 대기 화면 순번은 2.5초 (오픈런 문서 2~3초),
- * 고객 픽업 QR 화면의 픽업 대기 목록은 5초 (추가 명세 A16)
+ * 고객 픽업 QR 화면의 픽업 대기 목록은 5초 (추가 명세 A16).
+ * 점주 주문 목록(대시보드 픽업 대기 포함)은 화면이 보일 때 10초, 고객 주문 상세는 결제 완료 뒤 준비 완료가 될 때까지 5초
+ * (11/14 경우 결정 R3: 알림을 놓쳐도 맞춰지는 안전 주기)
  */
 export const POLL_MS = {
   ownerInventory: 3_000,
   orderDetail: 2_000,
   firstComeQueue: 2_500,
   pickupQr: 5_000,
+  ownerOrders: 10_000,
+  orderProgress: 5_000,
 } as const

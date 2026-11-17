@@ -19,7 +19,7 @@ export function SafetyStockSettings() {
 
   if (safetyStocks.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -84,14 +84,13 @@ function SafetyStockRow({ item }: { item: SafetyStockItem }) {
     <tr>
       <td className="px-4 py-3 whitespace-nowrap">
         <p className="font-medium">{item.name}</p>
-        <p className="text-xs text-slate-400">{item.productCode}</p>
       </td>
       <td className="px-3 py-3 whitespace-nowrap text-slate-600">{item.category}</td>
       <td className="px-3 py-3 whitespace-nowrap">
         <span
           className={cn(
             'rounded-full px-2 py-0.5 text-xs font-medium',
-            item.customized ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500',
+            item.customized ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600',
           )}
         >
           {item.customized ? '직접 정함' : '기본값'}
@@ -122,7 +121,7 @@ function SafetyStockRow({ item }: { item: SafetyStockItem }) {
           <button
             type="submit"
             disabled={!changed || update.isPending}
-            className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-emerald-600"
+            className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-40 disabled:hover:bg-emerald-600"
           >
             저장
           </button>

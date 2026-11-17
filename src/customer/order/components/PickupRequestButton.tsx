@@ -6,7 +6,7 @@ import {
   pickupRequestErrorMessage,
   usePickupRequest,
 } from '../pickupRequest'
-import { ConfirmDialog } from './ConfirmDialog'
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 
 /**
  * [픽업 신청]: 한 번 더 묻고 신청한다. 신청하면 점주에게 새 픽업 주문 알림이 가고, 점주가 준비 완료를 누를 수 있다.
@@ -39,8 +39,8 @@ export function PickupRequestButton({
         onClick={() => setOpen(true)}
         aria-label={size === 'compact' ? `${orderNo} 픽업 신청` : undefined}
         className={cn(
-          'rounded-lg bg-emerald-600 font-medium text-white hover:bg-emerald-700',
-          size === 'full' ? 'block w-full py-3 text-center' : 'px-3 py-1.5 text-sm',
+          'rounded-lg bg-emerald-700 font-medium text-white hover:bg-emerald-800',
+          size === 'full' ? 'block w-full py-3 text-center' : 'min-h-11 px-3 text-sm',
         )}
       >
         픽업 신청

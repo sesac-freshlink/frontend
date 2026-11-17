@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import type { z } from 'zod'
 import { FormField } from '@/auth/components/FormField'
 import { describedBy, inputClass } from '@/auth/components/fieldStyles'
-import type { FaqItem } from '../api'
+import type { Audience, FaqItem } from '../api'
 import { useSaveFaq } from '../api'
 import { type FaqForm, faqDefaults, faqSchema, toFaqRequest } from '../boardForm'
 import { AudienceSelect } from './AudienceSelect'
@@ -18,7 +18,10 @@ interface Props {
   onClose(): void
 }
 
-/** 관리자 FAQ 쓰기·고치기 창 (추가 명세 A17) */
+/** FAQ 볼 사람. 점주 화면에서 자주 묻는 질문을 뺐으므로(11/14 경우 결정) 점주는 고르지 않는다 */
+const FAQ_AUDIENCES: Audience[] = ['ALL', 'CUSTOMER']
+
+/** 관리자 FAQ 쓰기·수정 창 (추가 명세 A17) */
 export function FaqEditDialog({ faq, onClose }: Props) {
   const save = useSaveFaq()
   const [formError, setFormError] = useState<string | null>(null)
@@ -36,7 +39,7 @@ export function FaqEditDialog({ faq, onClose }: Props) {
     setFormError(null)
     try {
       await save.mutateAsync({ faqId: faq?.faqId ?? null, body: toFaqRequest(values) })
-      toast.success(faq ? '질문을 고쳤어요' : '질문을 올렸어요')
+      toast.success(faq ? '질문을 수정했어요' : '질문을 올렸어요')
       onClose()
     } catch {
       setFormError('저장하지 못했어요. 잠시 뒤 다시 시도해 주세요')
@@ -44,7 +47,7 @@ export function FaqEditDialog({ faq, onClose }: Props) {
   })
 
   return (
-    <BoardDialog title={faq ? '질문 고치기' : '질문 쓰기'} busy={isSubmitting} onClose={onClose}>
+    <BoardDialog title={faq ? '질문 수정' : '질문 쓰기'} busy={isSubmitting} onClose={onClose}>
       <form onSubmit={onSubmit} noValidate className="space-y-4">
         <FormField id="faq-question" label="질문" error={errors.question?.message} hint="200자까지">
           <input
@@ -68,6 +71,7 @@ export function FaqEditDialog({ faq, onClose }: Props) {
           id="faq-audience"
           error={errors.audience?.message}
           field={register('audience')}
+          options={FAQ_AUDIENCES}
         />
         <FormField
           id="faq-sort"

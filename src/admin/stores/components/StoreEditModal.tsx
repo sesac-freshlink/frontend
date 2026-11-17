@@ -254,7 +254,7 @@ export function StoreEditModal({ store, onClose }: StoreEditModalProps) {
               />
             </label>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500">
             JPG·PNG를 올릴 수 있어요. 저장을 눌러야 점포에 반영돼요
           </p>
           {imageError && (
@@ -281,7 +281,7 @@ export function StoreEditModal({ store, onClose }: StoreEditModalProps) {
             type="submit"
             disabled={unchanged || isSubmitting || upload.isPending}
             aria-busy={isSubmitting}
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {isSubmitting && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
             저장

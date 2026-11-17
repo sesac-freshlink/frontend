@@ -5,6 +5,7 @@ import type { AxiosRequestConfig } from 'axios'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/api/client'
+import { useAuthStore } from '@/shared/auth'
 import type { StoreProduct } from '../api'
 import { StoreProductsPage } from './StoreProductsPage'
 
@@ -61,8 +62,13 @@ function hasFilter(config?: AxiosRequestConfig) {
   return Object.keys(params).some((key) => key !== 'page' && key !== 'size')
 }
 
+/** 상품 목록(묶음) 요청만. 분류 줄 사진용 전체 목록 요청(조건·묶음 없음)은 빼고 센다 */
 function productCalls() {
-  return get.mock.calls.filter(([url]) => url === '/stores/1/products')
+  return get.mock.calls.filter(
+    ([url, config]) =>
+      url === '/stores/1/products' &&
+      (config as AxiosRequestConfig | undefined)?.params?.page !== undefined,
+  )
 }
 
 /** 가짜 get 이 받은 검색어(q). 없으면 빈 문자열 */
@@ -75,12 +81,23 @@ function renderAt(path: string, state?: { storeName: string }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createMemoryRouter(
     [
-      { path: '/customer', element: <p>점포 찾기 화면</p> },
+      { path: '/customer/stores', element: <p>점포 찾기 화면</p> },
       { path: '/customer/stores/:storeId', element: <StoreProductsPage /> },
       { path: '/customer/stores/:storeId/products/:productId', element: <p>상품 상세 화면</p> },
       { path: '/customer/orders/:id', element: <p>주문·결제 화면</p> },
     ],
-    { initialEntries: [state ? { pathname: path, state } : path] },
+    // 주소에 ?조건이 있으면 pathname·search 로 나눠 넘긴다(state 를 같이 넘길 때)
+    {
+      initialEntries: [
+        state
+          ? {
+              pathname: path.split('?')[0],
+              search: path.includes('?') ? `?${path.split('?')[1]}` : '',
+              state,
+            }
+          : path,
+      ],
+    },
   )
   render(
     <QueryClientProvider client={queryClient}>
@@ -104,25 +121,29 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     expect(get).toHaveBeenCalledWith('/stores/1/products', { params: { page: 0, size: 20 } })
 
     const noodle = (await screen.findByText('매운 컵라면 115g')).closest('li')!
-    expect(within(noodle).getByText('라면')).toBeInTheDocument()
     expect(within(noodle).getByText('1,700원')).toBeInTheDocument()
-    expect(within(noodle).getByText('3개 남음')).toBeInTheDocument()
+    // 3개 이하로 남으면 빨갛게 "N개 남았어요"
+    expect(within(noodle).getByText('3개 남았어요').parentElement).toHaveClass('text-rose-700')
 
-    const names = screen
-      .getAllByRole('listitem')
-      .map((li) => li.querySelector('span span')?.textContent)
+    // 2칸 사진 카드, 서버 순서 그대로
+    const names = [...document.querySelectorAll('ul.grid > li')].map(
+      (li) => li.querySelector('.line-clamp-2')?.textContent,
+    )
     expect(names).toEqual(['매운 컵라면 115g', '샌드위치 햄치즈'])
   })
 
-  it('품절 상품은 흐리게 보여 주고 누를 수 없다', async () => {
+  it('품절 상품은 흐리게 보여 주고, 눌러서 상세(주변 점포 재고)로 갈 수 있다', async () => {
     serve(() => Promise.resolve({ data: products }))
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
 
     const sandwich = (await screen.findByText('샌드위치 햄치즈')).closest('li')!
     expect(within(sandwich).getByText('품절')).toBeInTheDocument()
-    expect(within(sandwich).queryByRole('link')).not.toBeInTheDocument()
-    expect(sandwich).toHaveAttribute('aria-disabled', 'true')
-    expect(sandwich.firstElementChild).toHaveClass('opacity-50')
+    expect(within(sandwich).getByRole('link')).toHaveAttribute(
+      'href',
+      '/customer/stores/1/products/3',
+    )
+    // 사진만 흐리게 한다
+    expect(sandwich.querySelector('.opacity-40')).not.toBeNull()
   })
 
   it('상품을 누르면 그 상품의 상세 화면으로 간다', async () => {
@@ -212,45 +233,143 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     expect(screen.getByRole('textbox', { name: '상품 검색어' })).toHaveValue('')
   })
 
-  it('카테고리 칩을 누르면 그 카테고리로 서버에 묻고, 전체를 누르면 조건을 푼다', async () => {
+  it('분류 줄: [카테고리]는 전체 분류 화면, 분류를 누르면 그 분류로 서버에 묻고 다시 누르면 조건을 푼다', async () => {
     serve(() => Promise.resolve({ data: products }))
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
-    const group = await screen.findByRole('group', { name: '카테고리' })
-    expect(await within(group).findByRole('button', { name: '라면' })).toBeInTheDocument()
-    expect(within(group).getByRole('button', { name: '전체' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
+    expect(await screen.findByRole('link', { name: '카테고리' })).toHaveAttribute(
+      'href',
+      '/customer/stores/1/categories',
     )
+    const row = await screen.findByRole('list', { name: '분류' })
+    const ramen = await within(row).findByRole('button', { name: '라면' })
+    expect(ramen).toHaveAttribute('aria-pressed', 'false')
+    // 분류 사진은 꾸밈이라 화면 읽기에 읽히지 않는다(이름 글자가 라벨)
+    expect(row.querySelectorAll('img[alt=""]').length).toBeGreaterThanOrEqual(0)
 
-    await userEvent.click(within(group).getByRole('button', { name: '라면' }))
+    await userEvent.click(ramen)
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
         params: { category: '라면', page: 0, size: 20 },
       }),
     )
-    expect(within(group).getByRole('button', { name: '라면' })).toHaveAttribute(
+    expect(within(row).getByRole('button', { name: '라면' })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
 
-    await userEvent.click(within(group).getByRole('button', { name: '전체' }))
+    await userEvent.click(within(row).getByRole('button', { name: '라면' }))
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/stores/1/products', { params: { page: 0, size: 20 } }),
     )
   })
 
-  it('추천상품·신상품 칩과 추천순 정렬을 같이 서버에 넘긴다', async () => {
+  it('분류와 조건 버튼은 같이 걸린다(라면 + 신상품)', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    const row = await screen.findByRole('list', { name: '분류' })
+    await userEvent.click(await within(row).findByRole('button', { name: '라면' }))
+    const conditions = screen.getByRole('group', { name: '상품 조건' })
+    expect(
+      within(conditions)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['마감세일', '선착순', '신상품', '점주 추천'])
+    await userEvent.click(within(conditions).getByRole('button', { name: '신상품' }))
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { category: '라면', newOnly: true, page: 0, size: 20 },
+      }),
+    )
+  })
+
+  it('베스트 상품 [전체 보기](?sort=POPULAR)로 들어오면 추천순으로 시작한다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1?sort=POPULAR', { storeName: '프레시 강남점' })
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/stores/1/products', {
+        params: { sort: 'POPULAR', page: 0, size: 20 },
+      }),
+    )
+  })
+
+  it('아이콘 조건은 하나만 켜진다: 다른 것을 누르면 앞의 것이 꺼지고 정렬은 같이 걸린다', async () => {
     serve(() => Promise.resolve({ data: products }))
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
     await screen.findByText('매운 컵라면 115g')
 
-    await userEvent.click(screen.getByRole('button', { name: '추천상품' }))
+    await userEvent.click(screen.getByRole('button', { name: '점주 추천' }))
     await userEvent.click(screen.getByRole('button', { name: '신상품' }))
     await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), '추천순')
 
+    expect(screen.getByRole('button', { name: '신상품' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '점주 추천' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
-        params: { sort: 'POPULAR', recommended: true, newOnly: true, page: 0, size: 20 },
+        params: { sort: 'POPULAR', newOnly: true, page: 0, size: 20 },
+      }),
+    )
+  })
+
+  it('켜진 아이콘을 다시 누르면 꺼지고 전체로 돌아간다. 카테고리는 그대로 같이 걸린다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1?category=%EB%9D%BC%EB%A9%B4', { storeName: '프레시 강남점' })
+    await screen.findByText('매운 컵라면 115g')
+
+    await userEvent.click(screen.getByRole('button', { name: '점주 추천' }))
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { category: '라면', recommended: true, page: 0, size: 20 },
+      }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: '점주 추천' }))
+    expect(screen.getByRole('button', { name: '점주 추천' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { category: '라면', page: 0, size: 20 },
+      }),
+    )
+  })
+
+  it('마감세일·선착순은 서버가 거른다(clearance·firstCome, 11/12): 하나만 켜지고 선착순을 누르면 마감세일이 꺼진다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1?show=clearance', { storeName: '프레시 강남점' })
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { clearance: true, page: 0, size: 20 },
+      }),
+    )
+    await userEvent.click(await screen.findByRole('button', { name: '선착순' }))
+    expect(screen.getByRole('button', { name: '마감세일' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { firstCome: true, page: 0, size: 20 },
+      }),
+    )
+  })
+
+  it('주소에 ?show= 가 여러 개 오면 알맞은 값 중 맨 앞 하나만 켠다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1?show=oops&show=new&show=recommended', {
+      storeName: '프레시 강남점',
+    })
+    await screen.findByText('샌드위치 햄치즈')
+    expect(screen.getByRole('button', { name: '신상품' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '점주 추천' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    await waitFor(() =>
+      expect(get).toHaveBeenLastCalledWith('/stores/1/products', {
+        params: { newOnly: true, page: 0, size: 20 },
       }),
     )
   })
@@ -287,7 +406,7 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     expect(get).not.toHaveBeenCalled()
   })
 
-  it('유통기한이 가까운 상품에는 D-day 배지를 붙인다', async () => {
+  it('소비기한이 가까운 상품에는 D-day 배지를 붙인다', async () => {
     // 한국 날짜로 오늘 끝나는 상품
     const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
     serve(() =>
@@ -298,10 +417,10 @@ describe('고객 점포 상품 목록 (U-10)', () => {
     renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
 
     const noodle = (await screen.findByText('매운 컵라면 115g')).closest('li')!
-    expect(within(noodle).getByLabelText('유통기한 오늘까지')).toHaveTextContent('오늘까지')
+    expect(within(noodle).getByLabelText('소비기한 오늘까지')).toHaveTextContent('오늘까지')
     // 품절 상품은 기한이 없어 배지가 없다
     const sandwich = screen.getByText('샌드위치 햄치즈').closest('li')!
-    expect(within(sandwich).queryByLabelText(/유통기한/)).not.toBeInTheDocument()
+    expect(within(sandwich).queryByLabelText(/소비기한/)).not.toBeInTheDocument()
   })
 
   it('마감세일 수량이 있으면 배지와 할인가·수량을 붙이고 읽는 이름에도 넣는다', async () => {
@@ -322,13 +441,96 @@ describe('고객 점포 상품 목록 (U-10)', () => {
 
     const noodle = (await screen.findByText('매운 컵라면 115g')).closest('li')!
     expect(within(noodle).getByText('마감세일')).toBeInTheDocument()
-    expect(within(noodle).getByText('마감세일 1,190원 · 2개')).toBeInTheDocument()
+    // 할인율·할인가·원래 가격, 기본 수량 옆에 마감세일 수량
+    expect(within(noodle).getByText('30%')).toBeInTheDocument()
+    expect(within(noodle).getByText('1,190원')).toBeInTheDocument()
+    // 숫자와 "개"가 줄바꿈으로 떨어지지 않게 두 묶음 모두 줄바꿈을 막는다
+    expect(within(noodle).getByText('3개 남았어요')).toHaveClass('whitespace-nowrap')
+    expect(within(noodle).getByText('마감세일 2개')).toHaveClass('whitespace-nowrap')
+    expect(within(noodle).getByText('마감세일 2개').parentElement).toHaveTextContent(
+      '3개 남았어요 · 마감세일 2개',
+    )
     expect(within(noodle).getByRole('link')).toHaveAccessibleName(
       '매운 컵라면 115g, 1,700원, 3개 남음, 마감세일 1,190원 2개, 추천',
     )
     // 마감세일이 없는 상품에는 붙지 않는다
     const sandwich = screen.getByText('샌드위치 햄치즈').closest('li')!
     expect(within(sandwich).queryByText(/마감세일/)).not.toBeInTheDocument()
+  })
+
+  it('홈에서 넘어온 검색어(?q)·카테고리(?category)로 시작한다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt(
+      `/customer/stores/1?q=${encodeURIComponent('컵라면')}&category=${encodeURIComponent('라면')}`,
+      {
+        storeName: '프레시 강남점',
+      },
+    )
+    expect(await screen.findByRole('textbox', { name: '상품 검색어' })).toHaveValue('컵라면')
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/stores/1/products', {
+        params: { q: '컵라면', category: '라면', page: 0, size: 20 },
+      }),
+    )
+  })
+
+  it('홈 [전체 보기](?show=clearance)로 들어오면 마감세일 칩이 켜지고 서버에 마감세일만 묻는다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1?show=clearance', { storeName: '프레시 강남점' })
+    expect(await screen.findByRole('button', { name: '마감세일' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(get).toHaveBeenCalledWith('/stores/1/products', {
+      params: { clearance: true, page: 0, size: 20 },
+    })
+  })
+
+  it('위 뒤로 링크는 홈으로 가고, 마감세일만 남은 상품에는 "0개 남음" 대신 마감세일로만 살 수 있다고 보인다', async () => {
+    serve(() =>
+      Promise.resolve({
+        data: [
+          {
+            ...products[0],
+            availableQuantity: 0,
+            clearanceQuantity: 5,
+            clearancePrice: 1190,
+            clearanceExpiry: '2099-12-30T23:59:59+09:00',
+          },
+        ],
+      }),
+    )
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    const row = (await screen.findByText('매운 컵라면 115g')).closest('li')!
+    expect(within(row).getByText('마감세일로만 5개 남았어요')).toBeInTheDocument()
+    expect(within(row).queryByText('0개 남음')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '홈' })).toHaveAttribute('href', '/customer')
+  })
+
+  it('[픽업 점포로 정하기]를 누르면 이 기기에 저장하고 "내 픽업 점포"로 바뀐다', async () => {
+    localStorage.clear()
+    useAuthStore.setState({ user: { userId: 'sub-c', role: 'CUSTOMER' }, restoring: false })
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점' })
+    await userEvent.click(await screen.findByRole('button', { name: '픽업 점포로 정하기' }))
+    // 계정마다 따로 남긴다(저장 이름 뒤에 사용자 번호)
+    expect(JSON.parse(localStorage.getItem('freshlink.pickupStore.sub-c') ?? 'null')).toEqual({
+      storeId: 1,
+      name: '프레시 강남점',
+    })
+    expect(screen.getByText('내 픽업 점포')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '픽업 점포로 정하기' })).not.toBeInTheDocument()
+  })
+
+  it('점포 검색에서 둘러보러 왔으면 위 뒤로 링크가 점포 검색으로 간다', async () => {
+    serve(() => Promise.resolve({ data: products }))
+    renderAt('/customer/stores/1', { storeName: '프레시 강남점', from: 'search' } as {
+      storeName: string
+    })
+    expect(await screen.findByRole('link', { name: '점포 검색' })).toHaveAttribute(
+      'href',
+      '/customer/stores',
+    )
   })
 
   it('20개가 넘으면 [더 보기]로 다음 묶음을 이어 붙이고, 마지막 묶음이면 버튼이 사라진다', async () => {

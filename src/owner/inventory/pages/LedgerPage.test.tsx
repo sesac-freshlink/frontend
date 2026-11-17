@@ -99,10 +99,10 @@ describe('재고 변동 이력 (S-13)', () => {
     expect(within(inbound).getByText('입고')).toHaveClass('bg-emerald-100', 'text-emerald-800')
     expect(within(inbound).getByText('+10')).toHaveClass('text-emerald-700')
     expect(within(inbound).getByText('10/20 05:00')).toBeInTheDocument()
-    expect(within(inbound).getByText('유통기한 10/20')).toBeInTheDocument()
+    expect(within(inbound).getByText('소비기한 10/20')).toBeInTheDocument()
 
     const sale = await rowOf('1024')
-    expect(within(sale).getByText('판매')).toHaveClass('bg-sky-100', 'text-sky-800')
+    expect(within(sale).getByText('판매')).toHaveClass('bg-slate-100', 'text-slate-600')
     expect(within(sale).getByText('−1')).toHaveClass('text-red-600')
 
     const dispose = await rowOf('501')
@@ -163,7 +163,7 @@ describe('재고 변동 이력 (S-13)', () => {
     renderPage()
 
     const row = await rowOf('7001')
-    expect(within(row).getByText('조정')).toHaveClass('bg-violet-100', 'text-violet-800')
+    expect(within(row).getByText('조정')).toHaveClass('bg-slate-100', 'text-slate-600')
     expect(within(row).getByText('−2')).toHaveClass('text-red-600')
 
     await userEvent.click(screen.getByRole('button', { name: '조정' }))

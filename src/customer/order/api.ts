@@ -1,9 +1,20 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { api } from '@/shared/api/client'
 import { apiErrorCode } from '@/shared/api/errors'
 import { type DatePeriod, isReversedPeriod, periodParams } from '@/shared/api/period'
 import { POLL_MS } from '@/shared/api/queryClient'
-import { isPollingStatus, type FailureReason, type OrderStatus } from './orderStatus'
+import {
+  isAwaitingReadyStatus,
+  isPollingStatus,
+  type FailureReason,
+  type OrderStatus,
+} from './orderStatus'
 import { isRefundInProgress, type RefundInfo, type RefundStatus } from './refund'
 
 /** OR-01 요청 */
@@ -106,6 +117,18 @@ export const ORDER_PAGE_SIZES = [10, 20, 50] as const
 export type OrderPageSize = (typeof ORDER_PAGE_SIZES)[number]
 export const DEFAULT_ORDER_PAGE_SIZE: OrderPageSize = 20
 
+/** 주문 내역 상품명 검색어 최대 길이 (OR-06 q: 앞뒤 공백 빼고 50자, 이모지도 1자로 센다) */
+export const ORDER_KEYWORD_MAX = 50
+
+/**
+ * 글자(코드포인트) 기준으로 max 자까지 자른다. input maxLength 는 이모지를 2칸으로 세서 서버(코드포인트 50자)와
+ * 어긋나므로 이 함수로 자른다
+ */
+export function limitCodePoints(value: string, max: number): string {
+  const chars = Array.from(value)
+  return chars.length > max ? chars.slice(0, max).join('') : value
+}
+
 /** 주문 한 줄 (마감세일 함께 사기). 마감세일 줄이 먼저 온다. amount = unitPrice × quantity */
 export interface OrderLine {
   clearance: boolean
@@ -163,18 +186,90 @@ export function useCustomerOrders({ tab, page, size, period }: CustomerOrdersQue
   })
 }
 
-/** U-22·U-31 주문 조회 (OR-02). 진행 중 상태와 환불 처리·확인 중에만 2초 폴링 */
+/**
+ * A3 고객 주문 내역을 묶음(size)씩 이어 붙여 읽는다(핸드폰 무한 스크롤, 11/11).
+ * 받은 묶음이 마지막 페이지면 더 부르지 않는다. 구분·기간이 바뀌면 처음 묶음부터 다시 읽는다.
+ * 시작 날짜가 끝 날짜보다 늦으면 서버가 400 을 주므로 부르지 않는다
+ */
+export function useCustomerOrderPages({
+  tab,
+  size,
+  period,
+  keyword = '',
+}: Omit<CustomerOrdersQuery, 'page'> & { keyword?: string }) {
+  const range = periodParams(period)
+  // 상품명 검색(OR-06 q, 11/11). 앞뒤 공백을 빼고 비면 보내지 않는다. 서버가 q 를 모르면 무시해 전체가 온다
+  const q = keyword.trim()
+  const search = q ? { q } : {}
+  return useInfiniteQuery({
+    queryKey: ['customer', 'orders', 'pages', tab, size, range, q],
+    queryFn: async ({ pageParam }) =>
+      (
+        await api.get<OrderPage<CustomerOrderSummary>>('/orders', {
+          params: { tab, page: pageParam, size, ...range, ...search },
+        })
+      ).data,
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.page + 1 < last.totalPages ? last.page + 1 : undefined),
+    enabled: !isReversedPeriod(period),
+    refetchOnWindowFocus: false,
+  })
+}
+
+/**
+ * U-22·U-31 주문 조회 (OR-02). 진행 중 상태와 환불 처리·확인 중에는 2초,
+ * 결제 완료 뒤 준비 완료 전(결제 완료·픽업 신청)에는 5초 폴링 (11/14 경우 결정 R3)
+ */
 export function useOrder(orderId: number | undefined) {
   return useQuery({
     queryKey: orderKey(orderId ?? 0),
     queryFn: async () => (await api.get<Order>(`/orders/${orderId}`)).data,
     enabled: orderId !== undefined,
-    refetchInterval: (query) =>
-      isPollingStatus(query.state.data?.status) ||
-      isRefundInProgress(query.state.data?.refundStatus)
-        ? POLL_MS.orderDetail
-        : false,
+    refetchInterval: (query) => orderRefetchMs(query.state.data),
   })
+}
+
+/** 주문 상세 폴링 간격. 멈추면 false */
+export function orderRefetchMs(
+  order: Pick<Order, 'status' | 'refundStatus'> | undefined,
+): number | false {
+  if (isPollingStatus(order?.status) || isRefundInProgress(order?.refundStatus))
+    return POLL_MS.orderDetail
+  if (isAwaitingReadyStatus(order?.status)) return POLL_MS.orderProgress
+  return false
+}
+
+/** 결제 대기 주문을 찾을 때 볼 최신 주문 수. 결제 대기는 10분이면 만료돼 늘 최신 주문 안에 있다 */
+export const PENDING_LOOKUP_SIZE = 10
+
+/**
+ * 같은 점포·같은 상품의 결제 대기 주문 (11/12 경우 결정, 화면만으로 찾는다).
+ * 주문 내역 전체 최신 10개에서 결제 대기만 골라 상세를 읽고 점포·상품 번호로 비교한다. 없으면 null
+ */
+export async function fetchPendingOrder(
+  storeId: number,
+  storeName: string,
+  productId: number,
+): Promise<{ order: Order; receivedAtMs: number } | null> {
+  const page = (
+    await api.get<OrderPage<CustomerOrderSummary>>('/orders', {
+      params: { tab: 'ALL', page: 0, size: PENDING_LOOKUP_SIZE },
+    })
+  ).data
+  const candidates = page.content.filter(
+    (row) => row.status === 'PAYMENT_WAITING' && row.storeName === storeName,
+  )
+  for (const row of candidates) {
+    const order = (await api.get<Order>(`/orders/${row.orderId}`)).data
+    if (
+      order.status === 'PAYMENT_WAITING' &&
+      order.storeId === storeId &&
+      order.productId === productId
+    ) {
+      return { order, receivedAtMs: Date.now() }
+    }
+  }
+  return null
 }
 
 /** U-21 주문 생성 (OR-01). 같은 구매 시도의 재시도에는 같은 Idempotency-Key 를 보낸다 */

@@ -62,7 +62,7 @@ export function TermsAgreement({ value, onChange, error }: Props) {
           </button>
         </div>
       ))}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-rose-700">{error}</p>}
       {open && <TermsDialog documents={[open]} onClose={() => setOpen(null)} />}
     </fieldset>
   )

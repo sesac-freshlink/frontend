@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /owner
+Disallow: /customer
+Disallow: /admin
+
+Sitemap: https://getfreshlink.com/sitemap.xml

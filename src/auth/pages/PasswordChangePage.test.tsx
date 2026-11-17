@@ -28,10 +28,10 @@ const changePassword =
 const expireSession = vi.fn(() => true)
 const signOut = vi.fn(async () => undefined)
 
-function renderAt(path: string, backTo: string) {
+function renderAt(path: string, backTo: string, backLabel?: string) {
   const router = createMemoryRouter(
     [
-      { path, element: <PasswordChangePage backTo={backTo} /> },
+      { path, element: <PasswordChangePage backTo={backTo} backLabel={backLabel} /> },
       { path: backTo, element: <p>돌아간 화면</p> },
       { path: '/login', element: <p>로그인 화면</p> },
     ],
@@ -78,9 +78,16 @@ describe('PasswordChangePage (A4)', () => {
     expect(signOut).toHaveBeenCalledWith('PASSWORD_CHANGED_OTHERS_ACTIVE')
   })
 
+  it('고객은 위에 "‹ 마이페이지" 뒤로 링크가 있고, 이름을 안 주면(점주) 그리지 않는다', async () => {
+    const router = renderAt('/customer/my/password', '/customer/my', '마이페이지')
+    await userEvent.setup().click(screen.getByRole('link', { name: '마이페이지' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/customer/my'))
+  })
+
   it('점주도 같은 폼을 쓰고, 취소하면 내 점포로 돌아간다', async () => {
     useAuthStore.setState({ user: { userId: 'o', role: 'OWNER', storeId: '1' } })
     const router = renderAt('/owner/store/password', '/owner/store')
+    expect(screen.getAllByRole('link')).toHaveLength(1)
     await userEvent.setup().click(screen.getByRole('link', { name: '취소' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/owner/store'))
   })

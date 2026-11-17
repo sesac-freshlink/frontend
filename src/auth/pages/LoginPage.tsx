@@ -7,7 +7,12 @@ import { z } from 'zod'
 import { isMockApi } from '@/shared/api/mockMode'
 import { homePathFor, useAuthStore, type Role } from '@/shared/auth'
 import { useLoadMyProfile } from '../api'
-import { isUnconfirmedSignIn, loginNoticeMessage, signInErrorMessage } from '../authErrors'
+import {
+  isUnconfirmedSignIn,
+  loginNoticeMessage,
+  signInErrorMessage,
+  wrongRoleMessage,
+} from '../authErrors'
 import { goToGoogleLogin, MOCK_GOOGLE_EMAIL } from '../googleLogin'
 import type { SignupLocationState } from '../useSignupFlow'
 
@@ -20,9 +25,18 @@ type Form = z.infer<typeof schema>
 /** 로그인 전에 보던 화면이 이 영역 안이면 그리로 돌려보낸다 */
 const AREA: Record<Role, string> = { OWNER: '/owner', CUSTOMER: '/customer', ADMIN: '/admin' }
 
-/** C-02 로그인 (기능명세 M2, 이메일·구글). 프로필이 없는 고객은 프로필 등록 마무리 화면으로 보낸다 */
-export function LoginPage() {
-  const { user, signIn, loginNotice } = useAuthStore()
+const TITLE: Record<Role, string> = {
+  CUSTOMER: 'FreshLink 로그인',
+  OWNER: 'FreshLink 점주 로그인',
+  ADMIN: 'FreshLink 관리자 로그인',
+}
+
+/**
+ * C-02 로그인 (기능명세 M2, 이메일·구글). 프로필이 없는 고객은 프로필 등록 마무리 화면으로 보낸다.
+ * 화면은 역할마다 따로다: /login 고객(구글·회원가입 있음), /owner/login 점주, /admin/login 관리자(11/15 경우 결정)
+ */
+export function LoginPage({ role = 'CUSTOMER' }: { role?: Role }) {
+  const { user, signIn, signOut, loginNotice } = useAuthStore()
   const navigate = useNavigate()
   const from = (useLocation().state as { from?: string } | null)?.from
   const [searchParams] = useSearchParams()
@@ -48,6 +62,11 @@ export function LoginPage() {
         return
       }
       toast.error(signInErrorMessage(e))
+      return
+    }
+    if (signedIn.role !== role) {
+      await signOut()
+      toast.error(wrongRoleMessage(role))
       return
     }
     // MB-03 이 404 면 프로필 등록 마무리 화면으로. 조회 자체가 실패하면 고객 홈이 다시 확인한다
@@ -82,11 +101,11 @@ export function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-6">
-      <h1 className="text-2xl font-bold text-emerald-600">FreshLink 로그인</h1>
+      <h1 className="text-2xl font-bold text-emerald-600">{TITLE[role]}</h1>
       {notice && (
         <p
           role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600"
+          className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"
         >
           {notice}
         </p>
@@ -99,7 +118,7 @@ export function LoginPage() {
             {...register('email')}
             className="w-full rounded-lg border border-slate-300 px-3 py-2"
           />
-          <span className="text-xs text-red-600">{formState.errors.email?.message}</span>
+          <span className="text-xs text-rose-700">{formState.errors.email?.message}</span>
         </label>
         <label className="block space-y-1">
           <span className="text-sm font-medium">비밀번호</span>
@@ -108,29 +127,33 @@ export function LoginPage() {
             {...register('password')}
             className="w-full rounded-lg border border-slate-300 px-3 py-2"
           />
-          <span className="text-xs text-red-600">{formState.errors.password?.message}</span>
+          <span className="text-xs text-rose-700">{formState.errors.password?.message}</span>
         </label>
         <button
           type="submit"
           disabled={formState.isSubmitting}
-          className="w-full rounded-lg bg-emerald-600 py-2 font-medium text-white disabled:opacity-50"
+          className="w-full rounded-lg bg-emerald-700 py-2 font-medium text-white disabled:opacity-50"
         >
           로그인
         </button>
       </form>
-      <div className="flex items-center gap-3 text-xs text-slate-400">
-        <span className="h-px flex-1 bg-slate-200" />
-        또는
-        <span className="h-px flex-1 bg-slate-200" />
-      </div>
-      <button
-        type="button"
-        onClick={() => void onGoogle()}
-        disabled={formState.isSubmitting || googlePending}
-        className="w-full rounded-lg border border-slate-300 bg-white py-2 font-medium text-slate-900 disabled:opacity-50"
-      >
-        구글로 로그인
-      </button>
+      {role === 'CUSTOMER' && (
+        <>
+          <div className="flex items-center gap-3 text-xs text-slate-400">
+            <span className="h-px flex-1 bg-slate-200" />
+            또는
+            <span className="h-px flex-1 bg-slate-200" />
+          </div>
+          <button
+            type="button"
+            onClick={() => void onGoogle()}
+            disabled={formState.isSubmitting || googlePending}
+            className="w-full rounded-lg border border-slate-300 bg-white py-2 font-medium text-slate-900 disabled:opacity-50"
+          >
+            구글로 로그인
+          </button>
+        </>
+      )}
       {isMockApi && (
         <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
           개발용 가짜 로그인: admin 으로 시작하는 이메일은 관리자, owner 로 시작하는 이메일은 점주,
@@ -138,9 +161,11 @@ export function LoginPage() {
           시작하는 이메일은 이메일 가입자 막기 확인용입니다.
         </p>
       )}
-      <Link to="/signup" className="text-center text-sm text-slate-500 underline">
-        회원가입
-      </Link>
+      {role === 'CUSTOMER' && (
+        <Link to="/signup" className="text-center text-sm text-slate-500 underline">
+          회원가입
+        </Link>
+      )}
     </div>
   )
 }

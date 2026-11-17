@@ -119,7 +119,7 @@ describe('점주 상품 메모 모달', () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled())
     expect(del).toHaveBeenCalledWith('/owner/inventory/memos/15', { params: { version: 5 } })
-    expect(toast.success).toHaveBeenCalledWith('매운 컵라면 115g 메모를 지웠어요')
+    expect(toast.success).toHaveBeenCalledWith('매운 컵라면 115g 메모를 삭제했어요')
   })
 
   it('메모가 없는데 빈 채로 저장하면 아무 요청 없이 닫는다', async () => {

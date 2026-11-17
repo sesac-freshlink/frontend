@@ -37,3 +37,24 @@ export function useCurrentPosition(enabled: boolean): PositionState {
 
   return state
 }
+
+/**
+ * 이 기기가 위치 권한을 이미 허용했는지(묻는 창을 띄우지 않고 확인만). 점포 정할 때 확인 창은
+ * 허용한 기기에서만 위치를 쓴다(11/14 경우 결정: 위치 권한이 없으면 안내하지 않음)
+ */
+export function useGeolocationGranted(): boolean {
+  const [granted, setGranted] = useState(false)
+  useEffect(() => {
+    let alive = true
+    void navigator.permissions
+      ?.query({ name: 'geolocation' })
+      .then((status) => {
+        if (alive && status.state === 'granted') setGranted(true)
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [])
+  return granted
+}

@@ -1,15 +1,7 @@
-import {
-  ChevronLeft,
-  ChevronRight,
-  LoaderCircle,
-  Search,
-  StickyNote,
-  TriangleAlert,
-} from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChevronLeft, ChevronRight, LoaderCircle, StickyNote } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { cn } from '@/shared/ui/cn'
-import { ProductThumb } from '@/shared/ui/ProductThumb'
 import {
   apiErrorMessage,
   useInventory,
@@ -21,13 +13,18 @@ import { LotDetailPanel } from '../components/LotDetailPanel'
 import { MemoDialog } from '../components/MemoDialog'
 import { MemoList } from '../components/MemoList'
 import { formatStatuses, parseStatuses } from '../statusParam'
-import { ProductExposureSettings } from '../components/ProductExposureSettings'
+import { FirstComeSettings, RecommendSettings } from '../components/ProductExposureSettings'
 import { SafetyStockSettings } from '../components/SafetyStockSettings'
+import { FilterChip } from '../components/FilterChip'
 import { TabButton } from '../components/TabButton'
-import { formatDaysOfStock, formatExpiry, formatWon, SOON_OUT_DAYS } from '../format'
+import { SearchBox, SortHeader, StockStatus } from '../components/tableParts'
+import { COL_WIDTH } from '../colWidth'
+import { statusRank } from '../stockFilter'
+import { useSortedRows } from '../useSortedRows'
+import { formatDaysOfStock, SOON_OUT_DAYS } from '../format'
 import { useInventoryChanges } from '../useInventoryChanges'
 
-type Tab = 'stock' | 'safetyStock' | 'exposure' | 'memo'
+type Tab = 'stock' | 'safetyStock' | 'recommend' | 'firstCome' | 'memo'
 
 interface MemoTarget {
   productId: number
@@ -39,18 +36,17 @@ export const PAGE_SIZE = 20
 /** 검색어를 다 친 뒤 서버에 묻기까지 기다리는 시간 */
 export const SEARCH_DELAY_MS = 300
 
+/** 재고 목록 거르기. 소비기한 임박·지남은 임박·폐기 화면에서 본다(11/12 결정) */
 const STATUS_FILTERS: { value: InventoryStatusFilter; label: string }[] = [
-  { value: 'LOW_STOCK', label: '부족' },
-  { value: 'IMMINENT', label: '임박' },
-  { value: 'EXPIRED', label: '경과' },
   { value: 'SOLD_OUT', label: '품절' },
+  { value: 'LOW_STOCK', label: '부족' },
 ]
 
 /**
  * S-10·S-15 점주 재고 목록. 3초마다 다시 읽고(POLL_MS.ownerInventory) 숫자가 바뀐 행을 잠깐 강조한다.
- * 검색(상품명·코드)·상태 필터·메모 필터·페이지는 서버가 한다(GET /owner/inventory?q&status&memo&page&size).
- * 행을 고르면 오른쪽에 S-11 lot 상세 패널이 열린다 (포스기 가로 화면).
- * 구매 가능 수량이 안전재고보다 적은 상품은 "부족" 배지와 상단 건수(점포 전체)로 알리고, 안전재고는 옆 탭(S-40)에서 정한다.
+ * 검색(상품명)·상태 필터·메모 필터·페이지는 서버가 한다(GET /owner/inventory?q&status&memo&page&size).
+ * 행을 고르면 오른쪽에 S-11 소비기한별 수량 패널이 열린다 (포스기 가로 화면).
+ * 구매 가능 수량이 안전재고보다 적은 상품은 "부족" 배지로 알리고(점포 전체 건수는 대시보드 "재입고 필요"), 안전재고는 옆 탭(S-40)에서 정한다.
  * 행마다 메모 버튼으로 상품 메모를 쓰고, 메모 탭에서 메모만 모아 본다.
  * 상태 필터는 주소의 status(예: ?status=LOW_STOCK)에 둔다. 새로고침해도 남고, 다른 화면이 필터를 건 채로 보낼 수 있다
  */
@@ -63,14 +59,14 @@ export function InventoryPage() {
   const [page, setPage] = useState(0)
   const query: InventoryQuery = { q, statuses, memoOnly, page, size: PAGE_SIZE }
 
-  const inventory = useInventory(query)
-  const { changedIds } = useInventoryChanges(inventory.data?.items)
   const [tab, setTab] = useState<Tab>('stock')
+  // 재고 목록 탭을 볼 때만 3초마다 다시 읽는다(다른 탭은 각자 자기 목록을 부른다, 11/15 호출 줄이기)
+  const inventory = useInventory(query, { poll: tab === 'stock' })
+  const { changedIds } = useInventoryChanges(inventory.data?.items)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [memoTarget, setMemoTarget] = useState<MemoTarget | null>(null)
 
   const selected = inventory.data?.items.find((item) => item.productId === selectedId)
-  const lowStockCount = inventory.data?.lowStockCount ?? 0
 
   const openTab = (next: Tab) => {
     setTab(next)
@@ -96,23 +92,7 @@ export function InventoryPage() {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">재고</h1>
-          <p className="text-sm text-slate-500">
-            3초마다 새로 읽어요. 상품을 누르면 유통기한별 lot이 보여요.
-          </p>
-        </div>
-        {lowStockCount > 0 && (
-          <p
-            role="status"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-orange-50 px-3 py-2 text-sm font-medium text-orange-800"
-          >
-            <TriangleAlert className="size-4" aria-hidden />
-            안전재고보다 적은 상품 {lowStockCount}개
-          </p>
-        )}
-      </div>
+      <h1 className="text-xl font-bold text-slate-900">매장 재고</h1>
 
       <div
         role="tablist"
@@ -126,37 +106,49 @@ export function InventoryPage() {
           onSelect={() => openTab('safetyStock')}
         />
         <TabButton
-          label="추천·선착순"
-          selected={tab === 'exposure'}
-          onSelect={() => openTab('exposure')}
+          label="추천"
+          selected={tab === 'recommend'}
+          onSelect={() => openTab('recommend')}
+        />
+        <TabButton
+          label="선착순"
+          selected={tab === 'firstCome'}
+          onSelect={() => openTab('firstCome')}
         />
         <TabButton label="메모" selected={tab === 'memo'} onSelect={() => openTab('memo')} />
       </div>
 
       {tab === 'safetyStock' && <SafetyStockSettings />}
-      {tab === 'exposure' && <ProductExposureSettings />}
+      {tab === 'recommend' && <RecommendSettings />}
+      {tab === 'firstCome' && <FirstComeSettings />}
       {tab === 'memo' && <MemoList />}
       {tab === 'stock' && (
         <>
           <div className="flex flex-wrap items-center gap-3">
-            <label className="relative">
-              <Search
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
-                aria-hidden
-              />
-              <input
-                type="search"
-                value={searchText}
-                onChange={(e) => {
-                  setSearchText(e.target.value)
+            <SearchBox
+              value={searchText}
+              onChange={(value) => {
+                setSearchText(value)
+                setPage(0)
+              }}
+            />
+            <div role="group" aria-label="거르기" className="flex flex-wrap gap-1.5">
+              <FilterChip
+                label="전체"
+                pressed={statuses.length === 0 && !memoOnly}
+                onToggle={() => {
+                  setSearchParams(
+                    (now) => {
+                      const params = new URLSearchParams(now)
+                      params.delete('status')
+                      return params
+                    },
+                    { replace: true },
+                  )
+                  setMemoOnly(false)
                   setPage(0)
                 }}
-                placeholder="상품명·코드 검색"
-                aria-label="상품명·코드 검색"
-                className="w-60 rounded-lg border border-slate-200 bg-white py-2 pr-3 pl-9 text-sm focus:border-emerald-600 focus:outline-none"
               />
-            </label>
-            <div role="group" aria-label="상태" className="flex flex-wrap gap-1.5">
               {STATUS_FILTERS.map(({ value, label }) => (
                 <FilterChip
                   key={value}
@@ -175,13 +167,7 @@ export function InventoryPage() {
               />
             </div>
           </div>
-          {/* 패널이 열리면 목록 칸을 minmax(0,1fr) 로 둬서 표가 넓어도 레이아웃이 화면 밖으로 밀리지 않게 한다 */}
-          <div
-            className={cn(
-              'grid items-start gap-4',
-              selectedId !== null ? 'grid-cols-[minmax(0,1fr)_20rem]' : 'grid-cols-1',
-            )}
-          >
+          <div>
             <div className="min-w-0 space-y-3">
               <InventoryTable
                 inventory={inventory}
@@ -200,15 +186,16 @@ export function InventoryPage() {
                 />
               )}
             </div>
-            {selectedId !== null && (
-              <LotDetailPanel
-                key={selectedId}
-                productId={selectedId}
-                productName={selected?.name}
-                onClose={() => setSelectedId(null)}
-              />
-            )}
           </div>
+          {/* 소비기한별 수량은 표 옆 칸이 아니라 모달로 연다(11/15 경우). 표 너비가 그대로라 칸이 밀리지 않는다 */}
+          {selectedId !== null && (
+            <LotDetailModal
+              key={selectedId}
+              productId={selectedId}
+              productName={selected?.name}
+              onClose={() => setSelectedId(null)}
+            />
+          )}
         </>
       )}
       {memoTarget && (
@@ -230,28 +217,6 @@ function useDebounced(value: string, delayMs: number): string {
     return () => clearTimeout(timer)
   }, [value, delayMs])
   return settled
-}
-
-interface FilterChipProps {
-  label: string
-  pressed: boolean
-  onToggle: () => void
-}
-
-function FilterChip({ label, pressed, onToggle }: FilterChipProps) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onToggle}
-      className={cn(
-        'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50',
-        pressed && 'border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-50',
-      )}
-    >
-      {label}
-    </button>
-  )
 }
 
 interface PaginationProps {
@@ -312,7 +277,7 @@ function InventoryTable({
 }: TableProps) {
   if (inventory.isPending) {
     return (
-      <div className="flex justify-center py-16 text-slate-400">
+      <div className="flex justify-center py-16 text-slate-500">
         <LoaderCircle className="size-6 animate-spin" aria-label="불러오는 중" />
       </div>
     )
@@ -330,24 +295,105 @@ function InventoryTable({
   }
 
   return (
+    <SortableTable
+      rows={rows}
+      changedIds={changedIds}
+      selectedId={selectedId}
+      onSelect={onSelect}
+      onMemo={onMemo}
+    />
+  )
+}
+
+type SortKey =
+  | 'category'
+  | 'brand'
+  | 'name'
+  | 'totalQuantity'
+  | 'reservedQuantity'
+  | 'clearanceQuantity'
+  | 'availableQuantity'
+  | 'status'
+  | 'daysOfStock'
+
+function sortValue(item: InventoryItem, key: SortKey): string | number {
+  switch (key) {
+    case 'status':
+      return statusRank(item)
+    case 'brand':
+      return item.brand ?? ''
+    case 'clearanceQuantity':
+      return item.clearanceQuantity ?? -1
+    case 'daysOfStock':
+      // 판매가 없어 예상이 없으면 맨 뒤
+      return item.daysOfStock ?? Number.MAX_SAFE_INTEGER
+    default:
+      return item[key]
+  }
+}
+
+const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
+  { key: 'category', label: '카테고리' },
+  { key: 'brand', label: '브랜드' },
+  { key: 'name', label: '상품명' },
+  { key: 'totalQuantity', label: '총 수량', numeric: true },
+  { key: 'reservedQuantity', label: '예약 수량', numeric: true },
+  { key: 'clearanceQuantity', label: '마감세일 수량', numeric: true },
+  { key: 'availableQuantity', label: '판매 가능', numeric: true },
+  { key: 'status', label: '재고 상태' },
+  { key: 'daysOfStock', label: '소진 예상', numeric: true },
+]
+
+interface SortableTableProps {
+  rows: InventoryItem[]
+  changedIds: ReadonlySet<number>
+  selectedId: number | null
+  onSelect: (productId: number) => void
+  onMemo: (target: MemoTarget) => void
+}
+
+/**
+ * 칸 제목을 누르면 그 칸으로 정렬한다(한 번 더 누르면 반대). 정렬하지 않으면 서버가 준 순서 그대로.
+ * 지금은 이 페이지 안에서만 정렬한다. 전체 정렬은 서버 sort 가 생기면 옮긴다
+ */
+function SortableTable({ rows, changedIds, selectedId, onSelect, onMemo }: SortableTableProps) {
+  const { sorted, sort, toggle } = useSortedRows(rows, sortValue)
+
+  return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      <table className="w-full text-sm">
+      <table className="w-full min-w-240 table-fixed text-sm">
+        {/* 카테고리·브랜드·판매 가능·상태는 추천·선착순 탭과 같은 너비(COL_WIDTH) */}
+        <colgroup>
+          <col className={COL_WIDTH.category} />
+          <col className={COL_WIDTH.brand} />
+          <col />
+          <col className="w-24" />
+          <col className="w-28" />
+          <col className="w-36" />
+          <col className={COL_WIDTH.availableQuantity} />
+          <col className={COL_WIDTH.status} />
+          <col className="w-28" />
+          <col className="w-18" />
+        </colgroup>
         <thead className="bg-slate-50 text-left whitespace-nowrap text-slate-500">
           <tr>
-            <th className="px-4 py-3 font-medium">상품</th>
-            <th className="px-3 py-3 font-medium">카테고리</th>
-            <th className="px-3 py-3 text-right font-medium">가격</th>
-            <th className="px-3 py-3 text-right font-medium">총 수량</th>
-            <th className="px-3 py-3 text-right font-medium">예약 수량</th>
-            <th className="px-3 py-3 text-right font-medium">구매 가능</th>
-            <th className="px-3 py-3 text-right font-medium">가장 빠른 기한</th>
-            <th className="px-3 py-3 text-right font-medium">소진 예상</th>
-            <th className="px-3 py-3 text-right font-medium">상태</th>
-            <th className="px-4 py-3 text-center font-medium">메모</th>
+            {COLUMNS.map(({ key, label, numeric }) => (
+              <SortHeader
+                key={key}
+                sortKey={key}
+                label={label}
+                numeric={numeric}
+                sort={sort}
+                onSort={toggle}
+              />
+            ))}
+            <th scope="col" className="px-4 py-3 text-center font-medium">
+              메모
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 text-slate-900">
-          {rows.map((item) => (
+          {sorted.map((item) => (
             <InventoryRow
               key={item.productId}
               item={item}
@@ -372,6 +418,8 @@ interface RowProps {
 }
 
 function InventoryRow({ item, changed, selected, onSelect, onMemo }: RowProps) {
+  const soonOut =
+    item.availableQuantity > 0 && item.daysOfStock !== null && item.daysOfStock <= SOON_OUT_DAYS
   return (
     <tr
       onClick={onSelect}
@@ -383,51 +431,39 @@ function InventoryRow({ item, changed, selected, onSelect, onMemo }: RowProps) {
         changed && 'bg-amber-100 hover:bg-amber-100',
       )}
     >
-      <td className="px-4 py-2 whitespace-nowrap">
-        <div className="flex items-center gap-3">
-          <ProductThumb src={item.imageUrl} name={item.name} />
-          <div>
-            <p className="font-medium">{item.name}</p>
-            <p className="text-xs text-slate-400">{item.productCode}</p>
-          </div>
-        </div>
-      </td>
-      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{item.category}</td>
-      <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
-        {formatWon(item.price)}
+      <td className="py-3 pr-3 pl-4 whitespace-nowrap text-slate-600">{item.category}</td>
+      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{item.brand ?? '-'}</td>
+      <td className="px-3 py-3 font-medium break-keep">
+        {/* 행 클릭과 같은 일. 키보드로도 소비기한별 상세를 열 수 있게 상품명을 버튼으로 둔다 */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onSelect()
+          }}
+          aria-expanded={selected}
+          className="rounded-sm text-left hover:underline"
+        >
+          {item.name}
+        </button>
       </td>
       <td className="px-3 py-3 text-right tabular-nums">{item.totalQuantity}</td>
       <td className="px-3 py-3 text-right tabular-nums">{item.reservedQuantity}</td>
-      <td
-        className={cn(
-          'px-3 py-3 text-right font-semibold text-emerald-700 tabular-nums',
-          item.lowStock && 'text-orange-700',
-        )}
-      >
-        {item.availableQuantity}
+      <td className="px-3 py-3 text-right tabular-nums">
+        {item.clearanceQuantity ?? <span className="text-slate-500">-</span>}
       </td>
-      <td className="px-3 py-3 text-right text-slate-600 tabular-nums">
-        {formatExpiry(item.nearestExpiry)}
+      <td className="px-3 py-3 text-right font-semibold tabular-nums">{item.availableQuantity}</td>
+      <td className="px-3 py-3 whitespace-nowrap">
+        <StockStatus item={item} />
       </td>
       <td
         title={item.dailySales > 0 ? `최근 7일 하루 평균 ${item.dailySales}개 판매` : undefined}
         className={cn(
           'px-3 py-3 text-right whitespace-nowrap text-slate-600 tabular-nums',
-          item.availableQuantity > 0 &&
-            item.daysOfStock !== null &&
-            item.daysOfStock <= SOON_OUT_DAYS &&
-            'font-semibold text-orange-700',
+          soonOut && 'font-semibold text-rose-700',
         )}
       >
         {formatDaysOfStock(item.daysOfStock, item.availableQuantity)}
-      </td>
-      <td className="px-3 py-3 text-right whitespace-nowrap">
-        <StatusBadges
-          lowStock={item.lowStock}
-          safetyStock={item.safetyStock}
-          imminent={item.imminentLotCount}
-          expired={item.expiredLotCount}
-        />
       </td>
       <td className="px-4 py-2 text-center">
         <button
@@ -451,13 +487,6 @@ function InventoryRow({ item, changed, selected, onSelect, onMemo }: RowProps) {
   )
 }
 
-interface BadgeProps {
-  lowStock: boolean
-  safetyStock: number
-  imminent: number
-  expired: number
-}
-
 /** 빈 목록 문구. 조건이 없으면 입고 전 안내, 조건 하나면 그 조건에 맞춘 문구 */
 function emptyMessage(query: InventoryQuery): string {
   const hasSearch = query.q.trim().length > 0
@@ -473,31 +502,30 @@ function emptyMessage(query: InventoryQuery): string {
   return '조건에 맞는 상품이 없어요.'
 }
 
-/** 안전재고보다 적으면 "부족", 임박·경과 lot 이 있으면 개수와 함께 배지를 붙인다 */
-function StatusBadges({ lowStock, safetyStock, imminent, expired }: BadgeProps) {
-  if (!lowStock && imminent === 0 && expired === 0) {
-    return <span className="text-xs text-slate-400">-</span>
-  }
+/**
+ * 소비기한별 수량 패널을 화면 위에 띄운다(공용 ConfirmDialog 와 같은 <dialog> showModal 방식).
+ * 모달 밖으로 초점이 나가지 않고, 닫히면 연 줄(상품 버튼)로 초점을 돌려준다.
+ * Esc 는 브라우저 기본 닫기를 막고 패널이 처리한다(조정 창이 떠 있으면 조정 창만 닫힘)
+ */
+function LotDetailModal(props: { productId: number; productName?: string; onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  useLayoutEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const el = dialog.current
+    el?.showModal()
+    return () => {
+      if (el?.open) el.close()
+      opener?.focus()
+    }
+  }, [])
   return (
-    <span className="inline-flex justify-end gap-1">
-      {lowStock && (
-        <span
-          title={`안전재고 ${safetyStock}개보다 적어요`}
-          className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800"
-        >
-          부족
-        </span>
-      )}
-      {imminent > 0 && (
-        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-          임박 {imminent}
-        </span>
-      )}
-      {expired > 0 && (
-        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-          경과 {expired}
-        </span>
-      )}
-    </span>
+    <dialog
+      ref={dialog}
+      aria-label="소비기한별 수량"
+      onCancel={(e) => e.preventDefault()}
+      className="m-auto w-full max-w-md bg-transparent p-0 backdrop:bg-slate-900/40"
+    >
+      <LotDetailPanel {...props} />
+    </dialog>
   )
 }

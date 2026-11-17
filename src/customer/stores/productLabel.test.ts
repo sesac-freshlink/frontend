@@ -31,7 +31,7 @@ describe('상품 줄 읽기 이름', () => {
         },
         now,
       ),
-    ).toBe('매운 컵라면 115g, 1,700원, 3개 남음, 유통기한 오늘까지, 추천, 신상품, 선착순')
+    ).toBe('매운 컵라면 115g, 1,700원, 3개 남음, 소비기한 오늘까지, 추천, 신상품, 선착순')
     expect(productLabel({ ...base, soldOut: true, availableQuantity: 0 })).toBe(
       '매운 컵라면 115g, 1,700원, 품절',
     )

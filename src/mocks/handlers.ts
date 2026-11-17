@@ -51,6 +51,8 @@ const inventory: Omit<
     productCode: 'P001',
     name: '삼각김밥 참치마요',
     category: '김밥',
+    brand: '프레시',
+    clearanceQuantity: 0,
     price: 1500,
     imageUrl: 'https://tqklhszfkvzk6518638.edge.naverncp.com/product/8800279675761_2.png',
     totalQuantity: 20,
@@ -65,6 +67,8 @@ const inventory: Omit<
     productCode: 'P002',
     name: '바나나우유',
     category: '유제품',
+    brand: '빙그레',
+    clearanceQuantity: 4,
     price: 1700,
     imageUrl: 'https://tqklhszfkvzk6518638.edge.naverncp.com/product/0000088002798.png',
     totalQuantity: 12,
@@ -79,6 +83,8 @@ const inventory: Omit<
     productCode: 'P003',
     name: '샌드위치 햄치즈',
     category: '샌드위치',
+    brand: null,
+    clearanceQuantity: 0,
     price: 3200,
     imageUrl: null,
     totalQuantity: 5,
@@ -104,7 +110,7 @@ function safetyStockOf(productId: number): number {
   return safetyStocks.get(productId) ?? DEFAULT_SAFETY_STOCK
 }
 
-/** S-11 상품별 lot. 유통기한 빠른 순, 수량 0 은 서버가 빼고 내려 준다 */
+/** S-11 상품별 lot. 소비기한 빠른 순, 수량 0 은 서버가 빼고 내려 준다 */
 const lots: Record<number, InventoryLotItem[]> = {
   1: [
     {
@@ -238,7 +244,7 @@ let ledger: LedgerItem[] = [
 ]
 
 /**
- * S-30 임박·경과 lot. 유통기한 빠른 순, 수량 0 은 서버가 빼고 내려 준다.
+ * S-30 임박·경과 lot. 소비기한 빠른 순, 수량 0 은 서버가 빼고 내려 준다.
  * S-32 로 폐기하면 1초 뒤(쪽지 처리 흉내) 수량을 줄여 폴링으로 줄어드는 모습을 볼 수 있다
  */
 let expiring: ExpiringLot[] = [
@@ -312,10 +318,16 @@ let disposals: DisposalHistoryItem[] = [
   },
 ]
 
-/** 오늘(한국 날짜)부터 days 일 뒤 23:59:59(+09:00). 가짜 유통기한이 화면의 D-day 배지로 보이게 지금 기준으로 만든다 */
+/** 오늘(한국 날짜)부터 days 일 뒤 23:59:59(+09:00). 가짜 소비기한이 화면의 D-day 배지로 보이게 지금 기준으로 만든다 */
 function kstEndOfDay(days: number): string {
   const date = new Date(Date.now() + 9 * 60 * 60 * 1000 + days * 24 * 60 * 60 * 1000)
   return `${date.toISOString().slice(0, 10)}T23:59:59+09:00`
+}
+
+/** 지금부터 hours 시간 뒤(+09:00). 홈 마감세일 줄의 남은 시간이 상품마다 다르게 보이게 쓴다 */
+function kstHoursFromNow(hours: number): string {
+  const date = new Date(Date.now() + 9 * 60 * 60 * 1000 + hours * 60 * 60 * 1000)
+  return `${date.toISOString().slice(0, 19)}+09:00`
 }
 
 /** U-10 점포 상품. 점포마다 같은 목록을 준다. 상품 1~3 은 orderHandlers 의 상품과 같아 가짜 주문까지 이어진다 */
@@ -391,12 +403,87 @@ const storeProducts: StoreProduct[] = [
     firstCome: false,
     nearestExpiry: null,
   },
+  // 아래는 가짜 API 모드에서 홈 카테고리 8칸·마감세일 줄이 비지 않게 더한 상품
+  {
+    productId: 6,
+    name: '제육볶음 도시락',
+    category: '도시락',
+    price: 5500,
+    imageUrl: null,
+    availableQuantity: 4,
+    soldOut: false,
+    recommended: true,
+    newArrival: false,
+    firstCome: false,
+    nearestExpiry: kstEndOfDay(1),
+    clearanceQuantity: 3,
+    clearancePrice: 3850,
+    clearanceExpiry: kstHoursFromNow(2.5),
+  },
+  {
+    productId: 7,
+    name: '닭가슴살 샐러드',
+    category: '샐러드',
+    price: 4900,
+    imageUrl: null,
+    availableQuantity: 6,
+    soldOut: false,
+    recommended: false,
+    newArrival: true,
+    firstCome: false,
+    nearestExpiry: kstEndOfDay(1),
+    clearanceQuantity: 2,
+    clearancePrice: 3430,
+    clearanceExpiry: kstHoursFromNow(5),
+  },
+  {
+    productId: 8,
+    name: '계란 10구',
+    category: '신선식품',
+    price: 4800,
+    imageUrl: null,
+    availableQuantity: 8,
+    soldOut: false,
+    recommended: true,
+    newArrival: false,
+    firstCome: false,
+    nearestExpiry: kstEndOfDay(6),
+  },
+  {
+    productId: 9,
+    name: '불고기 김밥',
+    category: '김밥',
+    price: 3800,
+    imageUrl: null,
+    availableQuantity: 5,
+    soldOut: false,
+    recommended: false,
+    newArrival: true,
+    firstCome: false,
+    nearestExpiry: kstEndOfDay(1),
+    clearanceQuantity: 1,
+    clearancePrice: 2660,
+    clearanceExpiry: kstHoursFromNow(0.7),
+  },
 ]
 
 /** 점주가 추천으로 정한 상품 (가짜) */
-const recommendedIds = new Set<number>([2, 5])
+const recommendedIds = new Set<number>([2, 5, 6, 8])
 /** 점주가 정한 선착순 한도 (가짜) */
 const firstComeLimits = new Map<number, number>([[3, 2]])
+
+/** 추천·선착순 줄에 붙는 지금 재고. 서버처럼 이 점포 가짜 재고 목록에 없는 상품은 null */
+function stockOf(productId: number) {
+  const item = inventory.find((i) => i.productId === productId)
+  if (!item) return null
+  const safetyStock = safetyStockOf(productId)
+  return {
+    availableQuantity: item.availableQuantity,
+    safetyStock,
+    lowStock: item.availableQuantity < safetyStock,
+    brand: item.brand,
+  }
+}
 
 function firstComeSettingOf(productId: number) {
   const item = inventory.find((i) => i.productId === productId)
@@ -410,6 +497,7 @@ function firstComeSettingOf(productId: number) {
     limit: limit ?? null,
     used: limit !== undefined ? 0 : null,
     remaining: limit !== undefined ? Math.min(limit, item?.availableQuantity ?? 0) : null,
+    stock: stockOf(productId),
   }
 }
 
@@ -650,7 +738,7 @@ export const handlers = [
       [...new Set(storeProducts.map((p) => p.category))].sort((a, b) => a.localeCompare(b, 'ko')),
     ),
   ),
-  // U-10 상품 상세. 목록 한 줄과 같은 값(먼저 받게 될 상품의 유통기한 포함)
+  // U-10 상품 상세. 목록 한 줄과 같은 값(먼저 받게 될 상품의 소비기한 포함)
   http.get('/api/stores/:storeId/products/:productId', ({ params }) => {
     const product = storeProducts.find((p) => p.productId === Number(params.productId))
     if (!product) {
@@ -685,6 +773,10 @@ export const handlers = [
     if (category) list = list.filter((p) => p.category === category)
     if (params.get('recommended') === 'true') list = list.filter((p) => p.recommended)
     if (params.get('newOnly') === 'true') list = list.filter((p) => p.newArrival)
+    // inventory #71: 지금 마감세일로 살 수 있는 상품만, 선착순 상품만
+    if (params.get('clearance') === 'true')
+      list = list.filter((p) => !p.firstCome && (p.clearanceQuantity ?? 0) > 0)
+    if (params.get('firstCome') === 'true') list = list.filter((p) => p.firstCome)
     if (params.get('sort') === 'POPULAR') {
       list.sort(
         (a, b) => (storeProductSold[b.productId] ?? 0) - (storeProductSold[a.productId] ?? 0),
@@ -696,7 +788,10 @@ export const handlers = [
     if (page !== null && size !== null) {
       list = list.slice(Number(page) * Number(size), (Number(page) + 1) * Number(size))
     }
-    return HttpResponse.json(list)
+    // inventory #72: 최근 7일 순판매 수량
+    return HttpResponse.json(
+      list.map((p) => ({ ...p, soldRecently: storeProductSold[p.productId] ?? 0 })),
+    )
   }),
   // 서버처럼 검색(q)·상태(status, 쉼표로 여러 개는 모두 만족)·메모·페이지를 처리한다
   http.get('/api/owner/inventory', ({ request }) => {
@@ -724,7 +819,8 @@ export const handlers = [
           (status === 'LOW_STOCK' && item.lowStock) ||
           (status === 'IMMINENT' && item.imminentLotCount > 0) ||
           (status === 'EXPIRED' && item.expiredLotCount > 0) ||
-          (status === 'SOLD_OUT' && item.availableQuantity === 0),
+          (status === 'SOLD_OUT' && item.availableQuantity === 0) ||
+          (status === 'RESTOCK' && (item.availableQuantity === 0 || item.lowStock)),
       )
     const filtered = all.filter(matches).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
     return HttpResponse.json<InventoryListPage>({
@@ -836,6 +932,7 @@ export const handlers = [
         name: item.name,
         category: item.category,
         recommended: recommendedIds.has(item.productId),
+        stock: stockOf(item.productId),
       })),
     ),
   ),
@@ -860,6 +957,7 @@ export const handlers = [
           name: item.name,
           category: item.category,
           recommended: body.recommended,
+          stock: stockOf(item.productId),
         }))
         .sort((a, b) => a.name.localeCompare(b.name, 'ko')),
     )
@@ -915,7 +1013,18 @@ export const handlers = [
     return HttpResponse.json(type ? ledger.filter((item) => item.type === type) : ledger)
   }),
   http.get('/api/owner/inventory/expiring', () => HttpResponse.json(expiring)),
-  // 유통기한 달력. 가짜 lot(상품별)에서 그 달에 기한이 끝나고 수량이 남은 것을 날짜별로 묶는다
+  // AI 점주 비서(가짜): 버튼 질문은 질문 번호를, 직접 입력은 질문을 그대로 돌려준다
+  http.post('/api/owner/inventory/assistant/ask', async ({ request }) => {
+    const body = (await request.json()) as { presetId?: string; question?: string }
+    return HttpResponse.json({
+      answer: body.presetId
+        ? `(가짜 답) ${body.presetId} 질문에 대한 답이에요.`
+        : `(가짜 답) "${body.question ?? ''}"에 대한 답이에요.`,
+      source: 'AI',
+      generatedAt: new Date().toISOString().replace('Z', '+09:00'),
+    })
+  }),
+  // 소비기한 달력. 가짜 lot(상품별)에서 그 달에 기한이 끝나고 수량이 남은 것을 날짜별로 묶는다
   http.get('/api/owner/inventory/expiry-calendar', ({ request }) => {
     const month =
       new URL(request.url).searchParams.get('month') ?? new Date().toISOString().slice(0, 7)

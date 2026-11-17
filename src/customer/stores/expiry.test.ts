@@ -4,7 +4,7 @@ import { expiryBadge } from './expiry'
 // 한국 시간 2026-10-25 22:00 (UTC 13:00)
 const now = new Date('2026-10-25T13:00:00Z')
 
-describe('유통기한 D-day 배지', () => {
+describe('소비기한 D-day 배지', () => {
   it('한국 날짜로 오늘 끝나면 "오늘까지"', () => {
     expect(expiryBadge('2026-10-25T23:59:59+09:00', now)).toEqual({
       label: '오늘까지',
