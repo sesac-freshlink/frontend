@@ -11,7 +11,6 @@ import type { StoreProductDetail } from '../api'
 import {
   canDecrease,
   canIncrease,
-  CLEARANCE_DISCOUNT_PERCENT,
   clearanceOf,
   initialSelection,
   selectionAmount,
@@ -52,7 +51,7 @@ export function ClearanceSheet({
     >
       <div className="space-y-0.5">
         <h2 id="clearance-sheet-title" className="text-sm font-semibold text-slate-900">
-          마감세일 {CLEARANCE_DISCOUNT_PERCENT}%
+          마감세일 {clearance.percent}%
         </h2>
         <p className="text-xs break-keep text-slate-500">{CLEARANCE_SHEET_NOTICE}</p>
       </div>

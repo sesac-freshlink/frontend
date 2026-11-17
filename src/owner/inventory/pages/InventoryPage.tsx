@@ -16,6 +16,7 @@ import { formatStatuses, parseStatuses } from '../statusParam'
 import { FirstComeSettings, RecommendSettings } from '../components/ProductExposureSettings'
 import { SafetyStockSettings } from '../components/SafetyStockSettings'
 import { FilterChip } from '../components/FilterChip'
+import { ClearanceSettings } from '../components/ClearanceSettings'
 import { TabButton } from '../components/TabButton'
 import { SearchBox, SortHeader, StockStatus } from '../components/tableParts'
 import { COL_WIDTH } from '../colWidth'
@@ -24,7 +25,7 @@ import { useSortedRows } from '../useSortedRows'
 import { formatDaysOfStock, SOON_OUT_DAYS } from '../format'
 import { useInventoryChanges } from '../useInventoryChanges'
 
-type Tab = 'stock' | 'safetyStock' | 'recommend' | 'firstCome' | 'memo'
+type Tab = 'stock' | 'safetyStock' | 'recommend' | 'firstCome' | 'clearance' | 'memo'
 
 interface MemoTarget {
   productId: number
@@ -96,7 +97,7 @@ export function InventoryPage() {
 
       <div
         role="tablist"
-        aria-label="재고·안전재고·추천·선착순·메모"
+        aria-label="재고·안전재고·추천·선착순·마감세일·메모"
         className="flex gap-1 border-b border-slate-200"
       >
         <TabButton label="재고 목록" selected={tab === 'stock'} onSelect={() => setTab('stock')} />
@@ -115,12 +116,18 @@ export function InventoryPage() {
           selected={tab === 'firstCome'}
           onSelect={() => openTab('firstCome')}
         />
+        <TabButton
+          label="마감세일"
+          selected={tab === 'clearance'}
+          onSelect={() => openTab('clearance')}
+        />
         <TabButton label="메모" selected={tab === 'memo'} onSelect={() => openTab('memo')} />
       </div>
 
       {tab === 'safetyStock' && <SafetyStockSettings />}
       {tab === 'recommend' && <RecommendSettings />}
       {tab === 'firstCome' && <FirstComeSettings />}
+      {tab === 'clearance' && <ClearanceSettings />}
       {tab === 'memo' && <MemoList />}
       {tab === 'stock' && (
         <>

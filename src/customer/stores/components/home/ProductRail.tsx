@@ -6,7 +6,7 @@ import { cn } from '@/shared/ui/cn'
 import { ProductThumb } from '@/shared/ui/ProductThumb'
 import { ErrorState } from '@/shared/ui/QueryState'
 import type { StoreProduct } from '../../api'
-import { CLEARANCE_DISCOUNT_PERCENT, clearanceOf } from '../../clearance'
+import { clearanceOf } from '../../clearance'
 import { CLOCK_TICK_MS, homeRow, remainingText } from '../../homeRows'
 import type { ProductShortcut } from '../../pickupStore'
 
@@ -165,7 +165,7 @@ function ProductCard({
       {clearance ? (
         <span className="block">
           <span className="flex items-baseline gap-1">
-            <span className="text-sm font-bold text-rose-700">{CLEARANCE_DISCOUNT_PERCENT}%</span>
+            <span className="text-sm font-bold text-rose-700">{clearance.percent}%</span>
             <span className="text-base font-bold text-slate-900">{formatWon(clearance.price)}</span>
           </span>
           <span className="block text-sm text-slate-600 line-through">

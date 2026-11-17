@@ -17,7 +17,8 @@ const product = {
 
 describe('clearanceOf', () => {
   it('마감세일 수량과 단가를 준다', () => {
-    expect(clearanceOf(product)).toEqual({ quantity: 2, price: 1050 })
+    expect(clearanceOf(product)).toEqual({ quantity: 2, price: 1050, percent: 30 })
+    expect(clearanceOf({ ...product, clearanceDiscountPercent: 50 })?.percent).toBe(50)
   })
 
   it('수량이 0이거나 선착순이거나 서버가 아직 주지 않으면 없다', () => {

@@ -32,7 +32,9 @@ describe('상품 상세 안내 2줄', () => {
 
     rerender(<DetailGuide clearance firstCome={false} />)
     expect(
-      screen.getByText(/마감세일 상품은 소비기한이 24시간 안에 끝나는 상품이라 30% 싸게/),
+      screen.getByText(
+        /마감세일 상품은 소비기한이 24시간 안에 끝나는 상품이라 싸게 팔아요. 할인율과 판매 시간은/,
+      ),
     ).toBeVisible()
 
     rerender(<DetailGuide clearance={false} firstCome />)
