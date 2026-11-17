@@ -164,7 +164,7 @@ export interface UpdateSafetyStockRequest {
 export interface ClearanceSettingItem {
   category: string
   enabled: boolean
-  /** 할인율(%), 1~95. 단가는 10원 단위 내림, 최소 10원 */
+  /** 할인율(%), 10~90. 단가는 10원 단위 내림, 최소 10원 */
   discountPercent: number
   saleStartHour: number
   saleEndHour: number
